@@ -38,9 +38,22 @@ public abstract class ChaosRelicModel : CustomRelicModel
 
     public override bool IsAllowed(IRunState runState)
     {
+        // Never allow at Neow / ancient pools: the run seed may not exist yet
+        // there, and ancient (先古之民) relics must stay vanilla per user order.
+        // Chaos relics live ONLY in the Common/Uncommon/Rare reward deques.
         return base.IsAllowed(runState)
             && AutoAnthonyRelicsConfig.EnableChaosRelics
             && ChaosRelicRunRegistry.IsSlotAllowedInRun(Slot, runState);
+    }
+
+    /// <summary>
+    /// Chaos relics never appear at Neow (NeowsBones-style pools query this;
+    /// the run seed rarely exists at character-select time, and ancient/
+    /// Neow rewards must stay vanilla per user order 2026-09-07).
+    /// </summary>
+    public override bool IsAllowedAtNeow(Player player)
+    {
+        return false;
     }
 
     protected ChaosRelicDefinition? Definition =>
@@ -48,10 +61,31 @@ public abstract class ChaosRelicModel : CustomRelicModel
 
     public override RelicRarity Rarity => Definition?.Rarity ?? RelicRarity.Common;
 
-    // Description: RelicModel.Description is private and not virtual; the loc
-    // key path ("relics", "<Entry>.description") is what the engine renders, so
-    // our per-slot loc JSON already covers static text. Entry detail (seed-dependent)
-    // is exposed via ShowCounter + Localization provider below.
+    // ---------- Dynamic description (per-run entry list) ----------
+
+    /// <summary>
+    /// BaseLib ILocalizationProvider: ModelLocPatch copies these entries into
+    /// the "relics" loc table at ModelDb init, overriding the static JSON
+    /// fallback. The canonical (menu/preview) instance has no run yet, so it
+    /// shows a generic line; in a run the definition's entry texts are joined
+    /// into the description. Rendered fresh on table rebuild (language switch,
+    /// save load), and the tooltip reads the table - good enough for v0.2.
+    public override List<(string, string)>? Localization
+    {
+        get
+        {
+            var definition = Definition;
+            if (definition is null)
+            {
+                return new RelicLoc(
+                    "Chaos Relic " + (Slot + 1),
+                    "A relic randomly generated for this run. The counter shows its entry count.",
+                    "It seems different every run.");
+            }
+            string description = string.Join("\n", definition.Operations.Select(op => op.Text));
+            return new RelicLoc(definition.Name, description, "It seems different every run.");
+        }
+    }
 
     public override bool ShowCounter => true;
 

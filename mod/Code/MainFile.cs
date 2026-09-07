@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using BaseLib.Config;
+using HarmonyLib;
 using Godot;
 using MegaCrit.Sts2.Core.Modding;
 
@@ -28,7 +29,25 @@ public partial class MainFile : Node
 
             // Godot scenes shipped in the .pck (v1: none, but register anyway -
             // costs nothing and future-proof for icon-atlas scenes).
-            Godot.Bridge.ScriptManagerBridge.LookupScriptsInAssembly(Assembly.GetExecutingAssembly());
+
+            // Apply Harmony patches (Spire1 per-type try/catch pattern: one
+            // bad patch must never abort the set).
+            Harmony harmony = new(ModId);
+            foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
+            {
+                if (type.GetCustomAttributes(typeof(HarmonyPatch), false).Length == 0)
+                {
+                    continue;
+                }
+                try
+                {
+                    harmony.CreateClassProcessor(type).Patch();
+                }
+                catch (Exception e)
+                {
+                    Logger.Error($"Harmony patch {type.Name} failed: {e.Message}");
+                }
+            }
 
             // Touch the registry so slot-marker types resolve at startup: any
             // type-load failure surfaces in the log immediately instead of on

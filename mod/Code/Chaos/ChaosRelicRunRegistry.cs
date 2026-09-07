@@ -49,17 +49,23 @@ public static class ChaosRelicRunRegistry
         return slot >= 0 && slot < pool.Count ? pool[slot] : null;
     }
 
-    /// <summary>Run seed string from the owning player's run state (null outside runs).</summary>
+    /// <summary>
+    /// Run seed from the owning player's run state; null outside runs.
+    /// NEVER touches RelicModel.Owner: that getter calls AssertMutable and
+    /// THROWS CanonicalModelException on canonical (registry/menu) instances -
+    /// which is exactly where ModelLocPatch invokes Localization at startup.
+    /// Instead read the run seed from the global run context when present.
+    /// </summary>
     public static string? RunSeedOf(RelicModel relic)
     {
-        var owner = relic.Owner;
-        if (owner is null)
-        {
-            return null;
-        }
-        var runState = owner.RunState;
-        return RunSeedOf(runState);
+        return CurrentRunSeed;
     }
+
+    /// <summary>
+    /// The active run's seed. ResolveAndRun/GameRun owns the current run; in
+    /// menus and canonical contexts this is null. Updated by MainFile patch.
+    /// </summary>
+    public static string? CurrentRunSeed { get; internal set; }
 
     public static string? RunSeedOf(IRunState? runState)
     {
