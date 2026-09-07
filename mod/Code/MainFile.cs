@@ -9,7 +9,7 @@ namespace AutoAnthonyRelics;
 
 /// <summary>
 /// Mod entry point. v1 needs no Harmony patches: chaos relics reach the run
-/// purely through the BaseLib shared relic pool (see ChaosSharedRelicPool).
+/// purely through the engine SharedRelicPool (see ChaosRelicRegistry doc).
 /// </summary>
 [ModInitializer(nameof(Initialize))]
 public partial class MainFile : Node

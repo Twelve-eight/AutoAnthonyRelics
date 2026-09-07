@@ -12,11 +12,43 @@ namespace AutoAnthonyRelics.Patches;
 /// RelicModel.Owner asserts mutable and throws on canonical instances, so the
 /// registry reads the seed from here instead of from the relic's owner).
 ///
-/// Harmony postfix on RunManager.Launch: captures State.Rng.StringSeed for
-/// the whole run. Prefix on SetUpNewSingleplayer/SetUpNewMultiplayer/
-/// SetUpSavedSingleplayer would be racy (Launch is the single funnel that
-/// fires RunStarted with State fully populated).
+/// Two capture points:
+/// 1. Prefix on SetUpNewSingleplayer/SetUpNewMultiplayer - BEFORE
+///    InitializeNewRun populates the shared grab bag, so
+///    ChaosRelicModel.Rarity resolves real Definitions instead of the Common
+///    fallback (rarity spread across the reward deques).
+/// 2. Postfix on RunManager.Launch - the save-load / general funnel fallback
+///    (also fires RunStarted with State fully populated).
 /// </summary>
+[HarmonyPatch(typeof(RunManager), nameof(RunManager.SetUpNewSingleplayer))]
+[HarmonyPatch(typeof(RunManager), nameof(RunManager.SetUpNewMultiplayer))]
+internal static class RunSeedEarlyTrackPatch
+{
+    /// <summary>
+    /// Capture the seed BEFORE InitializeNewRun populates the shared grab bag:
+    /// relic-bag.Populate reads ChaosRelicModel.Rarity -> Definition, which needs
+    /// the run seed. Without this, all 60 chaos relics fall back to Common and
+    /// flood the Common deque (they still spawn, but with wrong rarity spread).
+    /// Launch postfix stays as the save-load / late-capture fallback.
+    /// </summary>
+    private static void Prefix(RunState state)
+    {
+        try
+        {
+            var seed = state?.Rng?.StringSeed;
+            if (!string.IsNullOrEmpty(seed))
+            {
+                Chaos.ChaosRelicRunRegistry.CurrentRunSeed = seed;
+                MainFile.Logger.Info($"[AutoAnthonyRelics] run seed early-captured: {seed}");
+            }
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Error($"[AutoAnthonyRelics] early seed capture failed: {e.Message}");
+        }
+    }
+}
+
 [HarmonyPatch(typeof(RunManager), nameof(RunManager.Launch))]
 internal static class RunSeedTrackPatch
 {

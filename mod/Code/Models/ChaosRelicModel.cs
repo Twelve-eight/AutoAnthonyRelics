@@ -31,7 +31,7 @@ namespace AutoAnthonyRelics.Models;
 /// Entry execution: every catalog template binds to exactly one hook here;
 /// hooks iterate their Operations and execute via engine commands.
 /// </summary>
-[Pool(typeof(Pools.ChaosSharedRelicPool))]
+[Pool(typeof(MegaCrit.Sts2.Core.Models.RelicPools.SharedRelicPool))]
 public abstract class ChaosRelicModel : CustomRelicModel
 {
     protected abstract int Slot { get; }
@@ -204,7 +204,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
                 continue;
             }
             Flash();
-            var target = enemies[new Random().Next(enemies.Count)];
+            var target = enemies[owner.PlayerRng.Rewards.NextInt(enemies.Count)];
             await CreatureCmd.Damage(choiceContext, target, op.Amount, ValueProp.Unpowered, owner.Creature, null, null);
         }
         foreach (var op in definition.All(ChaosRelicCatalog.PlayBlock))
