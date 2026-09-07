@@ -80,3 +80,47 @@ Rare:      3条20.0% 6条27.6% 9条35.4% 12条13.4% 15条3.6%
 - IsAllowed gates slots to < TotalSlots but does not yet restrict
   per-slot by run seed selection set (all 60 of the run's seed
   pass; intended: all slots ARE the pool for that seed).
+
+## Session 35 (2026-09-08 03:4x) - v0.3: reward-pool integration fix
+
+### Incident (user report 2026-09-07 23:5x)
+"我并不觉得有任何遗物效果被随机" - run seed AZ49CAAUZK0F, 11 relic
+obtains, ZERO chaos relics in rewards or console add. Log showed no
+AUTOANTHONYRELICS obtain lines at all.
+
+### Root cause (byte-verified against engine decompile)
+Reward path: RunManager.InitializeNewRun ->
+SharedGrabBag.Populate(ModelDb.RelicPool<SharedRelicPool>()
+.GetUnlockedRelics(..)). That queries ONLY the ENGINE SharedRelicPool
+singleton; its AllRelics = GenerateAllRelics() then
+ModHelper.ConcatModelsFromMods(typeof(SharedRelicPool), ..) which
+consumes ModHelper.AddModelToPool(typeof(SharedRelicPool), type).
+
+Our v0.2 used [Pool(typeof(ChaosSharedRelicPool))] (own pool type) +
+BaseLib IsShared registration -> appended to ModelDb.AllSharedRelicPools
+(COMPENDIUM list) only. Never reached the reward deques. Same class of
+bug would hit any BaseLib mod confusing the two registration surfaces.
+
+### Fix (commit 45b2b5c)
+1. [Pool(typeof(MegaCrit.Sts2.Core.Models.RelicPools.SharedRelicPool))]
+   on ChaosRelicModel - engine-pool injection, the Spire1-mod pattern
+   (its cards demonstrably reach rewards this way).
+2. Early seed capture: Prefix on SetUpNewSingleplayer/SetUpNewMultiplayer
+   (before InitializeNewRun populates the bag) so ChaosRelicModel.Rarity
+   resolves real Definitions instead of Common fallback. Launch postfix
+   kept as save-load fallback. Without this all 60 slots flood Common.
+3. AfterCardPlayed random target: new Random() ->
+   owner.PlayerRng.Rewards.NextInt (MP-desync fix, was TODO).
+4. Removed dead ChaosSharedRelicPool class (registry kept, file now
+   registry-only with full rationale doc).
+
+### Verified
+Build clean (0 warn/0 err), deployed 03:35, pushed 45b2b5c.
+Game NOT running at deploy time (no dll lock).
+
+### Awaiting live verification (next run)
+- Chaos relics appear in elite/combat/shop relic rewards.
+- Rarity spread matches generator (20 Common/20 Uncommon/20 Rare).
+- Console: relic add AUTOANTHONYRELICS-CHAOS_RELIC005 -> Chinese name,
+  entry-list description, counter, effects fire.
+- Different seed -> different entries for same slot.
