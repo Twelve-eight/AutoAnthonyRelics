@@ -21,17 +21,33 @@ namespace AutoAnthonyRelics.Patches;
 ///    (also fires RunStarted with State fully populated).
 /// </summary>
 [HarmonyPatch(typeof(RunManager), nameof(RunManager.SetUpNewSingleplayer))]
+internal static class RunSeedEarlyTrackSingleplayerPatch
+{
+    private static void Prefix(RunState state) => RunSeedEarlyTrackPatch.Capture(state);
+}
+
 [HarmonyPatch(typeof(RunManager), nameof(RunManager.SetUpNewMultiplayer))]
+internal static class RunSeedEarlyTrackMultiplayerPatch
+{
+    private static void Prefix(RunState state) => RunSeedEarlyTrackPatch.Capture(state);
+}
+
+/// <summary>
+/// Shared early-capture logic. MUST live in separate single-target patch classes:
+/// a patch class with TWO [HarmonyPatch] attributes only patches the LAST target
+/// (verified offline against sts2.dll with Harmony 2.4.2 - SetUpNewSingleplayer got
+/// no patch info while SetUpNewMultiplayer did).
+/// </summary>
 internal static class RunSeedEarlyTrackPatch
 {
     /// <summary>
     /// Capture the seed BEFORE InitializeNewRun populates the shared grab bag:
-    /// relic-bag.Populate reads ChaosRelicModel.Rarity -> Definition, which needs
+    /// relic-bag.Populate reads ChaosRelicModel.Rarity -&gt; Definition, which needs
     /// the run seed. Without this, all 60 chaos relics fall back to Common and
     /// flood the Common deque (they still spawn, but with wrong rarity spread).
     /// Launch postfix stays as the save-load / late-capture fallback.
     /// </summary>
-    private static void Prefix(RunState state)
+    internal static void Capture(RunState state)
     {
         try
         {
@@ -48,7 +64,6 @@ internal static class RunSeedEarlyTrackPatch
         }
     }
 }
-
 [HarmonyPatch(typeof(RunManager), nameof(RunManager.Launch))]
 internal static class RunSeedTrackPatch
 {
