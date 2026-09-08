@@ -55,6 +55,7 @@ internal static class RunSeedEarlyTrackPatch
             if (!string.IsNullOrEmpty(seed))
             {
                 Chaos.ChaosRelicRunRegistry.CurrentRunSeed = seed;
+                ChaosRelicLocUpdater.OnSeedCaptured(seed);
                 MainFile.Logger.Info($"[AutoAnthonyRelics] run seed early-captured: {seed}");
             }
         }
@@ -71,7 +72,12 @@ internal static class RunSeedTrackPatch
     {
         try
         {
-            Chaos.ChaosRelicRunRegistry.CurrentRunSeed = __result?.Rng?.StringSeed;
+            var seed = __result?.Rng?.StringSeed;
+            Chaos.ChaosRelicRunRegistry.CurrentRunSeed = seed;
+            // Save-load funnel: Launch fires after both new runs and loads; the
+            // early-capture path already updated the loc table for the same seed
+            // (OnSeedCaptured is idempotent per seed), this covers load-without-setup.
+            ChaosRelicLocUpdater.OnSeedCaptured(seed);
             MainFile.Logger.Info($"[AutoAnthonyRelics] run seed captured: {Chaos.ChaosRelicRunRegistry.CurrentRunSeed ?? "(null)"}");
         }
         catch (Exception e)

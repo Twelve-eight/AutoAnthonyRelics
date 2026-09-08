@@ -27,4 +27,15 @@ public static class ChaosRelicRegistry
         where !type.IsAbstract && type.BaseType == typeof(Models.ChaosRelicModel)
         orderby type.Name
         select type).ToArray();
+
+    /// <summary>
+    /// Canonical ModelDb instances of all slots (resolved lazily after ModelDb.Init),
+    /// name-ordered to match Types. Used by ChaosRelicLocUpdater to rewrite the
+    /// "relics" loc-table entries per run seed.
+    /// </summary>
+    private static IReadOnlyList<RelicModel>? _slotModels;
+
+    public static IReadOnlyList<RelicModel> SlotModels => _slotModels ??= Types
+        .Select(t => ModelDb.GetById<RelicModel>(ModelDb.GetId(t)))
+        .ToArray();
 }
