@@ -56,7 +56,7 @@ to directly obtain a chaos relic; check the relic icons in the top bar.
 Compatibility: can be used alongside AutoAnthony (card side) but does not depend on it.
 
 Change log
-v0.3.0 (2026-09-08)
+v0.4.1 (2026-09-08 evening)
 - FIX: chaos relics now actually enter the reward pool (engine SharedRelicPool injection; previously they only appeared in the compendium).
 - FIX: run seed is captured before the reward pool is populated, so rarities resolve correctly (20/20/20 spread) instead of all-Common.
 - FIX: split the dual-target Harmony patch class (only the last target was being patched).
