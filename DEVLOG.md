@@ -124,3 +124,59 @@ Game NOT running at deploy time (no dll lock).
 - Console: relic add AUTOANTHONYRELICS-CHAOS_RELIC005 -> Chinese name,
   entry-list description, counter, effects fire.
 - Different seed -> different entries for same slot.
+
+## Session 36 (2026-09-08 16:3x) - v0.3.1: dual-target patch bug, live evidence, icons, workshop staging
+
+### Live evidence from user run (seed E1VC64KM4M7V, 15:21-15:22)
+- User console `relic add AUTOANTHONYRELICS-CHAOS_RELIC005`: WORKED. Save file
+  shows CHAOS_RELIC005 in players[0].relics between BURNING_BLOOD and
+  GOLDEN_PEARL. User could not SEE it: the shared akabeko placeholder icon
+  (all 60 icons byte-identical) rendered as an unfamiliar tiny blob.
+- Grab bag save data: 59 chaos relics ALL in the Common deque, 0 Uncommon,
+  0 Rare. Reward-pool injection itself works (relics enter the bag), but
+  rarity resolution failed for every slot.
+
+### Root cause 2 (byte-verified via offline Harmony repro)
+A patch class with TWO [HarmonyPatch] attributes only patches the LAST
+target. Repro harness (.tmp/harmony-repro, net9.0, loads real sts2.dll +
+deployed mod dll, runs MainFile's exact CreateClassProcessor loop):
+RunSeedEarlyTrackPatch patched exactly 1 method; SetUpNewSingleplayer had
+NO patch info, SetUpNewMultiplayer did. Harmony 2.4.2 PatchClassProcessor
+merges container attributes into one HarmonyMethod (last name wins).
+=> singleplayer runs never early-captured the seed; every Definition
+resolved null during bag populate; Rarity fell back to Common for all 60.
+
+### Fix (commits f308a86, b4c1235, 6227815, a535328)
+1. Split into RunSeedEarlyTrackSingleplayerPatch +
+   RunSeedEarlyTrackMultiplayerPatch, both delegating to a shared static
+   Capture(state). Repro now shows "SP patch info: PRESENT".
+2. Placeholder icons: 60 distinct procedurally generated (hue-spread
+   plaque, per-slot polygon sigil 3-8 verts, rim pips = slot%10), outlines,
+   3x big icons, generic relic.png fallback. Fallback was previously
+   MISSING (path resolved but never existed).
+3. csproj CopyToModsFolder now also copies the packed .pck (mods-dir pck
+   had been stale since v0.2; icons never reached the game until this).
+4. AfterCardPlayed random target: PlayerRng.Rewards ->
+   RunState.Rng.CombatTargets (vanilla Kusarigama pattern; stops consuming
+   the reward RNG channel).
+
+### Session-file repair (user report: one session won't open)
+2026-09-06 jsonl had 13 lines with unescaped inner double quotes (auto
+title from a user message containing quotes, plus build-error tool
+outputs). Repaired 12 via structural-quote heuristic; 1 unrepairable line
+(duplicate of a repairable sibling) dropped. Backup .bak-corrupt. All 20
+sessions now parse.
+
+### Workshop staging (a535328)
+workshop/ folder: content payload (dll/pck/json), 512x512 preview.png,
+bilingual DESCRIPTION.md, steamcmd VDF (publishedfileid empty = new item),
+UPLOAD-GUIDE.md. steamcmd installed at .tooling/steamcmd (self-updated OK).
+Publish blocked ONLY on Steam credentials/2FA - user chose to defer.
+Official CDN installer URLs all 404; working mirror:
+https://media.st.dl.eccdnx.com/client/installer/steamcmd.zip
+
+### Still open
+- Live run verification (user plays): expect "run seed early-captured" in
+  godot.log at run start, 20/20/20 rarity spread in the save's
+  relic_id_lists, chaos relics visible in reward screens with new icons.
+- Workshop publish (needs Steam login).
