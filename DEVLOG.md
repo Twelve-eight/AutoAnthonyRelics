@@ -205,3 +205,22 @@ console add + names + icons ALL verified live. Remaining known gaps:
 effects per-entry (definitions fire on combat hooks - covered by
 generator tests, not yet individually eyeballed in combat) and MP
 full-run (seeded channels verified by code review only).
+
+## Session 37 (2026-09-08 20:0x) - v0.4 live + entry-count balance
+
+### v0.4 live verification (seed JK7SSSJD1RV2, user playtest)
+- L1501 `relic descriptions updated for seed .. (60 slots)` - loc rewrite fires.
+- L1503/1504 `pool replacement: removed 236/244 vanilla relics .. (60 chaos
+  remain)` - both Populate overloads (player bag + shared bag) stripped.
+- User confirmed in-game: shop/rewards show chaos relics only; two relics
+  with 3 entries read as correct.
+
+### Entry-count balance (user feedback: 9 entries = way too many; 3 = normal)
+Data points from user: most relics 9 entries, one 6, two 3 - exactly the old
+formula's clamp(3*(1+rank),3,15) => rank0=3, rank1=6, rank2=9.
+New: entries = clamp(band-1+rank, 3, band+2), band = clamp(multiplier, 3, 5).
+Simulated distribution (3000/rarity): Common 3@84%/4@12%/5@5%,
+Uncommon 3@62%/4@27%/5@10%, Rare 3@47%/4@36%/5@17%.
+NOTE: definitions are deterministic per seed but NOT persisted - the active
+test run's slot definitions re-roll under the new formula on next load
+(same behavior class as AutoAnthony card snapshots).
