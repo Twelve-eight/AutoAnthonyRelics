@@ -30,10 +30,22 @@ compile-time dependency on the AutoAnthony workshop mod. The
     sealed record ChaosRelicDefinition(int Slot, RelicRarity Rarity,
         string Name, IReadOnlyList<ChaosRelicOperation> Operations)
 
-### Entry count = 3x card baseline
+### Entry count = banded (3 is the norm)
 
-AutoAnthony card component count (PickComponentCount) rolls a weighted
-rank 0-4 (count = min + rank, min = catalog min = 1):
+User order evolution: 2026-09-07 asked for "3x the entry count cards get"
+(clamp(3*(1+rank), 3, 15) -> 3/6/9/12/15); live playtest 2026-09-08 judged
+6/9 too bloated and 3 correct, so the band was reworked:
+
+    entries = clamp(band - 1 + rank, MinEntries=3, band + 2)
+    band    = clamp(ChaosRelicMultiplier, 3, MaxEntries - 2 = 5)
+    rank    = weighted 0-4 roll on the card-baseline weights below
+
+Simulated distribution at default multiplier 3 (3000/rarity):
+Common 3@84%/4@12%/5@5%, Uncommon 3@62%/4@27%/5@10%,
+Rare 3@47%/4@36%/5@17%. Config multiplier >3 shifts the whole band up
+(multiplier 5 -> 4..7 entries).
+
+Card-baseline weights (AutoAnthony PickComponentCount, rank 0-4):
 
   Basic    [70,125,5,1,1]
   Common   [110,100,30,8,2]
@@ -41,7 +53,6 @@ rank 0-4 (count = min + rank, min = catalog min = 1):
   Rare     [70,95,120,45,14]
   Ancient  [55,85,130,65,24]
 
-Relic entry count = 3 * (1 + weighted rank roll), clamped 3..15.
 Rarity mapping (StS2 RelicRarity): Common -> card Common weights,
 Uncommon -> card Uncommon weights, Rare -> card Rare weights.
 Shop relic rarity: roll as Rare.
@@ -102,40 +113,45 @@ Slot classes: 60 slots (20 per rarity). All registered in a shared
 CustomRelicPoolModel (IsShared -> true path via BaseLib
 ModelDbSharedRelicPoolsPatch).
 
-### Integration (how chaos relics enter the run)
+### Integration (v0.4: pool REPLACEMENT)
 
-Harmony Postfix on RelicGrabBag.Populate(Player, Rng):
-- If config enabled: append generated relics of each rarity to the
-  rarity deques BEFORE shuffle (via the Populate(IEnumerable, Rng)
-  overload? No: Postfix runs after populate; instead use a Prefix that
-  pre-populates? Simplest robust approach: Postfix on Populate(Player,
-  Rng) that appends our relics to the internal _deques through the
-  public PullFromFront-compatible path - NOT reachable. Therefore:
-  Transpiler-free approach: Prefix on SharedRelicGrabBag getter is
-  overkill; instead patch Populate(Player, Rng) with a FINALIZER-free
-  Postfix that calls the existing public method Populate(IEnumerable,
-  Rng)? It throws if already populated.
-- DECISION: Harmony Prefix on RelicGrabBag.Populate(Player, Rng):
-  when chaos enabled, we cannot easily replace the whole bag (vanilla
-  relics should still drop). Alternative minimal-risk integration:
-  our relics live in the shared pool via BaseLib (CustomRelicPoolModel
-  IsShared=true -> SharedRelicPool registration), so
-  Populate(Player,Rng) ALREADY includes them through
-  SharedRelicPool.GetUnlockedRelics. That requires no Harmony patch on
-  the engine at all. Rarity comes from ChaosRelicModel.Rarity override
-  (deques keyed by rarity). Filtering by run seed happens at
-  IsAllowed(IRunState): only slots rolled for this run's seed are
-  allowed; other slots return false (they never appear).
-- MP: IsAllowed is run-state based on both ends with same seed ->
-  same allowed set. Same deterministic contract as AutoAnthony
-  snapshots (without snapshot transport; both ends regenerate from
-  seed).
+User order 2026-09-08: "你应当替换除了先古之民遗物以外的任何遗物" -
+every pool-sourced relic drop (combat rewards, treasure chests, shops,
+events that pull random relics, dig/rest sites) becomes a chaos relic.
+
+- Chaos relics enter via [Pool(typeof(SharedRelicPool))] (engine pool,
+  v0.3 fix) so Populate already mixes them into the C/U/R/Shop deques.
+- ChaosRelicPoolReplacementPatch: Harmony Postfix on BOTH Populate
+  overloads strips every non-ChaosRelicModel from _deques AND
+  _originalRelics (the RefreshRarity re-fill source). Single-target
+  patch classes only (dual-target classes patch only the last target -
+  see RunSeedTrackPatch history).
+- Ancient / Starter / Event / Neow relics never enter the grab bag
+  (Populate filters to _rarities = C/U/Rare/Shop), so the ancient pool
+  stays vanilla by construction. Fixed event grants (NeowsBones etc.)
+  are event content, not pool pulls - untouched.
+- Pool exhaustion (all 60 chaos taken) falls back to the engine's own
+  RelicFactory.FallbackRelic (Circlet) - standard vanilla depletion
+  behavior.
+- MP: same bag contents on both ends (seed-deterministic replacement of
+  deterministic contents).
+
+### Descriptions (v0.4: live per-run loc rewrite)
+
+BaseLib ModelLocPatch evaluates ILocalizationProvider.Localization ONCE
+at ModelDb.Init (no run seed yet) - the loc table gets the generic
+fallback baked in, so tooltips showed no effects. ChaosRelicLocUpdater
+(called from both seed-capture points) rewrites the "relics" table
+entries (title/description/flavor per slot) for the live seed via the
+same LocTable._translations reflection BaseLib uses. Idempotent per
+seed; save-load covered by the Launch postfix call.
 
 ### Config (BaseLib SimpleModConfig)
 
-- EnableChaosRelics (default true): gate all content.
-- ChaosRelicMultiplier (default 3): entry multiplier vs card baseline
-  (1 = card-like counts).
+- EnableChaosRelics (default true): gate all content (pool replacement
+  + loc updates + hooks).
+- ChaosRelicMultiplier (default 3): entry-count band base; band =
+  clamp(multiplier, 3, 5), entries = clamp(band-1+rank, 3, band+2).
 
 ## File layout (mod/)
 
