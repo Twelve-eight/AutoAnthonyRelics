@@ -1,0 +1,7 @@
+{
+  "AUTOANTHONYRELICS-ENABLE_CHAOS_RELICS.title": "Enable Chaos Relics",
+  "AUTOANTHONYRELICS-ENABLE_CHAOS_RELICS.hoverTip": "When off: chaos relics stop generating, the reward pool returns to vanilla relics, owned chaos relics have no effect.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.title": "Entry Count Band Base",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.hoverTip": "Base of the entry-count band. Default 3: each relic rolls 1/3/5 entries (weighted). Higher values shift all counts up.",
+  "AUTOANTHONYRELICS-RESTORE_DEFAULTS_BUTTON.title": "Restore Defaults"
+}
