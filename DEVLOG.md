@@ -180,3 +180,28 @@ https://media.st.dl.eccdnx.com/client/installer/steamcmd.zip
   godot.log at run start, 20/20/20 rarity spread in the save's
   relic_id_lists, chaos relics visible in reward screens with new icons.
 - Workshop publish (needs Steam login).
+
+## Session 36 addendum (2026-09-08 19:44) - LIVE VERIFICATION PASS
+
+User run seed D99G6QDXSPGE (Ironclad, A10), godot.log evidence:
+- L2094 `[AutoAnthonyRelics] run seed early-captured: D99G6QDXSPGE`
+  (immediately after Embarking L2093) - split-patch fix confirmed live.
+- Save grab bag: Common 19 chaos / Uncommon 19 chaos / Rare 20 chaos +
+  1 in shop deque + 1 console-added = 60/60, mixed WITH vanilla per
+  rarity deque (design contract: vanilla still drops).
+- L2542 `Player 1 obtained RELIC.AUTOANTHONYRELICS-CHAOS_RELIC004
+  from relic reward` - combat reward path.
+- CHAOS_RELIC031 from a treasure chest (speedx TreasureAutoProceed
+  tracked the pick).
+- L2763 CHAOS_RELIC017 from a second combat reward.
+- Shop offered Chaos Relic 25 (slot 24) - user reported seeing it;
+  PullFromBack shop path works.
+- `Inspecting Relic: ... CHAOS_RELIC005.title` + `..024.title` -
+  localization resolves; ZERO "Could not find relic image" lines -
+  all new icons resolve from the fresh pck.
+
+End-to-end status: reward pool + rarity spread + treasure + shop +
+console add + names + icons ALL verified live. Remaining known gaps:
+effects per-entry (definitions fire on combat hooks - covered by
+generator tests, not yet individually eyeballed in combat) and MP
+full-run (seeded channels verified by code review only).
