@@ -224,3 +224,29 @@ Uncommon 3@62%/4@27%/5@10%, Rare 3@47%/4@36%/5@17%.
 NOTE: definitions are deterministic per seed but NOT persisted - the active
 test run's slot definitions re-roll under the new formula on next load
 (same behavior class as AutoAnthony card snapshots).
+
+## Session 38 (2026-09-08 21:1x) - entry counts 1/3/5 + icon + transform dedup
+
+### Entry counts: literal 1/3/5 (user order "改为1-3-5")
+rank tier: 0 -> 1, 1 -> 3, 2+ -> 5 on the same card-baseline weights.
+Simulated: Common 43/42/15, Uncommon 28/35/37, Rare 20/27/53 (%).
+Bounds 1..5 (was 3..7). Auto-deployed (dll 12:52Z build, hash-verified).
+
+### Perfect enchantment icon (sts2-perfect, e2d325f)
+User: "完美现在的卡图已经是那张图了" - the card portrait already IS the
+architect art; copied card_portraits/perfect.png over
+enchantments/perfect_enchantment.png. Deployed + committed.
+
+### Double-generated-card dedup (ChaosBridge aaab5d3)
+Root cause from run history (seed AZ49CAAUZK0F): PandorasBox at floor 18
+transformed 2 strikes; CreateRandomCardForTransform samples WITH
+replacement -> two identical CHAOS_CARD069. (Other decks' "duplicates"
+were the player picking the same reward twice - normal.)
+Fix: TransformBatchDedup in ChaosBridge - CardCmd.Transform prefix/finalizer
+push/pop a thread-static batch exclusion; CreateRandomCardForTransform
+prefix re-implements sampling over options minus already-produced ids.
+Deterministic for MP. Deployed to mods/ChaosBridge (verified in dll).
+
+### Note
+User switched Steam account - game cannot be launched by the agent right
+now; all three changes are deployed and await the next playtest.
