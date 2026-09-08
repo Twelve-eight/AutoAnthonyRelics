@@ -204,7 +204,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
                 continue;
             }
             Flash();
-            var target = enemies[owner.PlayerRng.Rewards.NextInt(enemies.Count)];
+            var target = enemies[owner.RunState.Rng.CombatTargets.NextInt(enemies.Count)];
             await CreatureCmd.Damage(choiceContext, target, op.Amount, ValueProp.Unpowered, owner.Creature, null, null);
         }
         foreach (var op in definition.All(ChaosRelicCatalog.PlayBlock))
