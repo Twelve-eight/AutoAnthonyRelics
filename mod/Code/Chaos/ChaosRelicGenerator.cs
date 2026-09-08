@@ -101,9 +101,15 @@ public static class ChaosRelicGenerator
             }
         }
         int rank = PickWeighted(random, weights);
-        int cardEntryCount = 1 + rank; // card baseline: min 1 entry + rank
-        int entries = cardEntryCount * Math.Max(1, multiplier);
-        return Math.Clamp(entries, ChaosRelicCatalog.MinEntries, ChaosRelicCatalog.MaxEntries);
+        // User order 2026-09-08: 3 entries is the norm; the old 3x-card formula
+        // (clamp(3*(1+rank),3,15)) produced 6/9/12/15 relics and read as bloated.
+        // New band: clamp(2 + rank, 3, 5) on the same weighted rank - mostly 3,
+        // occasionally 4, rarely 5. Multiplier now shifts the band instead of
+        // multiplying it, so config values stay meaningful (default 3 -> band 3..5;
+        // multiplier 4 -> 4..6; clamped to [MinEntries, MaxEntries]).
+        int band = Math.Max(3, Math.Min(multiplier, ChaosRelicCatalog.MaxEntries - 2));
+        int entries = Math.Clamp(band - 1 + rank, ChaosRelicCatalog.MinEntries, band + 2);
+        return entries;
     }
 
     /// <summary>

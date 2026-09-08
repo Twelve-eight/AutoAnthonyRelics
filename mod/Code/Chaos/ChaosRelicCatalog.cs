@@ -73,5 +73,6 @@ public static class ChaosRelicCatalog
 
     public const int EntryMultiplierDefault = 3;
     public const int MinEntries = 3;
-    public const int MaxEntries = 15;
+    /// <summary>Band cap: entries = clamp(band-1+rank, Min, band+2), band = clamp(multiplier, 3, MaxEntries-2). Max reachable = band+2.</summary>
+    public const int MaxEntries = 7;
 }
