@@ -70,10 +70,11 @@
         <CopyToModsFolderOnBuild>true</CopyToModsFolderOnBuild>
     </PropertyGroup>
 
-    <Target Name="CopyToModsFolder" AfterTargets="PostBuildEvent" Condition="'$(CopyToModsFolderOnBuild)' == 'true' and Exists('$(ModsPath)')">
-        <Message Text="Copying .dll .pdb and .json to mods folder." Importance="high" />
+    <Target Name="CopyToModsFolder" AfterTargets="PostBuildEvent;PackPck" Condition="'$(CopyToModsFolderOnBuild)' == 'true' and Exists('$(ModsPath)')">
+        <Message Text="Copying .dll .pdb .pck and .json to mods folder." Importance="high" />
         <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModsPath)$(ModId)/" />
         <Copy SourceFiles="$(MSBuildProjectDirectory)/$(ModId).json" DestinationFolder="$(ModsPath)$(ModId)/" />
         <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(ModsPath)$(ModId)/" SkipUnchangedFiles="true" />
+        <Copy SourceFiles="$(TargetDir)$(TargetName).pck" DestinationFolder="$(ModsPath)$(ModId)/" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pck')" />
     </Target>
 </Project>
