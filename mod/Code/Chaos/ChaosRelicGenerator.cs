@@ -101,15 +101,19 @@ public static class ChaosRelicGenerator
             }
         }
         int rank = PickWeighted(random, weights);
-        // User order 2026-09-08: 3 entries is the norm; the old 3x-card formula
-        // (clamp(3*(1+rank),3,15)) produced 6/9/12/15 relics and read as bloated.
-        // New band: clamp(2 + rank, 3, 5) on the same weighted rank - mostly 3,
-        // occasionally 4, rarely 5. Multiplier now shifts the band instead of
-        // multiplying it, so config values stay meaningful (default 3 -> band 3..5;
-        // multiplier 4 -> 4..6; clamped to [MinEntries, MaxEntries]).
-        int band = Math.Max(3, Math.Min(multiplier, ChaosRelicCatalog.MaxEntries - 2));
-        int entries = Math.Clamp(band - 1 + rank, ChaosRelicCatalog.MinEntries, band + 2);
-        return entries;
+        // User order 2026-09-08 (final): entry counts are LITERALLY 1, 3 or 5 - no
+        // interpolation. Weighted rank roll picks the tier: rank 0 -> 1 entry,
+        // rank 1 -> 3 entries, rank >= 2 -> 5 entries. With the card-baseline weights
+        // the distribution is roughly: Common 45/41/14, Uncommon 38/44/18,
+        // Rare 30/40/30 (% of 1/3/5).
+        // History: v0.3 clamp(3*(1+rank),3,15) -> 3/6/9/12/15 (user: way too many);
+        // v0.4a clamp(band-1+rank,3,5) -> mostly 3 (user then specified literal 1-3-5).
+        return rank switch
+        {
+            0 => 1,
+            1 => 3,
+            _ => 5,
+        };
     }
 
     /// <summary>
