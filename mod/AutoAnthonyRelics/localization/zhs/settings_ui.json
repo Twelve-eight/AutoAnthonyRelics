@@ -1,7 +1,19 @@
 {
   "AUTOANTHONYRELICS-ENABLE_CHAOS_RELICS.title": "启用混沌遗物",
   "AUTOANTHONYRELICS-ENABLE_CHAOS_RELICS.hover.desc": "关闭后:混沌遗物不再生成,奖励池恢复原版遗物,已拥有的混沌遗物效果停用.",
-  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.title": "词条档位基准",
-  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.hover.desc": "词条数量的档位基准.默认 3:每件遗物 1/3/5 条词条(加权随机).调高会整体上移词条数.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.title": "词条档位基准(旧,已闲置)",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.hover.desc": "v0.5 点数预算系统启用后此键不再影响生成(保留为存档兼容).",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_COMMON.title": "点数预算:普通",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_COMMON.hover.desc": "普通混沌遗物的词条点数预算.正词条按点数扣减,负词条返还点数.默认 10.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_UNCOMMON.title": "点数预算:罕见",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_UNCOMMON.hover.desc": "罕见混沌遗物的词条点数预算.默认 16.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_RARE.title": "点数预算:稀有",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_RARE.hover.desc": "稀有混沌遗物的词条点数预算.默认 24.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_COMMON.title": "负面词条概率:普通(%)",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_COMMON.hover.desc": "普通混沌遗物出现一条负面词条的概率(百分比).默认 35.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_UNCOMMON.title": "负面词条概率:罕见(%)",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_UNCOMMON.hover.desc": "罕见混沌遗物出现一条负面词条的概率(百分比).默认 55.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_RARE.title": "负面词条概率:稀有(%)",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_RARE.hover.desc": "稀有混沌遗物出现一条负面词条的概率(百分比).默认 75.",
   "AUTOANTHONYRELICS-RESTORE_DEFAULTS_BUTTON.title": "恢复默认设置"
 }

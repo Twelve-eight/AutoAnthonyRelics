@@ -9,16 +9,23 @@ namespace AutoAnthonyRelics.Chaos;
 /// Seeded chaos relic generator: the relic-side mirror of AutoAnthony's
 /// RandomCardGenerator. Given a run seed, produces one definition per slot.
 ///
-/// Entry count contract (user order 2026-09-07): each relic gets 3x the
-/// entry count the card algorithm would roll. Card algorithm rolls a
-/// weighted rank 0-4 (entry count = 1 + rank); we roll the SAME weighted
-/// distribution then multiply by the configured multiplier (default 3),
-/// clamped to [MinEntries, MaxEntries].
+/// v0.5 budget system (user order 2026-09-11): relics are always active, so
+/// entries are no longer free. Each relic gets a rarity-scaled point budget;
+/// positives cost CostPerPoint x Amount, one negative refunds points which
+/// can buy an extra positive - the MH-Rise qurious-crafting /
+/// Black-Ring-red-quality feel. Generation is fully deterministic from the
+/// seed + the SAME config cost table on both MP ends.
+///
+/// Legacy counts (1/3/5 free picks) replaced wholesale; the multiplier
+/// config key stays for save compat but no longer drives counts.
 /// </summary>
 public static class ChaosRelicGenerator
 {
     public const int SlotsPerRarity = 20;
     public const int TotalSlots = SlotsPerRarity * 3; // Common, Uncommon, Rare
+
+    /// <summary>Cap on positives per relic (readability of tooltip + perf).</summary>
+    public const int MaxPositives = 6;
 
     /// <summary>Chaos relic naming: adjective + noun, seeded pick.</summary>
     private static readonly string[] NamePrefix =
@@ -34,7 +41,9 @@ public static class ChaosRelicGenerator
         "棋子", "纽扣", "羽毛", "鳞片", "书签", "墨水", "香炉", "怀剑", "星盘", "念珠",
     };
 
-    public static IReadOnlyList<ChaosRelicDefinition> Generate(string seed, int multiplier)
+    public static IReadOnlyList<ChaosRelicDefinition> Generate(string seed, int budgetCommon,
+        int budgetUncommon, int budgetRare, ChaosPointCosts costs,
+        int negativeChancePercentCommon, int negativeChancePercentUncommon, int negativeChancePercentRare)
     {
         Random random = new(StableSeed(seed));
         var definitions = new List<ChaosRelicDefinition>(TotalSlots);
@@ -43,31 +52,53 @@ public static class ChaosRelicGenerator
         for (int slot = 0; slot < TotalSlots; slot++)
         {
             RelicRarity rarity = RarityForSlot(slot);
-            ChaosRelicDefinition definition = GenerateOne(random, slot, rarity, multiplier, usedNames, usedEffectSets);
+            int budget = BudgetFor(rarity, budgetCommon, budgetUncommon, budgetRare);
+            int negativeChance = NegativeChanceFor(rarity,
+                negativeChancePercentCommon, negativeChancePercentUncommon, negativeChancePercentRare);
+            ChaosRelicDefinition definition = GenerateOne(random, slot, rarity, budget, negativeChance,
+                costs, usedNames, usedEffectSets);
             definitions.Add(definition);
         }
         return definitions;
     }
 
-    internal static ChaosRelicDefinition GenerateOne(Random random, int slot, RelicRarity rarity,
-        int multiplier, HashSet<string> usedNames, HashSet<string> usedEffectSets)
+    internal static int BudgetFor(RelicRarity rarity, int common, int uncommon, int rare) => rarity switch
     {
-        // 4 attempts for a unique name + unique effect-set signature (mirrors
-        // AutoAnthony's GenerateCardCandidates recovery attempts).
+        RelicRarity.Common => Math.Max(1, common),
+        RelicRarity.Uncommon => Math.Max(1, uncommon),
+        RelicRarity.Rare => Math.Max(1, rare),
+        _ => Math.Max(1, common),
+    };
+
+    internal static int NegativeChanceFor(RelicRarity rarity, int c, int u, int r) => rarity switch
+    {
+        RelicRarity.Common => ClampPercent(c),
+        RelicRarity.Uncommon => ClampPercent(u),
+        RelicRarity.Rare => ClampPercent(r),
+        _ => ClampPercent(c),
+    };
+
+    private static int ClampPercent(int value) => Math.Clamp(value, 0, 100);
+
+    /// <summary>
+    /// Budget-driven generation for one slot. Structure: positives until the
+    /// budget runs dry (or the cap), then a chance of exactly one negative
+    /// whose refund may buy one more positive. Duplicate-effect-set avoidance
+    /// mirrors the legacy 4-attempt recovery.
+    /// </summary>
+    internal static ChaosRelicDefinition GenerateOne(Random random, int slot, RelicRarity rarity,
+        int budget, int negativeChancePercent, ChaosPointCosts costs,
+        HashSet<string> usedNames, HashSet<string> usedEffectSets)
+    {
         for (int attempt = 0; attempt < 4; attempt++)
         {
             bool finalAttempt = attempt == 3;
-            int entryCount = RollEntryCount(random, rarity, multiplier, finalAttempt);
-            IReadOnlyList<string> templates = PickTemplates(random, rarity, entryCount, finalAttempt);
-            var operations = new List<ChaosRelicOperation>(entryCount);
-            foreach (string template in templates)
-            {
-                var spec = ChaosRelicCatalog.Spec(template);
-                int amount = spec.Min + random.Next(spec.Max - spec.Min + 1);
-                operations.Add(new ChaosRelicOperation(template, amount, spec.Render(amount)));
-            }
+            var operations = AssembleOperations(random, rarity, budget, negativeChancePercent,
+                costs, finalAttempt);
             string name = GenerateName(random, usedNames);
-            string signature = string.Join("|", templates.OrderBy(t => t, StringComparer.Ordinal));
+            string signature = string.Join("|", operations
+                .Select(op => op.Template)
+                .OrderBy(t => t, StringComparer.Ordinal));
             if (!usedEffectSets.Add(signature) && !finalAttempt)
             {
                 continue; // duplicate effect set: retry
@@ -79,80 +110,117 @@ public static class ChaosRelicGenerator
     }
 
     /// <summary>
-    /// Roll the card-baseline weighted rank, then apply the 3x multiplier.
-    /// On the final attempt the rank distribution is flattened toward higher
-    /// counts (mirrors AutoAnthony's AdaptiveEffectCountWindow growth) so
-    /// duplicate-avoidance cannot loop on low-entropy pools.
+    /// The budget algorithm. Deterministic given (random state, rarity,
+    /// budgets, cost table). Order: spend on positives, then the negative
+    /// roll, then refund-bought positives. Template picks are uniform over
+    /// the affordable set; amounts are rolled inside the band and clamped
+    /// down to what the remaining budget affords.
     /// </summary>
-    internal static int RollEntryCount(Random random, RelicRarity rarity, int multiplier, bool widen)
+    internal static IReadOnlyList<ChaosRelicOperation> AssembleOperations(Random random,
+        RelicRarity rarity, int budget, int negativeChancePercent, ChaosPointCosts costs,
+        bool finalAttempt)
     {
-        int[] weights = rarity switch
+        var operations = new List<ChaosRelicOperation>();
+        var positivesTaken = new HashSet<string>(StringComparer.Ordinal);
+        var negativesTaken = new HashSet<string>(StringComparer.Ordinal);
+
+        // Phase 1: spend the initial budget on positives.
+        SpendOnPositives(random, budget, rarity, costs, positivesTaken, operations, finalAttempt);
+
+        // Phase 2: negative roll - at most one negative per relic.
+        if (random.Next(100) < negativeChancePercent)
         {
-            RelicRarity.Common => ChaosRelicCatalog.CardBaselineCommon,
-            RelicRarity.Uncommon => ChaosRelicCatalog.CardBaselineUncommon,
-            RelicRarity.Rare => ChaosRelicCatalog.CardBaselineRare,
-            _ => ChaosRelicCatalog.CardBaselineCommon,
-        };
-        if (widen)
-        {
-            for (int i = 0; i < weights.Length; i++)
+            string? negative = PickNegative(random, costs, negativesTaken);
+            if (negative is not null)
             {
-                weights[i] = 10 + weights[i];
+                var spec = ChaosRelicCatalog.Spec(negative);
+                int amount = RollAmount(random, spec);
+                operations.Add(new ChaosRelicOperation(negative, amount, spec.Render(amount)));
+                negativesTaken.Add(negative);
+
+                // Phase 3: refund buys more positives.
+                int refund = costs.RefundPerPoint(negative) * amount;
+                SpendOnPositives(random, refund, rarity, costs, positivesTaken, operations, finalAttempt);
             }
         }
-        int rank = PickWeighted(random, weights);
-        // User order 2026-09-08 (final): entry counts are LITERALLY 1, 3 or 5 - no
-        // interpolation. Weighted rank roll picks the tier: rank 0 -> 1 entry,
-        // rank 1 -> 3 entries, rank >= 2 -> 5 entries. With the card-baseline weights
-        // the distribution is roughly: Common 45/41/14, Uncommon 38/44/18,
-        // Rare 30/40/30 (% of 1/3/5).
-        // History: v0.3 clamp(3*(1+rank),3,15) -> 3/6/9/12/15 (user: way too many);
-        // v0.4a clamp(band-1+rank,3,5) -> mostly 3 (user then specified literal 1-3-5).
-        return rank switch
-        {
-            0 => 1,
-            1 => 3,
-            _ => 5,
-        };
+
+        return operations;
     }
 
-    /// <summary>
-    /// Pick entry templates. v1 policy: at most one copy of each passive
-    /// template, at most one copy of TurnStartEnergy and PassiveMaxEnergy
-    /// (avoid stacking degenerate relics), everything else freely repeatable.
-    /// </summary>
-    internal static IReadOnlyList<string> PickTemplates(Random random, RelicRarity rarity, int count, bool finalAttempt)
+    private static void SpendOnPositives(Random random, int budget, RelicRarity rarity,
+        ChaosPointCosts costs, HashSet<string> taken, List<ChaosRelicOperation> operations, bool finalAttempt)
     {
-        var all = ChaosRelicCatalog.AllTemplates;
+        // Unique-only positives: repeatable engines would stack degenerately.
         var uniqueOnly = new HashSet<string>(StringComparer.Ordinal)
         {
             ChaosRelicCatalog.TurnStartEnergy,
             ChaosRelicCatalog.PassiveMaxEnergy,
+            ChaosRelicCatalog.TurnStartDraw,
         };
-        var picked = new List<string>(count);
-        // First pass: favor distinct templates for variety.
-        var pool = all.OrderBy(_ => random.Next()).ToArray();
-        int pi = 0;
-        while (picked.Count < count && pi < pool.Length)
+        int cheapestUnit = ChaosRelicCatalog.CheapestPositiveUnit(costs);
+        int spendable = budget;
+        while (spendable >= cheapestUnit && operations.Count < ChaosRelicCatalog.PositiveTemplates.Count
+               && operations.Count(op => !ChaosRelicCatalog.IsNegative(op.Template)) < MaxPositives)
         {
-            string t = pool[pi++];
-            if (uniqueOnly.Contains(t) && picked.Contains(t))
+            string? template = PickAffordablePositive(random, spendable, rarity, costs, taken, uniqueOnly);
+            if (template is null)
             {
+                break; // nothing affordable left
+            }
+            var spec = ChaosRelicCatalog.Spec(template);
+            int amount = RollAmountWithinBudget(random, spec, spendable, costs);
+            if (amount < spec.Min)
+            {
+                // Even the minimum does not fit - skip this template entirely.
+                taken.Add(template);
                 continue;
             }
-            picked.Add(t);
+            int cost = costs.CostPerPoint(template) * amount;
+            operations.Add(new ChaosRelicOperation(template, amount, spec.Render(amount)));
+            taken.Add(template);
+            spendable -= cost;
         }
-        // Second pass: fill remaining by random re-picks.
-        while (picked.Count < count)
+    }
+
+    private static string? PickAffordablePositive(Random random, int spendable, RelicRarity rarity,
+        ChaosPointCosts costs, HashSet<string> taken, HashSet<string> uniqueOnly)
+    {
+        var affordable = ChaosRelicCatalog.PositiveTemplates
+            .Where(t => !taken.Contains(t))
+            .Where(t => costs.CostPerPoint(t) <= spendable)
+            .ToList();
+        if (affordable.Count == 0)
         {
-            string t = all[random.Next(all.Count)];
-            if (uniqueOnly.Contains(t) && picked.Contains(t))
-            {
-                continue;
-            }
-            picked.Add(t);
+            return null;
         }
-        return picked;
+        return affordable[random.Next(affordable.Count)];
+    }
+
+    private static string? PickNegative(Random random, ChaosPointCosts costs, HashSet<string> taken)
+    {
+        var available = ChaosRelicCatalog.NegativeTemplates
+            .Where(t => !taken.Contains(t))
+            .ToList();
+        if (available.Count == 0)
+        {
+            return null;
+        }
+        return available[random.Next(available.Count)];
+    }
+
+    private static int RollAmount(Random random, ChaosRelicCatalog.TemplateSpec spec)
+    {
+        return spec.Min + random.Next(spec.Max - spec.Min + 1);
+    }
+
+    /// <summary>Roll in-band, then clamp down to what the remaining budget affords.</summary>
+    private static int RollAmountWithinBudget(Random random, ChaosRelicCatalog.TemplateSpec spec,
+        int spendable, ChaosPointCosts costs)
+    {
+        int amount = RollAmount(random, spec);
+        int perPoint = costs.CostPerPoint(spec.Template);
+        int maxAffordable = spendable / perPoint;
+        return Math.Min(amount, Math.Max(0, maxAffordable));
     }
 
     internal static string GenerateName(Random random, HashSet<string> used)
@@ -198,24 +266,5 @@ public static class ChaosRelicGenerator
             }
             return hash;
         }
-    }
-
-    internal static int PickWeighted(Random random, int[] weights)
-    {
-        long total = 0;
-        foreach (int w in weights)
-        {
-            total += w;
-        }
-        long roll = (long)(random.NextDouble() * total);
-        for (int i = 0; i < weights.Length; i++)
-        {
-            roll -= weights[i];
-            if (roll < 0)
-            {
-                return i;
-            }
-        }
-        return weights.Length - 1;
     }
 }

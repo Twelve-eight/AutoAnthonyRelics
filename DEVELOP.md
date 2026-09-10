@@ -193,3 +193,95 @@ seed; save-load covered by the Launch postfix call.
 - No upgrade paths, no counter displays, no run-history snapshot
   transport, no relic-specific art, no localization beyond zh + en
   description strings, no per-character pools (shared only).
+
+## v0.5 budget system (point budget + negative entries)
+
+User order 2026-09-11: relics are ALWAYS fully active (unlike cards which
+must be drawn/played), so 1-3-5 entries is severely overpowered. New model,
+Monster Hunter Rise qurious-crafting style: each relic gets a POINT BUDGET
+set by rarity; positive entries COST points; negative entries REFUND points
+(enabling more positives, like Black Ring red-quality / MH anomaly
+augmentation); the final relic is "a few positives + one negative".
+
+### Point budget contract
+
+    BudgetFor(rarity) = ChaosRelicBudgetCommon / Uncommon / Rare (config)
+
+Generation loop per relic (deterministic from seed, same recovery rules):
+1. Start with budget = BudgetFor(rarity).
+2. While budget >= cheapest positive AND positives < MaxPositives:
+   pick a positive template weighted by rarity, roll amount within its band,
+   cost = CostPerPoint(template) * Amount (config per template), clamp to
+   remaining budget by re-rolling amount downward when needed.
+3. Roll one negative entry (probability NegativeChance, config; default
+   always for Rare, less for Common). Negative refund = its point value;
+   the refund can then buy one more positive (the "red quality" feel).
+4. Net spend never exceeds initial budget + refunds actually taken.
+
+Config carries every knob as a static property (BaseLib SimpleModConfig):
+- ChaosRelicBudgetCommon / Uncommon / Rare (defaults user-tunable)
+- Per-template CostPerPoint_<TEMPLATE> (defaults assigned by user)
+- ChaosRelicNegativeChanceCommon / Uncommon / Rare
+
+Tier-1 MP determinism: all budget keys join EnableChaosRelics/Multiplier as
+must-match config (see sts2-mpconfigsync incident doc).
+
+### Full entry-template list (v0.5 catalog)
+
+POSITIVES (cost points; band = amount range):
+| Template | Hook | Band | Text (zh) |
+|----------|------|------|-----------|
+| C_START_DAMAGE_ALL | BeforeCombatStart | 3-8 | 战斗开始时,对所有敌人造成{N}点伤害. |
+| C_START_BLOCK | BeforeCombatStart | 4-10 | 战斗开始时,获得{N}点格挡. |
+| C_START_STRENGTH | BeforeCombatStart | 1-3 | 战斗开始时,获得{N}点力量. |
+| C_START_DEXTERITY | BeforeCombatStart | 1-3 | 战斗开始时,获得{N}点敏捷. |
+| C_START_DRAW | BeforeCombatStart | 1-3 | 战斗开始时,抽{N}张牌. |
+| C_START_ENERGY | BeforeCombatStart | 1-3 | 战斗开始时,获得{N}点能量. |
+| C_START_VULN_ALL | BeforeCombatStart | 1-3 | 战斗开始时,对所有敌人施加{N}层易伤. |
+| C_START_WEAK_ALL | BeforeCombatStart | 1-3 | 战斗开始时,对所有敌人施加{N}层虚弱. |
+| C_START_REGEN | BeforeCombatStart | 1-4 | 战斗开始时,获得{N}层再生. |
+| C_START_THORNS | BeforeCombatStart | 1-3 | 战斗开始时,获得{N}点荆棘. |
+| C_START_ARTIFACT | BeforeCombatStart | 1-1 | 战斗开始时,获得{N}层护体(抵消负面效果). |
+| C_START_POISON_ALL | BeforeCombatStart | 2-6 | 战斗开始时,对所有敌人施加{N}层中毒. |
+| C_START_METALLICIZE | BeforeCombatStart | 1-4 | 战斗开始时,获得{N}点巩固(每回合获得格挡). |
+| T_START_BLOCK | AfterPlayerTurnStartLate | 2-5 | 每回合开始时,获得{N}点格挡. |
+| T_START_ENERGY | AfterPlayerTurnStartLate | 1-1 | 每回合开始时,获得{N}点能量. |
+| T_START_HEAL | AfterPlayerTurnStartLate | 1-3 | 每回合开始时,回复{N}点生命. |
+| T_START_DRAW | AfterPlayerTurnStartLate | 1-1 | 每回合开始时,抽{N}张牌. |
+| PLAY_DAMAGE_RANDOM | AfterCardPlayed | 1-4 | 每当你打出一张牌,对随机一名敌人造成{N}点伤害. |
+| PLAY_BLOCK | AfterCardPlayed | 1-3 | 每当你打出一张牌,获得{N}点格挡. |
+| PASSIVE_ATTACK_DAMAGE | ModifyDamageAdditive | 1-4 | 你的攻击牌伤害+{N}. |
+| PASSIVE_MAX_ENERGY | ModifyMaxEnergy | 1-1 | 每回合能量上限+{N}. |
+| PASSIVE_BLOCK_ADD | ModifyBlockAdditive | 1-2 | 你获得格挡时,格挡值+{N}. |
+| VICTORY_HEAL | AfterCombatVictory | 2-8 | 战斗胜利后,回复{N}点生命. |
+| VICTORY_GOLD | AfterCombatVictory | 5-20 | 战斗胜利后,获得{N}金币. |
+| PASSIVE_GOLD_GAIN | ModifyGoldGained | 1-3 | 你获得的金币+{N}. |
+| REST_HEAL_BONUS | ModifyRestSiteHealAmount | 1-5 | 营火休息时,额外回复{N}点生命. |
+
+NEGATIVES (refund points):
+| Template | Hook | Band | Text (zh) |
+|----------|------|------|-----------|
+| N_START_FRAIL_SELF | BeforeCombatStart | 1-2 | 战斗开始时,你获得{N}层脆弱. |
+| N_TURN_LOSE_HP | AfterPlayerTurnStartLate | 1-3 | 每回合开始时,失去{N}点生命. |
+| N_TURN_ENERGY_DOWN | ModifyMaxEnergy | 1-1 | 每回合能量上限-{N}. |
+| N_TURN_DRAW_DOWN | ModifyHandDraw | 1-1 | 每回合抽牌数-{N}. |
+| N_CARDS_COST_UP | ModifyEnergyCostInCombat | 1-1 | 你手牌中的技能牌费用+{N}. |
+| N_GOLD_DOWN | ModifyGoldGained | 1-3 | 你获得的金币-{N}. |
+| N_POTION_BLOCK | ShouldProcurePotion | - | 你无法获得药水. |
+| N_START_SLOTH_SELF | BeforeCombatStart | 1-1 | 战斗开始时,你获得{N}层怠惰(每回合打出的牌数受限). |
+| N_REST_HEAL_DOWN | ModifyRestSiteHealAmount | 1-4 | 营火休息时,回复的生命-{N}. |
+| N_ATTACK_DAMAGE_DOWN | ModifyDamageAdditive | 1-2 | 你的攻击牌伤害-{N}. |
+| N_MAX_HP_DOWN | AfterObtained | 1-4 | 获得此遗物时,最大生命值-{N}. |
+
+Engine facts used (byte-verified against sts2.dll):
+- FrailPower: Debuff, 25% block reduction (ModifyBlockMultiplicative 0.75).
+- SlothPower: Debuff, limits cards playable per turn to Amount.
+- PowerCmd.Apply<T>(ctx, targets, amount, applier, cardSource, silent).
+- ModifyHandDraw(player, count) additive on draw count.
+- ModifyEnergyCostInCombat(card, cost, inHand, combatState) cost delta.
+- ShouldProcurePotion(potion, player): false blocks potion acquisition.
+- ModifyRestSiteHealAmount(creature, amount) additive.
+- AfterObtained + PlayerCmd/ModifyMaxHp: max-hp down via CreatureCmd or
+  direct player stat command (verify exact API in code before use).
+- RegenPower, ThornsPower, ArtifactPower, PoisonPower, MetallicizePower
+  all exist as player-appliable powers.

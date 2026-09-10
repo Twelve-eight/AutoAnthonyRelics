@@ -25,7 +25,14 @@ public static class ChaosRelicRunRegistry
             {
                 return cached;
             }
-            var generated = ChaosRelicGenerator.Generate(seed, multiplier);
+            var generated = ChaosRelicGenerator.Generate(seed,
+                AutoAnthonyRelicsConfig.ChaosRelicBudgetCommon,
+                AutoAnthonyRelicsConfig.ChaosRelicBudgetUncommon,
+                AutoAnthonyRelicsConfig.ChaosRelicBudgetRare,
+                AutoAnthonyRelicsConfig.PointCosts,
+                AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceCommon,
+                AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceUncommon,
+                AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceRare);
             Cache[seed] = generated;
             Order.Enqueue(seed);
             while (Order.Count > CacheLimit)

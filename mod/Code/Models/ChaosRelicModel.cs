@@ -158,6 +158,49 @@ public abstract class ChaosRelicModel : CustomRelicModel
             if (!flashed) { Flash(); flashed = true; }
             await PlayerCmd.GainEnergy(op.Amount, owner);
         }
+        foreach (var op in definition.All(ChaosRelicCatalog.StartRegen))
+        {
+            if (!flashed) { Flash(); flashed = true; }
+            await PowerCmd.Apply<RegenPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
+                op.Amount, owner.Creature, null);
+        }
+        foreach (var op in definition.All(ChaosRelicCatalog.StartThorns))
+        {
+            if (!flashed) { Flash(); flashed = true; }
+            await PowerCmd.Apply<ThornsPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
+                op.Amount, owner.Creature, null);
+        }
+        foreach (var op in definition.All(ChaosRelicCatalog.StartArtifact))
+        {
+            if (!flashed) { Flash(); flashed = true; }
+            await PowerCmd.Apply<ArtifactPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
+                op.Amount, owner.Creature, null);
+        }
+        foreach (var op in definition.All(ChaosRelicCatalog.StartPoisonAll))
+        {
+            if (!flashed) { Flash(); flashed = true; }
+            await PowerCmd.Apply<PoisonPower>(new ThrowingPlayerChoiceContext(),
+                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<MegaCrit.Sts2.Core.Entities.Creatures.Creature>(), op.Amount, owner.Creature, null);
+        }
+        foreach (var op in definition.All(ChaosRelicCatalog.StartPlating))
+        {
+            if (!flashed) { Flash(); flashed = true; }
+            await PowerCmd.Apply<PlatingPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
+                op.Amount, owner.Creature, null);
+        }
+        // Negatives: self-applied debuffs at combat start.
+        foreach (var op in definition.All(ChaosRelicCatalog.NegStartFrail))
+        {
+            if (!flashed) { Flash(); flashed = true; }
+            await PowerCmd.Apply<FrailPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
+                op.Amount, owner.Creature, null);
+        }
+        foreach (var op in definition.All(ChaosRelicCatalog.NegStartSloth))
+        {
+            if (!flashed) { Flash(); flashed = true; }
+            await PowerCmd.Apply<SlothPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
+                op.Amount, owner.Creature, null);
+        }
     }
 
     // ---------- Turn-start hooks ----------
@@ -183,6 +226,17 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             Flash();
             await CreatureCmd.Heal(player.Creature, op.Amount);
+        }
+        foreach (var op in definition.All(ChaosRelicCatalog.TurnStartDraw))
+        {
+            Flash();
+            await CardPileCmd.Draw(choiceContext, op.Amount, player);
+        }
+        foreach (var op in definition.All(ChaosRelicCatalog.NegTurnLoseHp))
+        {
+            Flash();
+            await CreatureCmd.Damage(new ThrowingPlayerChoiceContext(), player.Creature,
+                op.Amount, ValueProp.Unpowered, player.Creature, null, null);
         }
     }
 
@@ -225,12 +279,13 @@ public abstract class ChaosRelicModel : CustomRelicModel
             return 0m;
         }
         var owner = Owner;
-        // Player-attacks only: dealer is the player, target is an enemy.
         if (owner is null || dealer != owner.Creature || target == owner.Creature)
         {
             return 0m;
         }
-        return definition.All(ChaosRelicCatalog.PassiveAttackDamage).Sum(op => op.Amount);
+        int bonus = definition.All(ChaosRelicCatalog.PassiveAttackDamage).Sum(op => op.Amount);
+        int malus = definition.All(ChaosRelicCatalog.NegAttackDamageDown).Sum(op => op.Amount);
+        return bonus - malus;
     }
 
     public override decimal ModifyMaxEnergy(Player player, decimal amount)
@@ -240,7 +295,87 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return amount;
         }
-        return amount + definition.All(ChaosRelicCatalog.PassiveMaxEnergy).Sum(op => op.Amount);
+        return amount
+            + definition.All(ChaosRelicCatalog.PassiveMaxEnergy).Sum(op => op.Amount)
+            - definition.All(ChaosRelicCatalog.NegTurnEnergyDown).Sum(op => op.Amount);
+    }
+
+    public override decimal ModifyHandDraw(Player player, decimal count)
+    {
+        var definition = Definition;
+        if (definition is null || player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        {
+            return count;
+        }
+        return count - definition.All(ChaosRelicCatalog.NegTurnDrawDown).Sum(op => op.Amount);
+    }
+
+    public override decimal ModifyGoldGained(Player player, decimal amount)
+    {
+        var definition = Definition;
+        if (definition is null || player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        {
+            return amount;
+        }
+        return amount
+            + definition.All(ChaosRelicCatalog.PassiveGoldGain).Sum(op => op.Amount)
+            - definition.All(ChaosRelicCatalog.NegGoldDown).Sum(op => op.Amount);
+    }
+
+    public override decimal ModifyRestSiteHealAmount(Creature creature, decimal amount)
+    {
+        var definition = Definition;
+        var owner = Owner;
+        if (definition is null || owner is null || creature != owner.Creature
+            || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        {
+            return amount;
+        }
+        return amount
+            + definition.All(ChaosRelicCatalog.RestHealBonus).Sum(op => op.Amount)
+            - definition.All(ChaosRelicCatalog.NegRestHealDown).Sum(op => op.Amount);
+    }
+
+    public override bool ShouldProcurePotion(PotionModel potion, Player player)
+    {
+        var definition = Definition;
+        if (definition is null || player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        {
+            return true;
+        }
+        // Negative: cannot acquire potions at all.
+        return definition.All(ChaosRelicCatalog.NegPotionBlock).Count == 0;
+    }
+
+    public override decimal ModifyBlockAdditive(Creature? target, decimal block, ValueProp props,
+        CardModel? cardSource, CardPlay? cardPlay)
+    {
+        var definition = Definition;
+        var owner = Owner;
+        if (definition is null || owner is null || target != owner.Creature
+            || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        {
+            return 0m;
+        }
+        return definition.All(ChaosRelicCatalog.PassiveBlockAdd).Sum(op => op.Amount);
+    }
+
+    // ---------- Obtain hook (one-shot negatives) ----------
+
+    public override async Task AfterObtained()
+    {
+        var definition = Definition;
+        var owner = Owner;
+        if (definition is null || owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        {
+            return;
+        }
+        foreach (var op in definition.All(ChaosRelicCatalog.NegMaxHpDown))
+        {
+            Flash();
+            await CreatureCmd.LoseMaxHp(new ThrowingPlayerChoiceContext(), owner.Creature,
+                op.Amount, isFromCard: false);
+        }
     }
 
     // ---------- Victory hooks ----------
@@ -257,6 +392,11 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             Flash();
             await CreatureCmd.Heal(owner.Creature, op.Amount);
+        }
+        foreach (var op in definition.All(ChaosRelicCatalog.VictoryGold))
+        {
+            Flash();
+            await PlayerCmd.GainGold(op.Amount, owner);
         }
     }
 }

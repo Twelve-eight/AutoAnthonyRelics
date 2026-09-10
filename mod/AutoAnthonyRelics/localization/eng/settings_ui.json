@@ -1,7 +1,19 @@
 {
   "AUTOANTHONYRELICS-ENABLE_CHAOS_RELICS.title": "Enable Chaos Relics",
   "AUTOANTHONYRELICS-ENABLE_CHAOS_RELICS.hover.desc": "When off: chaos relics stop generating, the reward pool returns to vanilla relics, owned chaos relics have no effect.",
-  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.title": "Entry Count Band Base",
-  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.hover.desc": "Base of the entry-count band. Default 3: each relic rolls 1/3/5 entries (weighted). Higher values shift all counts up.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.title": "Entry Count Band Base (legacy, idle)",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.hover.desc": "Does not affect generation since the v0.5 point-budget system (kept for save compatibility).",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_COMMON.title": "Point Budget: Common",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_COMMON.hover.desc": "Point budget for Common chaos relics. Positive entries cost points; negative entries refund points. Default 10.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_UNCOMMON.title": "Point Budget: Uncommon",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_UNCOMMON.hover.desc": "Point budget for Uncommon chaos relics. Default 16.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_RARE.title": "Point Budget: Rare",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_BUDGET_RARE.hover.desc": "Point budget for Rare chaos relics. Default 24.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_COMMON.title": "Negative Chance: Common (%)",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_COMMON.hover.desc": "Percent chance a Common chaos relic carries one negative entry. Default 35.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_UNCOMMON.title": "Negative Chance: Uncommon (%)",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_UNCOMMON.hover.desc": "Percent chance an Uncommon chaos relic carries one negative entry. Default 55.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_RARE.title": "Negative Chance: Rare (%)",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_NEGATIVE_CHANCE_RARE.hover.desc": "Percent chance a Rare chaos relic carries one negative entry. Default 75.",
   "AUTOANTHONYRELICS-RESTORE_DEFAULTS_BUTTON.title": "Restore Defaults"
 }
