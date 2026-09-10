@@ -32,18 +32,24 @@ internal class AutoAnthonyRelicsConfig : SimpleModConfig
     // ---------- Point budgets by rarity ----------
 
     [ConfigSection("预算 / Budget")]
+    [ConfigSlider(1, 60, 1)]
     public static int ChaosRelicBudgetCommon { get; set; } = 10;
 
+    [ConfigSlider(1, 80, 1)]
     public static int ChaosRelicBudgetUncommon { get; set; } = 16;
 
+    [ConfigSlider(1, 120, 1)]
     public static int ChaosRelicBudgetRare { get; set; } = 24;
 
     // ---------- Negative-entry chances (percent) by rarity ----------
 
+    [ConfigSlider(0, 100, 5)]
     public static int ChaosRelicNegativeChanceCommon { get; set; } = 35;
 
+    [ConfigSlider(0, 100, 5)]
     public static int ChaosRelicNegativeChanceUncommon { get; set; } = 55;
 
+    [ConfigSlider(0, 100, 5)]
     public static int ChaosRelicNegativeChanceRare { get; set; } = 75;
 
     // ---------- Per-template cost overrides ----------

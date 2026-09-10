@@ -1,11 +1,4 @@
-"workshopitem"
-{
-	"appid"		"2868840"
-	"contentfolder"		"G:\\omp works\\AutoAnthonyRelics\\workshop\\content"
-	"previewfile"		"G:\\omp works\\AutoAnthonyRelics\\workshop\\preview.png"
-	"visibility"		"0"
-	"title"		"AutoAnthony - Relics (Chaos Relic Generator / Dongni Algorithm - Relics)"
-	"description"		"[h1]AutoAnthony - Relics(东尼算法 - 遗物)[/h1]
+[h1]AutoAnthony - Relics(东尼算法 - 遗物)[/h1]
 
 每局游戏,用东尼算法从本局种子确定性地生成 60 件混沌遗物,并替换本局全部的遗物掉落.
 [i]Every run, deterministically generate 60 chaos relics from the run seed and replace all relic drops.[/i]
@@ -102,6 +95,3 @@
 
 局内按 ` 打开开发者控制台,输入:
 [code]relic add AUTOANTHONYRELICS-CHAOS_RELIC005[/code]
-	"changenote"		"v0.5.0: point-budget entry system (qurious-crafting style) - rarity-scaled budgets, 27 positive + 10 negative templates, negative entries refund points for extra positives; built-in RelicRewardChoices + Act4Heart Sapphire Key fix; all budgets/chances/costs configurable."
-	"publishedfileid"		"3798163198"
-}

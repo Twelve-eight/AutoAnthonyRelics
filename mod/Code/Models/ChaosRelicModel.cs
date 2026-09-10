@@ -295,9 +295,9 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return amount;
         }
-        return amount
+        return Math.Max(0m, amount
             + definition.All(ChaosRelicCatalog.PassiveMaxEnergy).Sum(op => op.Amount)
-            - definition.All(ChaosRelicCatalog.NegTurnEnergyDown).Sum(op => op.Amount);
+            - definition.All(ChaosRelicCatalog.NegTurnEnergyDown).Sum(op => op.Amount));
     }
 
     public override decimal ModifyHandDraw(Player player, decimal count)
@@ -307,7 +307,8 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return count;
         }
-        return count - definition.All(ChaosRelicCatalog.NegTurnDrawDown).Sum(op => op.Amount);
+        // Floor 1: a 0-card hand would brick the run; NoDraw semantics.
+        return Math.Max(1m, count - definition.All(ChaosRelicCatalog.NegTurnDrawDown).Sum(op => op.Amount));
     }
 
     public override decimal ModifyGoldGained(Player player, decimal amount)

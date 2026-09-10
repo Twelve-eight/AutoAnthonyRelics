@@ -250,3 +250,82 @@ Deterministic for MP. Deployed to mods/ChaosBridge (verified in dll).
 ### Note
 User switched Steam account - game cannot be launched by the agent right
 now; all three changes are deployed and await the next playtest.
+
+## Session 39 (2026-09-11) - v0.5: point-budget entries + RRC/A4H key fix
+
+### User orders this session
+1. Relics are ALWAYS active (vs cards needing draw/play), so 1-3-5 entries
+   is severely OP. Adopt MH-Rise qurious-crafting: rarity-scaled point
+   budget, positives cost points, negatives refund points, final relic =
+   "a few positives + one negative". Full template list to the user for
+   default point assignment; everything player-configurable.
+2. NEW subscribed mod RelicRewardChoices (3795496596, three-choice relic
+   rewards) to be integrated.
+3. Bug: RelicRewardChoices + Act4Heart - opened chests never award the
+   Sapphire Key (skip or take). Fix INSIDE our mod.
+4. Ship that fix ALSO as a standalone workshop mod (for RRC+A4H-only
+   players); our package keeps it built-in by default.
+5. Workshop push: dedicated push script (other sessions share
+   triple2-push.ps1 - do not touch it).
+
+### RRC + Act4Heart root cause (byte-verified, both dlls decompiled)
+Vanilla+Act4Heart: chest skip -> SkipRelicLocally() -> OnPicked(null)
+(A4H IL-patches the singleplayer guard) -> AwardRelics() -> A4H postfix
+GiveKey_On_AwardRelics grants SapphireKey to no-vote players.
+RRC replaces NTreasureRoom.OpenChest wholesale and ends the synchronizer
+via CompleteWithNoRelics(); OnPicked/AwardRelics never run -> key never
+granted, while A4H's skip-button key icon still renders.
+Fix: postfix RelicRewardChoiceReward.OnSkipped, gated on chest-flow
+(_sharedTreasurePoolOnly or TreasureLifetime), A4H keys_enable respected,
+duplicate-grant guarded; grant = RelicCmd.Obtain(ModelDb.Relic<SapphireKey>()
+.ToMutable(), player, -1) - exact A4H TryGiveKey semantics.
+
+### Dual shipping (commits f9d7d6e, 1682690)
+Shared source mod/Code/Compat/RrcTreasureKeyCompat.cs compiled by BOTH:
+- AutoAnthonyRelics (MainFile TryInstall, default-on)
+- standalone/RrcA4hKeyFix (workshop mod id RrcA4hKeyFix, own manifest,
+  BaseLib+RRC+A4H deps) - StandaloneMain provides the namespace bridge.
+Process-wide named mutex (Global\AutoAnthonyRelics.RrcTreasureKeyCompat.v1)
+guarantees single install when both mods loaded. Both builds 0warn/0err.
+Workshop staging: workshop-keyfix/ (vdf no fileid yet = new item, preview
+key-blue, bilingual description) + .tmp/a4hkeyfix-push.ps1 (dedicated).
+
+### v0.5 budget system (commit 1682690 + clamps/staging this session)
+- Catalog: 27 positives (11 new: regen/thorns/artifact/poison-all/plating/
+  turn-draw/block-add/victory-gold/passive-gold/rest-heal) + 10 negatives
+  (frail/sloth self, per-turn HP loss, energy/draw/gold/attack/rest down,
+  potion block, max-hp down on obtain via CreatureCmd.LoseMaxHp).
+- Generator: budget spend -> negative roll (C/U/R 35/55/75%) -> refund buys
+  more positives; unique-effect-set 4-attempt recovery kept. Defaults
+  C/U/R budgets 10/16/24; per-template Cost_/Refund_ cfg overrides.
+- Clamps: hand draw floor 1 (0-card hand bricks run), max energy floor 0.
+- Config sliders (ConfigSlider) + zhs/eng loc for 6 new keys; multiplier
+  key now legacy/idle (save compat).
+- Smoke (throwaway .tmp/budget-smoke, 45 seeds): determinism, spend<=
+  budget+refund, <=1 negative, <=6 positives, 20/20/20 rarity, unique
+  names, in-band amounts - ALL PASS. Avg positives 2.8/3.9/5.0; negative
+  rate 38/58/76%.
+- ENGINE FACTS (all byte-verified): FrailPower = 0.75 block mult debuff;
+  SlothPower limits cards/turn; NoDrawPower removes on turn end;
+  PlatingPower = metallicize equivalent; Player.GetRelic<T>();
+  TaskHelper.RunSafely; ModifyHandDraw/ModifyGoldGained/
+  ModifyRestSiteHealAmount/ShouldProcurePotion all on AbstractModel.
+
+### RRC interop with chaos pool (verified by code path)
+RRC EnumerateAvailableCandidates -> IsAllowed(runState) -> our slot gate
+(60/60 with seed) -> bag Remove -> 3 chaos candidates. All engine calls,
+no unseeded randomness; structural compatibility, no code needed.
+
+### Deploy state (03:31 build, v0.5.0)
+mods/ + mods_disabled/ + workshop/content refreshed; pck repacked
+(484277 B). VDF: description updated to v0.5 + keyfix compat note,
+changenote v0.5.0. description-bbcode-v05.txt extracted for web edit.
+TEMPLATE-POINTS-LIST.md = user tuning deliverable.
+
+### Awaiting user
+- Default point assignment review (TEMPLATE-POINTS-LIST.md) - budgets,
+  chances, per-template costs; will apply as new defaults.
+- Publish go: main item (v0.5.0) + NEW RrcA4hKeyFix item. VDF description
+  field STRIP decision before push (web manual edits policy).
+- Live verify: chest skip under RRC+A4H grants Sapphire Key; relic tooltips
+  show pos+neg entries.
