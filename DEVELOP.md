@@ -285,3 +285,53 @@ Engine facts used (byte-verified against sts2.dll):
   direct player stat command (verify exact API in code before use).
 - RegenPower, ThornsPower, ArtifactPower, PoisonPower, MetallicizePower
   all exist as player-appliable powers.
+
+## v0.5.1 refinements (user session 2026-09-11 #2)
+
+### User-tuned point sync
+All 16 user edits from workshop/TEMPLATE-POINTS-LIST.md are now the catalog
+defaults AND in-game config sliders (4 collapsible ConfigSections in
+settings: Budget / Positive costs / Negative refunds / Extra pool - BaseLib
+ConfigSection renders collapsible). Config properties Cost_<TEMPLATE> /
+Refund_<TEMPLATE> ARE the live values the generator reads (property-name
+lookup; the old cfg-key override bridge was deleted - clean cutover).
+
+### Sloth redesign (velvet-choker)
+1-stack SlothPower = "1 card per turn" = run-killing strength (user).
+Redesigned after the vanilla VelvetChoker pattern: relic-side ShouldPlay
+counter caps cards per turn at 7 - N (N = sloth amount, band 1-5), refund
+6N points. Text renders the cap ({M} = 7-N). No power involved.
+
+### Triangular decay pricing
+Decaying powers (poison/regen/plating - engine-verified: trigger for
+Amount then Amount-1, ..): Nth stack worth more than 1st (total value
+triangular), so total(N) = perPoint * N*(N+1)/2. Regen/Plating perPoint 2
+(N=4 -> 20/12 pts), Poison perPoint 1 (N=6 -> 21 pts, includes the
+all-enemies premium). Generator walks N down to fit budget.
+Also renamed 镀层->覆甲 (plating; user correction).
+
+### EXTRA effect pool (opt-in)
+Non-vanilla-relic effects, OFF by default (EnableExtraPool; Tier-1 MP key):
+- X_HAND_RETAIN / X_HAND_SLY: GiveSingleTurnRetain/GiveSingleTurnSly on
+  first N hand cards each turn (per-turn hook re-applies).
+- X_HAND_ETHEREAL (negative): AddKeyword(CardKeyword.Ethereal) on first N
+  hand cards each turn (exhaust at end of turn).
+- X_ENCHANT_SHARP / NIMBLE / IMBUED: CardCmd.Enchant on first N hand
+  cards at combat start (Sharp attack-only; NOT awaited - returns
+  EnchantmentModel, not Task).
+- X_RETAIN_ENERGY_DISCOUNT: on retain (AfterCardChangedPiles hand->hand
+  with ShouldRetainThisTurn): EnergyCost.AddUntilPlayed(-N, reduceOnly).
+- X_RETAIN_ATTACK_BUFF: on retain, next attack this turn +N (stacked,
+  consumed inside ModifyDamageAdditive - engine has no Late variant).
+- X_STANCE_WRATH/CALM/DIVINITY: reflection into Watcher mod
+  WatcherCombatHelper.Enter* (only when that mod is loaded; templates are
+  generation-filtered by assembly probe otherwise).
+
+Engine facts (byte-verified): CardModel.Type (not CardType) / .Pile?.Type /
+EnergyCost.AddUntilPlayed(relative, reduceOnly) / Enchant<T> is sync /
+Sharp resolves ambiguously without full qualification.
+
+### Smoke state (45 seeds, user-tuned values)
+ALL PASS: determinism, triangular spend<=budget+refund, <=1 negative,
+<=6 positives, sloth cap text, 20/20/20 rarity, unique names, in-band.
+avgSpend 14.3/22.5/31.1 vs budgets 10/16/24 (refunds recycle fully).
