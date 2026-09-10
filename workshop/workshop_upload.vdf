@@ -76,6 +76,6 @@
 [code]relic add AUTOANTHONYRELICS-CHAOS_RELIC005[/code]
 可直接获得一件混沌遗物,查看顶栏图标与提示框效果.
 "
-	"changenote"		"v0.4.2: localized mod-settings labels; full description"
+	"changenote"		"v0.4.3: settings hover descriptions now resolve (BaseLib .hover.desc key format); version bumped."
 	"publishedfileid"		"3798163198"
 }

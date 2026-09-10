@@ -3,7 +3,7 @@
   "name": "AutoAnthony - Relics (东尼算法 - 遗物)",
   "author": "omp",
   "description": "Chaos relics generated per run with the Anthony algorithm, 3x the entry count cards get. Each relic carries 3-15 random entries (战斗开始/回合/出牌/被动 hooks). Standalone; no AutoAnthony dependency.",
-  "version": "0.1.0",
+  "version": "0.4.3",
   "min_game_version": "0.111.0",
   "has_pck": true,
   "has_dll": true,
