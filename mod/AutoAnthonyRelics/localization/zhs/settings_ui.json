@@ -1,7 +1,7 @@
 {
   "AUTOANTHONYRELICS-ENABLE_CHAOS_RELICS.title": "启用混沌遗物",
-  "AUTOANTHONYRELICS-ENABLE_CHAOS_RELICS.hoverTip": "关闭后:混沌遗物不再生成,奖励池恢复原版遗物,已拥有的混沌遗物效果停用.",
+  "AUTOANTHONYRELICS-ENABLE_CHAOS_RELICS.hover.desc": "关闭后:混沌遗物不再生成,奖励池恢复原版遗物,已拥有的混沌遗物效果停用.",
   "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.title": "词条档位基准",
-  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.hoverTip": "词条数量的档位基准.默认 3:每件遗物 1/3/5 条词条(加权随机).调高会整体上移词条数.",
+  "AUTOANTHONYRELICS-CHAOS_RELIC_MULTIPLIER.hover.desc": "词条数量的档位基准.默认 3:每件遗物 1/3/5 条词条(加权随机).调高会整体上移词条数.",
   "AUTOANTHONYRELICS-RESTORE_DEFAULTS_BUTTON.title": "恢复默认设置"
 }
