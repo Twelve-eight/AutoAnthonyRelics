@@ -1,0 +1,84 @@
+<Project Sdk="Godot.NET.Sdk/4.5.1" InitialTargets="CheckDependencyPaths">
+    <Import Project=".\Sts2PathDiscovery.props"/>
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>true</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Publicize>True</Publicize>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <AppOutputBase>$(MSBuildProjectDirectory)\</AppOutputBase>
+        <PathMap>$(AppOutputBase)=.\</PathMap>
+        <GodotDisabledSourceGenerators>GodotPluginsInitializer</GodotDisabledSourceGenerators>
+        <!-- Mod id must match manifest + resource folder name inside the pck. -->
+        <ModId>RrcA4hKeyFix</ModId>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!-- Disable architecture mismatch warning; mods are ideally built for all platforms (MSIL). -->
+        <NoWarn>$(NoWarn);MSB3270;STS002</NoWarn>
+        <!-- STS002: pure code fix, no localization files. -->
+    </PropertyGroup>
+
+    <ItemGroup Condition="Exists('$(Sts2DataDir)')" >
+        <Reference Include="0Harmony">
+            <HintPath>$(Sts2DataDir)/0Harmony.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="sts2">
+            <HintPath>$(Sts2DataDir)/sts2.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup Condition="$(Publicize)">
+        <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="All"/>
+        <Publicize Include="sts2" IncludeVirtualMembers="false" IncludeCompilerGeneratedMembers="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Alchyr.Sts2.BaseLib" Version="3.4.5" PrivateAssets="All"/>
+        <PackageReference Include="Alchyr.Sts2.ModAnalyzers" Version="*" />
+        <PackageReference Include="BSchneppe.StS2.PckPacker" Version="0.1.1" PrivateAssets="All" />
+    </ItemGroup>
+
+    <!--
+      Shared compat source: the SAME file the AutoAnthonyRelics build compiles
+      (../mod/Code/Compat/RrcTreasureKeyCompat.cs). Single source of truth;
+      the in-mod copy and this standalone mod must behave identically, and the
+      process-wide mutex inside that file makes double-installation safe.
+      Its only external dependency is MainFile.Logger + the AutoAnthonyRelics
+      namespace, both provided by StandaloneMain.cs below (namespace bridge).
+    -->
+    <ItemGroup>
+        <Compile Include="..\..\mod\Code\Compat\RrcTreasureKeyCompat.cs" Link="Code\RrcTreasureKeyCompat.cs"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="$(ModId)/**" />
+        <EmbeddedResource Remove="$(ModId)/**" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Condition="Exists('Directory.Build.props')" Include="Directory.Build.props"/>
+        <None Include="$(ModId).json" />
+        <None Include="project.godot"/>
+    </ItemGroup>
+
+    <Target Name="CheckDependencyPaths" >
+        <Error
+            Text=" Slay the Spire 2 data not found at path '$(Sts2DataDir)'"
+            Condition="'$(Sts2DataDir)' == '' or !Exists('$(Sts2DataDir)')" />
+    </Target>
+
+    <PropertyGroup>
+        <CopyToModsFolderOnBuild>true</CopyToModsFolderOnBuild>
+    </PropertyGroup>
+
+    <Target Name="CopyToModsFolder" AfterTargets="PostBuildEvent;PackPck" Condition="'$(CopyToModsFolderOnBuild)' == 'true' and Exists('$(ModsPath)')">
+        <Message Text="Copying .dll .pdb .pck and .json to mods folder." Importance="high" />
+        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModsPath)$(ModId)/" />
+        <Copy SourceFiles="$(MSBuildProjectDirectory)/$(ModId).json" DestinationFolder="$(ModsPath)$(ModId)/" />
+        <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(ModsPath)$(ModId)/" SkipUnchangedFiles="true" />
+        <Copy SourceFiles="$(TargetDir)$(TargetName).pck" DestinationFolder="$(ModsPath)$(ModId)/" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pck')" />
+    </Target>
+</Project>

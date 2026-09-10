@@ -1,0 +1,48 @@
+"workshopitem"
+{
+	"appid"		"2868840"
+	"contentfolder"		"G:\\omp works\\AutoAnthonyRelics\\workshop-keyfix\\content"
+	"previewfile"		"G:\\omp works\\AutoAnthonyRelics\\workshop-keyfix\\preview.png"
+	"visibility"		"0"
+	"title"		"Relic Reward Choices + Act4Heart Key Fix (三选一蓝钥匙修复)"
+	"description"		"[h1]Relic Reward Choices + Act4Heart 蓝宝石钥匙修复[/h1]
+
+修复 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3795496596]遗物奖励改为三选一 (RelicRewardChoices)[/url] 与 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3747537811]Act4Heart[/url] 的兼容问题: 开启这两个 mod 后, 打开宝箱无论选不选三选一的遗物, 都无法再获得蓝宝石钥匙 (Sapphire Key).
+
+[i]Fixes the RelicRewardChoices + Act4Heart interaction where opened chests never award the Sapphire Key, whether the offered three-choice relic is taken or skipped.[/i]
+
+[hr]
+
+[h2]问题成因 / What breaks[/h2]
+
+原版中, 跳过宝箱遗物时, Act4Heart 会在宝箱结算流程里补发蓝宝石钥匙作为补偿. 三选一 mod 完全替换了宝箱的开启流程, 原结算流程不再执行, Act4Heart 的补发逻辑也就永远不触发 - 但跳过按钮上的钥匙图标仍然显示, UI 承诺了钥匙却永远不给.
+
+[i]In vanilla, Act4Heart awards the Sapphire Key during the chest's relic-vote settlement when you pass on the chest relic. RelicRewardChoices replaces that settlement flow entirely, so Act4Heart's grant never fires - while its key icon on the skip button still renders, promising a key that never comes.[/i]
+
+[h2]修复方式 / The fix[/h2]
+
+当三选一的宝箱奖励被跳过时 (等同原版\"未投票\"), 按原版语义补发蓝宝石钥匙:
+[list]
+[*]仅对宝箱流程生效 - 战斗奖励/商店/挖掘的三选一不会误发钥匙
+[*]尊重 Act4Heart 的 keys_enable 配置
+[*]已有钥匙的玩家不会重复获得
+[*]与 AutoAnthony - Relics 内置的同名修复互斥, 两个都装也不会双发
+[/list]
+
+[i]When the chest's three-choice reward is skipped (the vanilla \"no vote\" case), the key is granted with vanilla semantics: chest flows only, Act4Heart's keys_enable respected, no duplicate grants, and mutually exclusive with the built-in fix in AutoAnthony - Relics so installing both is safe.[/i]
+
+[hr]
+
+[h2]前置依赖 / Requirements (all three)[/h2]
+
+[list]
+[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3737335127]BaseLib[/url]
+[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3795496596]遗物奖励改为三选一 (RelicRewardChoices)[/url]
+[*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3747537811]Act4Heart[/url]
+[/list]
+
+[b]已订阅 AutoAnthony - Relics 的玩家不需要本 mod[/b] - 那个 mod 已内置同样的修复.
+
+[i]AutoAnthony - Relics subscribers do NOT need this mod - it already carries the same fix.[/i]"
+	"changenote"		"v0.1.0: initial release - Sapphire Key grant when RelicRewardChoices chest reward is skipped (Act4Heart compatibility)."
+}

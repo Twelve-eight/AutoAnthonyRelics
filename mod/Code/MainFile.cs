@@ -49,6 +49,11 @@ public partial class MainFile : Node
                 }
             }
 
+            // Cross-mod bugfix (RelicRewardChoices + Act4Heart Sapphire Key):
+            // installs only when both mods are present and no twin instance
+            // already claimed it (see RrcTreasureKeyCompat doc).
+            Compat.RrcTreasureKeyCompat.TryInstall(harmony);
+
             // Touch the registry so slot-marker types resolve at startup: any
             // type-load failure surfaces in the log immediately instead of on
             // first pool generation mid-run.

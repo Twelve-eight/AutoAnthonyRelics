@@ -1,0 +1,25 @@
+{
+  "id": "RrcA4hKeyFix",
+  "name": "Relic Reward Choices + Act4Heart Key Fix (三选一蓝钥匙修复)",
+  "author": "omp",
+  "description": "Fixes the RelicRewardChoices (three-choice relic rewards) + Act4Heart interaction where opened chests never award the Sapphire Key, whether the relic choice is taken or skipped.",
+  "version": "0.1.0",
+  "min_game_version": "0.111.0",
+  "has_pck": false,
+  "has_dll": true,
+  "dependencies": [
+    {
+      "id": "BaseLib",
+      "min_version": "3.4.5"
+    },
+    {
+      "id": "RelicRewardChoices",
+      "min_version": "0.3.4"
+    },
+    {
+      "id": "Act4Heart",
+      "min_version": "1.1.7"
+    }
+  ],
+  "affects_gameplay": true
+}
