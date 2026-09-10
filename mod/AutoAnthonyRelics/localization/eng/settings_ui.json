@@ -68,5 +68,9 @@
   "AUTOANTHONYRELICS-COST_X_STANCE_WRATH.title": "Per point: enter Wrath",
   "AUTOANTHONYRELICS-COST_X_STANCE_CALM.title": "Per point: enter Calm",
   "AUTOANTHONYRELICS-COST_X_STANCE_DIVINITY.title": "Per point: enter Divinity",
-  "AUTOANTHONYRELICS-REFUND_X_HAND_ETHEREAL.title": "Refund per point: hand ethereal"
+  "AUTOANTHONYRELICS-REFUND_X_HAND_ETHEREAL.title": "Refund per point: hand ethereal",
+  "AUTOANTHONYRELICS-SETTINGS_PAGE_TITLE.title": "AutoAnthony - Relics Settings",
+  "AUTOANTHONYRELICS-SETTINGS_GROUP.title": "AutoAnthony - Relics",
+  "AUTOANTHONYRELICS-SETTINGS_OPEN.title": "Open Settings",
+  "AUTOANTHONYRELICS-SETTINGS_PAGE_UNAVAILABLE.title": "Settings page unavailable (BaseLib missing or incompatible)."
 }
