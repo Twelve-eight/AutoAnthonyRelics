@@ -133,9 +133,12 @@ public static class ChaosRelicGenerator
             string? negative = PickNegative(random, costs, negativesTaken);
             if (negative is not null)
             {
-                var spec = ChaosRelicCatalog.Spec(negative);
+                var spec = SpecOf(negative);
                 int amount = RollAmount(random, spec);
-                operations.Add(new ChaosRelicOperation(negative, amount, spec.Render(amount)));
+                string text = negative == ChaosRelicCatalog.NegStartSloth
+                    ? spec.TextPattern.Replace("{M}", Math.Max(1, 7 - amount).ToString())
+                    : spec.Render(amount);
+                operations.Add(new ChaosRelicOperation(negative, amount, text));
                 negativesTaken.Add(negative);
 
                 // Phase 3: refund buys more positives.
@@ -159,15 +162,15 @@ public static class ChaosRelicGenerator
         };
         int cheapestUnit = ChaosRelicCatalog.CheapestPositiveUnit(costs);
         int spendable = budget;
-        while (spendable >= cheapestUnit && operations.Count < ChaosRelicCatalog.PositiveTemplates.Count
-               && operations.Count(op => !ChaosRelicCatalog.IsNegative(op.Template)) < MaxPositives)
+        while (spendable >= cheapestUnit && operations.Count < ActivePositiveTemplates.Count
+               && operations.Count(op => !IsNegativeTemplate(op.Template)) < MaxPositives)
         {
             string? template = PickAffordablePositive(random, spendable, rarity, costs, taken, uniqueOnly);
             if (template is null)
             {
                 break; // nothing affordable left
             }
-            var spec = ChaosRelicCatalog.Spec(template);
+            var spec = SpecOf(template);
             int amount = RollAmountWithinBudget(random, spec, spendable, costs);
             if (amount < spec.Min)
             {
@@ -175,19 +178,62 @@ public static class ChaosRelicGenerator
                 taken.Add(template);
                 continue;
             }
-            int cost = costs.CostPerPoint(template) * amount;
+            int cost = spec.Decaying
+                ? costs.CostPerPoint(template) * amount * (amount + 1) / 2
+                : costs.CostPerPoint(template) * amount;
             operations.Add(new ChaosRelicOperation(template, amount, spec.Render(amount)));
             taken.Add(template);
             spendable -= cost;
         }
     }
 
+    /// <summary>
+    /// Spec resolution across BOTH pools (core + extra): the extra pool uses
+    /// the same TemplateSpec shape; its templates join the pick set only
+    /// when EnableExtraPool is on (and stance templates only when the
+    /// Watcher mod is loaded).
+    /// </summary>
+    internal static ChaosRelicCatalog.TemplateSpec SpecOf(string template) =>
+        ChaosRelicExtraCatalog.HasTemplate(template)
+            ? ChaosRelicExtraCatalog.Spec(template)
+            : ChaosRelicCatalog.Spec(template);
+
+    /// <summary>Negative lookup across both pools.</summary>
+    internal static bool IsNegativeTemplate(string template) =>
+        ChaosRelicExtraCatalog.HasTemplate(template)
+            ? ChaosRelicExtraCatalog.IsNegative(template)
+            : ChaosRelicCatalog.IsNegative(template);
+
+    /// <summary>Effective positive pool: core + optional extra.</summary>
+    internal static IReadOnlyList<string> ActivePositiveTemplates =>
+        AutoAnthonyRelicsConfig.EnableExtraPool
+            ? ChaosRelicCatalog.PositiveTemplates.Concat(ChaosRelicExtraCatalog.PositiveTemplates).ToList()
+            : ChaosRelicCatalog.PositiveTemplates;
+
+    /// <summary>Effective negative pool: core + optional extra.</summary>
+    internal static IReadOnlyList<string> ActiveNegativeTemplates =>
+        AutoAnthonyRelicsConfig.EnableExtraPool
+            ? ChaosRelicCatalog.NegativeTemplates.Concat(ChaosRelicExtraCatalog.NegativeTemplates).ToList()
+            : ChaosRelicCatalog.NegativeTemplates;
+
+    /// <summary>Watcher-mod presence probe (assembly by name).</summary>
+    internal static bool WatcherModLoaded =>
+        System.AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "Watcher");
+
     private static string? PickAffordablePositive(Random random, int spendable, RelicRarity rarity,
         ChaosPointCosts costs, HashSet<string> taken, HashSet<string> uniqueOnly)
     {
-        var affordable = ChaosRelicCatalog.PositiveTemplates
+        var affordable = ActivePositiveTemplates
             .Where(t => !taken.Contains(t))
-            .Where(t => costs.CostPerPoint(t) <= spendable)
+            .Where(t => !ChaosRelicExtraCatalog.WatcherTemplates.Contains(t) || WatcherModLoaded)
+            .Where(t =>
+            {
+                var s = SpecOf(t);
+                int minCost = s.Decaying
+                    ? costs.CostPerPoint(t) * s.Min * (s.Min + 1) / 2
+                    : costs.CostPerPoint(t) * s.Min;
+                return minCost <= spendable;
+            })
             .ToList();
         if (affordable.Count == 0)
         {
@@ -198,7 +244,7 @@ public static class ChaosRelicGenerator
 
     private static string? PickNegative(Random random, ChaosPointCosts costs, HashSet<string> taken)
     {
-        var available = ChaosRelicCatalog.NegativeTemplates
+        var available = ActiveNegativeTemplates
             .Where(t => !taken.Contains(t))
             .ToList();
         if (available.Count == 0)
@@ -213,13 +259,34 @@ public static class ChaosRelicGenerator
         return spec.Min + random.Next(spec.Max - spec.Min + 1);
     }
 
-    /// <summary>Roll in-band, then clamp down to what the remaining budget affords.</summary>
+    /// <summary>
+    /// Roll in-band, then clamp down to what the remaining budget affords.
+    /// Linear templates: max = spendable / perPoint. Decaying templates
+    /// (triangular cost total(N) = perPoint * N*(N+1)/2): walk N downward
+    /// until it fits.
+    /// </summary>
     private static int RollAmountWithinBudget(Random random, ChaosRelicCatalog.TemplateSpec spec,
         int spendable, ChaosPointCosts costs)
     {
         int amount = RollAmount(random, spec);
         int perPoint = costs.CostPerPoint(spec.Template);
-        int maxAffordable = spendable / perPoint;
+        int maxAffordable;
+        if (spec.Decaying)
+        {
+            maxAffordable = 0;
+            for (int n = spec.Max; n >= spec.Min; n--)
+            {
+                if (perPoint * n * (n + 1) / 2 <= spendable)
+                {
+                    maxAffordable = n;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            maxAffordable = spendable / perPoint;
+        }
         return Math.Min(amount, Math.Max(0, maxAffordable));
     }
 

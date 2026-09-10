@@ -67,14 +67,24 @@ public static class ChaosRelicCatalog
     /// RefundPerPoint: points refunded per unit of Amount (negatives).
     /// Flat templates (PotionBlock): Amount is always 1, cost/refund is the
     /// flat value.
+    ///
+    /// Decaying powers (poison/regen/plating - engine-verified: trigger for
+    /// Amount then Amount-1, ..): the Nth stack is worth MORE than the 1st
+    /// (total value = N+(N-1)+..+1, triangular), so cost is triangular:
+    /// total(N) = CostPerPoint * (N*(N+1)/2) - each extra point of Amount
+    /// costs CostPerPoint more than the previous one. PowerModel spec
+    /// amounts roll freely in-band; the generator clamps to budget.
     /// </summary>
     public sealed record TemplateSpec(
         string Template, bool IsNegative, int Min, int Max,
-        int CostPerPoint, int RefundPerPoint, string TextPattern)
+        int CostPerPoint, int RefundPerPoint, string TextPattern,
+        bool Decaying = false)
     {
         public string Render(int amount) => TextPattern.Replace("{N}", amount.ToString());
 
-        public int Cost(int amount) => CostPerPoint * amount;
+        public int Cost(int amount) => Decaying
+            ? CostPerPoint * amount * (amount + 1) / 2
+            : CostPerPoint * amount;
 
         public int Refund(int amount) => RefundPerPoint * amount;
     }
@@ -85,30 +95,30 @@ public static class ChaosRelicCatalog
         // Combat-start one-shot effects: generous bands, moderate cost.
         [StartDamageAll] = new(StartDamageAll, false, 3, 8, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,对所有敌人造成{N}点伤害."),
         [StartBlock] = new(StartBlock, false, 4, 10, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}点格挡."),
-        [StartStrength] = new(StartStrength, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "战斗开始时,获得{N}点力量."),
-        [StartDexterity] = new(StartDexterity, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,获得{N}点敏捷."),
+        [StartStrength] = new(StartStrength, false, 1, 10, CostPerPoint: 5, RefundPerPoint: 0, "战斗开始时,获得{N}点力量."),
+        [StartDexterity] = new(StartDexterity, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "战斗开始时,获得{N}点敏捷."),
         [StartDraw] = new(StartDraw, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,抽{N}张牌."),
-        [StartEnergy] = new(StartEnergy, false, 1, 3, CostPerPoint: 5, RefundPerPoint: 0, "战斗开始时,获得{N}点能量."),
+        [StartEnergy] = new(StartEnergy, false, 1, 3, CostPerPoint: 6, RefundPerPoint: 0, "战斗开始时,获得{N}点能量."),
         [StartVulnAll] = new(StartVulnAll, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层易伤."),
         [StartWeakAll] = new(StartWeakAll, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层虚弱."),
-        [StartRegen] = new(StartRegen, false, 1, 4, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,获得{N}层再生."),
-        [StartThorns] = new(StartThorns, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,获得{N}点荆棘."),
+        [StartRegen] = new(StartRegen, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层再生.", Decaying: true), // 三角定价: 总花费=2*N(N+1)/2; N=4 -> 20点
+        [StartThorns] = new(StartThorns, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "战斗开始时,获得{N}点荆棘."),
         [StartArtifact] = new(StartArtifact, false, 1, 1, CostPerPoint: 5, RefundPerPoint: 0, "战斗开始时,获得{N}层护体."),
-        [StartPoisonAll] = new(StartPoisonAll, false, 2, 6, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层中毒."),
-        [StartPlating] = new(StartPlating, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层镀层(回合结束时获得格挡)."),
+        [StartPoisonAll] = new(StartPoisonAll, false, 2, 6, CostPerPoint: 1, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层中毒.", Decaying: true), // 三角定价: N=6 -> 21点 (全体敌人,已含群体溢价)
+        [StartPlating] = new(StartPlating, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层覆甲(回合结束时获得等量格挡,层数-1).", Decaying: true), // 覆甲=PlatingPower; 三角定价 N=4 -> 12点
         // Per-turn effects: small bands, high cost (they repeat every turn).
         [TurnStartBlock] = new(TurnStartBlock, false, 2, 5, CostPerPoint: 4, RefundPerPoint: 0, "每回合开始时,获得{N}点格挡."),
-        [TurnStartEnergy] = new(TurnStartEnergy, false, 1, 1, CostPerPoint: 8, RefundPerPoint: 0, "每回合开始时,获得{N}点能量."),
-        [TurnStartHeal] = new(TurnStartHeal, false, 1, 3, CostPerPoint: 5, RefundPerPoint: 0, "每回合开始时,回复{N}点生命."),
-        [TurnStartDraw] = new(TurnStartDraw, false, 1, 1, CostPerPoint: 8, RefundPerPoint: 0, "每回合开始时,抽{N}张牌."),
+        [TurnStartEnergy] = new(TurnStartEnergy, false, 1, 1, CostPerPoint: 10, RefundPerPoint: 0, "每回合开始时,获得{N}点能量."),
+        [TurnStartHeal] = new(TurnStartHeal, false, 1, 3, CostPerPoint: 7, RefundPerPoint: 0, "每回合开始时,回复{N}点生命."),
+        [TurnStartDraw] = new(TurnStartDraw, false, 1, 1, CostPerPoint: 9, RefundPerPoint: 0, "每回合开始时,抽{N}张牌."),
         // Card-play triggers: small bands.
-        [PlayDamageRandom] = new(PlayDamageRandom, false, 1, 4, CostPerPoint: 3, RefundPerPoint: 0, "每当你打出一张牌,对随机一名敌人造成{N}点伤害."),
-        [PlayBlock] = new(PlayBlock, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "每当你打出一张牌,获得{N}点格挡."),
+        [PlayDamageRandom] = new(PlayDamageRandom, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "每当你打出一张牌,对随机一名敌人造成{N}点伤害."),
+        [PlayBlock] = new(PlayBlock, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "每当你打出一张牌,获得{N}点格挡."),
         // Passives: fixed-ish, priced by permanence.
-        [PassiveAttackDamage] = new(PassiveAttackDamage, false, 1, 4, CostPerPoint: 3, RefundPerPoint: 0, "你的攻击牌伤害+{N}."),
+        [PassiveAttackDamage] = new(PassiveAttackDamage, false, 1, 8, CostPerPoint: 7, RefundPerPoint: 0, "你的攻击牌伤害+{N}."),
         [PassiveMaxEnergy] = new(PassiveMaxEnergy, false, 1, 1, CostPerPoint: 8, RefundPerPoint: 0, "每回合能量上限+{N}."),
-        [PassiveBlockAdd] = new(PassiveBlockAdd, false, 1, 2, CostPerPoint: 4, RefundPerPoint: 0, "你获得格挡时,格挡值+{N}."),
-        [VictoryHeal] = new(VictoryHeal, false, 2, 8, CostPerPoint: 1, RefundPerPoint: 0, "战斗胜利后,回复{N}点生命."),
+        [PassiveBlockAdd] = new(PassiveBlockAdd, false, 1, 2, CostPerPoint: 6, RefundPerPoint: 0, "你获得格挡时,格挡值+{N}."),
+        [VictoryHeal] = new(VictoryHeal, false, 2, 8, CostPerPoint: 3, RefundPerPoint: 0, "战斗胜利后,回复{N}点生命."),
         [VictoryGold] = new(VictoryGold, false, 5, 20, CostPerPoint: 1, RefundPerPoint: 0, "战斗胜利后,获得{N}金币."),
         [PassiveGoldGain] = new(PassiveGoldGain, false, 1, 3, CostPerPoint: 2, RefundPerPoint: 0, "你获得的金币+{N}."),
         [RestHealBonus] = new(RestHealBonus, false, 1, 5, CostPerPoint: 1, RefundPerPoint: 0, "营火休息时,额外回复{N}点生命."),
@@ -116,13 +126,13 @@ public static class ChaosRelicCatalog
         [NegStartFrail] = new(NegStartFrail, true, 1, 2, CostPerPoint: 0, RefundPerPoint: 4, "战斗开始时,你获得{N}层脆弱."),
         [NegTurnLoseHp] = new(NegTurnLoseHp, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 3, "每回合开始时,失去{N}点生命."),
         [NegTurnEnergyDown] = new(NegTurnEnergyDown, true, 1, 1, CostPerPoint: 0, RefundPerPoint: 6, "每回合能量上限-{N}."),
-        [NegTurnDrawDown] = new(NegTurnDrawDown, true, 1, 1, CostPerPoint: 0, RefundPerPoint: 6, "每回合抽牌数-{N}."),
+        [NegTurnDrawDown] = new(NegTurnDrawDown, true, 1, 5, CostPerPoint: 0, RefundPerPoint: 6, "每回合抽牌数-{N}."),
         [NegGoldDown] = new(NegGoldDown, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 2, "你获得的金币-{N}."),
-        [NegPotionBlock] = new(NegPotionBlock, true, 1, 1, CostPerPoint: 0, RefundPerPoint: 6, "你无法获得药水."),
-        [NegStartSloth] = new(NegStartSloth, true, 1, 1, CostPerPoint: 0, RefundPerPoint: 5, "战斗开始时,你获得{N}层怠惰."),
+        [NegPotionBlock] = new(NegPotionBlock, true, 1, 1, CostPerPoint: 0, RefundPerPoint: 30, "你无法获得药水."),
+        [NegStartSloth] = new(NegStartSloth, true, 1, 5, CostPerPoint: 0, RefundPerPoint: 6, "每回合你无法打出超过{M}张牌."), // VelvetChoker式: 上限=7-N, 返还6N点; 文案由模型层渲染(7-N)
         [NegRestHealDown] = new(NegRestHealDown, true, 1, 4, CostPerPoint: 0, RefundPerPoint: 2, "营火休息时,回复的生命-{N}."),
         [NegAttackDamageDown] = new(NegAttackDamageDown, true, 1, 2, CostPerPoint: 0, RefundPerPoint: 3, "你的攻击牌伤害-{N}."),
-        [NegMaxHpDown] = new(NegMaxHpDown, true, 1, 4, CostPerPoint: 0, RefundPerPoint: 3, "获得此遗物时,最大生命值-{N}."),
+        [NegMaxHpDown] = new(NegMaxHpDown, true, 1, 20, CostPerPoint: 0, RefundPerPoint: 4, "获得此遗物时,最大生命值-{N}."),
     };
 
     public static IReadOnlyList<string> AllTemplates { get; } = Specs.Keys.ToArray();
