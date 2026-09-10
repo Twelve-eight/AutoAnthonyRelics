@@ -24,7 +24,7 @@
 | C_START_THORNS | 战斗开始: 荆棘 | 1-3 | 4 |
 | C_START_ARTIFACT | 战斗开始: 护体 | 1-1 | 5 |
 | C_START_POISON_ALL | 战斗开始: 全体敌人中毒 | 2-6 | 2 |
-| C_START_PLATING | 战斗开始: 镀层(回合结束获得格挡) | 1-4 | 2 |
+| C_START_PLATING | 战斗开始: 覆甲(回合结束时获得等量格挡,层数-1) | 1-4 | 2 |
 | T_START_BLOCK | 每回合: 格挡 | 2-5 | 4 |
 | T_START_ENERGY | 每回合: 能量 | 1-1 | 10 |
 | T_START_HEAL | 每回合: 回复生命 | 1-3 | 7 |
