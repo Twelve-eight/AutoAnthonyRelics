@@ -1,0 +1,88 @@
+[h1]AutoAnthony - Relics (Dongni Algorithm - Relics)[/h1]
+
+Every run, deterministically generate 60 chaos relics from the run seed and replace all relic drops.
+
+[hr]
+
+[h2]What it does[/h2]
+
+At run start, this mod generates 60 chaos relics (Chaos Relic 1-60) from the run seed. Each one has:
+[list]
+[*][b]Random name[/b] - adjective + noun combination
+[*][b]Random affixes[/b] - 1 / 3 / 5 per relic (weighted random) from 16 effect templates
+[*][b]Random rarity[/b] - 20 common / 20 uncommon / 20 rare, regenerated per seed
+[*][b]Dynamic description[/b] - the relic tooltip shows this run's actual effect list, line by line
+[/list]
+
+Same seed = the same relic set; new seed = completely different affixes in the same slots.
+
+[h2]Relic replacement[/h2]
+
+All of these relic sources drop only chaos relics:
+[list]
+[*]Combat rewards / elite rewards
+[*]Chests / shops
+[*]Random relics from events
+[*]Digging / campfires and more
+[/list]
+
+Left untouched:
+[list]
+[*][b]Ancient relics[/b] - never replaced
+[*]Starting relics / Neow relics / fixed event relics (never go through the reward pool anyway)
+[/list]
+
+When chaos relics run out, the game falls back to native behavior.
+
+[h2]Effect templates (16)[/h2]
+
+[list]
+[*][b]Combat start[/b]: damage to all enemies / gain block / Strength / Dexterity / draw / energy / apply Vulnerable / apply Weak
+[*][b]Turn start[/b]: block / energy / heal
+[*][b]Play a card[/b]: damage to a random enemy / gain block
+[*][b]Passive[/b]: attack damage bonus / max energy bonus
+[*][b]Combat victory[/b]: heal
+[/list]
+
+[h2]In-game settings[/h2]
+
+Settings -> Mod Settings -> AutoAnthony - Relics:
+[list]
+[*][b]Enable Chaos Relics[/b] - master switch. Off: chaos relics stop generating, the reward pool restores vanilla relics, owned chaos relics stop working
+[*][b]Affix tier baseline[/b] - affix count tier. Default 3 (meaning 1/3/5); raise to shift all counts up
+[*]Restore defaults button
+[/list]
+
+[h2]Multiplayer[/h2]
+
+Both ends deterministically generate the same relic set from the same seed; random targeting uses the game's seeded channel, so multiplayer sync is preserved.
+
+[hr]
+
+[h2]Requirements[/h2]
+
+[list]
+[*][b]Required[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3737335127]BaseLib[/url]
+[/list]
+
+[b]Important - BaseLib version note[/b]
+
+The Workshop BaseLib often lags behind the official GitHub. If BaseLib errors after a game update or this mod fails to load, get the latest version from GitHub:
+[list]
+[*][url=https://github.com/Alchyr/BaseLib-StS2/releases]GitHub Releases (recommended)[/url] - latest official build
+[*]Install: download the zip, extract into [code]Slay the Spire 2/mods/[/code], and [b]unsubscribe from the Workshop BaseLib[/b] (avoids double-loading)
+[/list]
+
+[hr]
+
+[h2]Compatibility[/h2]
+
+[list]
+[*]Works together with AutoAnthony (the card mod) but does [b]not[/b] require it - subscribe to this alone if you like
+[/list]
+
+[h2]Console test (optional)[/h2]
+
+Open the developer console with ` in-game and type:
+[code]relic add AUTOANTHONYRELICS-CHAOS_RELIC005[/code]
+to grant one chaos relic and see the top bar icon and tooltip.
