@@ -524,3 +524,90 @@ autoslay 跑了两局(seed AARFIX1 / AARFIX2), 均推进到第二章宝箱房后
 - 设置页 UI 的实际渲染与拖拽(autoslay 不进设置界面).
 - 额外效果池 (EnableExtraPool=true) 的实机行为.
 - 联机双端一致性(需要第二个客户端).
+
+## Session 44 - 2026-09-12 - 改名 / id 迁移 / 文本修复的调研 (未实现, 仅落盘)
+
+用户指令: 从 HANDOFF-2026-09-12.md 展开工作. 后续追加两条:
+每个步骤的修改过程只写 DEVLOG, 聊天只报方向/决断/问题; 然后整理已有工作,
+落盘断点全貌, 交由其它 agent 继续开发.
+
+本轮**零代码改动**(只有 research/ 下的调研与验证产物). 以下为全部已验证结论.
+
+### 0. 本轮用户裁定的方向 (覆盖交接 0.1 的约束)
+- 显示名: zh `怪异炼化 - 遗物`, en `Qurious Crafting - Relics`.
+- **mod id 要改**: `AutoAnthonyRelics` -> `QuriousCraftingRelics`.
+  这推翻交接 0.1 的 "只改显示名, 不要改 id"; 理由是研究完原版机制后要做
+  真正复原特性的东尼算法遗物, 旧 id 腾给它.
+- id 迁移现在就做, 与改名/文本修复一起, 只构建部署一轮.
+- 范围: 交接第 8 节 8 步按顺序全做.
+
+### 1. (A) 配置文本显示为变量名 - 根因实测确认
+- BaseLib `ModConfig.GetLabelText` (BaseLib-StS2/Config/ModConfig.cs:499-503)
+  用 `StringHelper.Slugify(名字)` 拼 `{ModPrefix}{slug}.title`, 查不到就显示原名.
+- `Slugify` = CamelCaseRegex `([A-Za-z0-9]|\G(?!^))([A-Z])` -> `$1_$2`,
+  再 `\s+` -> `_`, 再删 `[^A-Z0-9_]`, 全大写.
+- 152 个候选名中 145 个失效; 只有 7 个驼峰名正常
+  (ChaosRelicBudgetCommon/Uncommon/Rare, ChaosRelicMultiplier,
+  ChaosRelicNegativeChanceCommon/Uncommon/Rare).
+- **修法 (已验证)**: 名字按下划线切段, 每段首字母大写其余小写. 改名后 Slugify
+  是不动点, 恰好等于**现有** loc 键 => **loc 文件零改动**.
+  已核对: 47 个 Cost_/Refund_ + 4 个区块名 = 51/51 命中现有 loc 键;
+  94 个 Min_/Max_ 无 loc 键且带 [ConfigHideInUI], 不渲染, 无需 loc.
+- 区块名同理: `[ConfigSection("BUDGET_SECTION")]` -> `"Budget_Section"`.
+- 孤儿键: `AUTOANTHONYRELICS-RESTORE_DEFAULTS_BUTTON.title` 是死键,
+  BaseLib 的恢复默认按钮走 `GetBaseLibLabelText` -> `BASELIB-RestoreDefaultsButton`.
+
+### 2. BaseLib 没有配置迁移钩子 (新发现)
+grep 过 `Config/ModConfig.cs` 与 `Config/SimpleModConfig.cs`: 无 Migrate,
+无 OnLoad / 版本号. 唯一相关是 `RestoreDefaultsNoConfirm` (ModConfig.cs:179, virtual).
+=> 改属性名 = 旧 cfg 键失效回退默认值, 必须自己写迁移.
+
+### 3. 配置加载时机 (决定迁移放哪)
+`ModConfig` 构造函数 -> `CheckConfigProperties(); Init();`
+`Init()` (ModConfig.cs:193-203): `if (File.Exists(_path)) Load(); else Save();`
+触发点: `MainFile.Initialize()` 第 28 行 `new AutoAnthonyRelicsConfig()`, 同步执行.
+=> 迁移必须放在第 28 行**之前**; 顺序是确定的, 不依赖任何巧合.
+`_path = Path.Combine(OS.GetUserDataDir(), "mod_configs", filename)`,
+filename = 根命名空间(去特殊字符) + ".cfg".
+
+### 4. ModPrefix 与 cfg 文件名来自根命名空间, 不是 mod id
+`BaseLib.Extensions.TypePrefix.cs`: `GetPrefix()` = 命名空间首段大写 + "-";
+`GetRootNamespace()` = 命名空间首段. => 改命名空间会同时改 loc 键前缀与 cfg
+文件名; 只改 mod id 不会.
+
+### 5. id 迁移的连带面 (已查清, 尚未执行)
+- 引擎 `ModManager.ReadModsInDirRecursive`: 递归扫 mods/ 找 *.json, 目录名不必等于 id.
+- `TryLoadMod`: `Path.Combine(mod.path, modId + ".dll")` (ModManager.cs:796)
+  与 `... + ".pck"` (:818) => **dll/pck 文件名必须等于 manifest id**.
+- csproj `<ModId>` 驱动: `$(ModId).json` / `$(ModId)/localization/**` /
+  `$(ModId)/**` 编译排除 / pck 内容 / 拷贝目标 `$(ModsPath)$(ModId)/`.
+- 程序集名默认来自 csproj 文件名 => `AutoAnthonyRelics.csproj` 也要改名.
+- `project.godot`: `config/name`, `config/icon` 的 res:// 路径,
+  `[dotnet] project/assembly_name`.
+- `MainFile.ModId` 与 `ResPath = res://{ModId}`.
+
+### 6. 用户 cfg 里不能丢的调价 (迁移必须保住)
+取自 `C:/Users/o_Obl/AppData/Roaming/SlayTheSpire2/mod_configs/AutoAnthonyRelics.cfg`:
+`ChaosRelicBudgetRare=30`(默认 24), `Cost_C_START_ARTIFACT=5`(默认 9),
+负面概率 10/30/75(默认 35/55/75), `ChaosRelicMultiplier=0`.
+
+### 7. (B)(C) 修复点
+- `BudgetEditorPanel.EffectText` (BudgetEditorPanel.cs:196-197) 调
+  `ChaosRelicGenerator.RenderOperation(spec, spec.Max)`, 所以显示具体数字.
+- `RenderOperation` (ChaosRelicGenerator.cs:231-234) 对懒惰用 `{M}` -> `7-amount`.
+- 期望: 编辑器行显示字面 `N`; 懒惰显示 `(7-N)`. 生成出的遗物实际描述仍显示具体数字.
+- `RenderOperation` 的三处生成器调用 (:148, :187, :217) 必须保持原语义.
+
+### 8. 原版东尼算法反编译研究 (已完成)
+`research/original-autoauthony-contract.md` (647 行). 要点: 481 张卡离线拆成
+931 个原子片段; 条件 `RuntimeTriggerSpec` 与效果 `OperationRuntimeSpec.Opcode`
+在数据层独立, 由 `LinkedTriggerIndex` 事后绑定, 普通触发有 50% 概率不绑定;
+随机源 `System.Random(SHA256("AutoAnthony/v111/all-pools-v2/{角色}/{seed}"))`, 可复现;
+诅咒不在随机池; `CombatsSeen` 在原版 IL 中出现 0 次.
+
+### 9. 本轮新增落盘产物
+- research/original-autoauthony-contract.md
+- research/config-slug-map.tsv (152 行 x 4 列: 现名 / 现 slug / 建议新名 / 新 slug)
+- research/tools/slug-map.ps1 (重新生成上表)
+- research/tools/verify-loc-keys.py (核对新名是否命中现有 loc 键)
+- research/tools/slug-ground-truth.txt (真 .NET 正则实测样本)
