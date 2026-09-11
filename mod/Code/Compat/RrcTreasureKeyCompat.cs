@@ -128,10 +128,7 @@ internal static class RrcTreasureKeyCompat
             // registry (HarmonySharedState, keyed by the original MethodBase and
             // serialized as module GUID + metadata token), so a postfix applied
             // by the twin package - a separate assembly that also compiles this
-            // file - is visible here. Matching on DeclaringType rather than the
-            // MethodInfo identity is deliberate: each package has its own copy
-            // of RrcTreasureKeyCompat, so `ReferenceEquals(patch.PatchMethod,
-            // ourPostfix)` would miss the twin's patch.
+            // file - is visible here.
             var existing = Harmony.GetPatchInfo(original);
             if (existing is not null && HasOurPostfix(existing))
             {
@@ -143,14 +140,6 @@ internal static class RrcTreasureKeyCompat
 
             var postfix = typeof(RrcTreasureKeyCompat).GetMethod(nameof(OnSkippedPostfix),
                 BindingFlags.Static | BindingFlags.NonPublic);
-            if (postfix is null)
-            {
-                // Unreachable while the method exists; a rename would otherwise
-                // pass null to HarmonyMethod and throw instead of logging.
-                LogError("OnSkippedPostfix missing; patch dormant");
-                return false;
-            }
-
             harmony.Patch(original, postfix: new HarmonyMethod(postfix));
             _installed = true;
             LogInfo("active: RelicRewardChoices + Act4Heart detected, OnSkipped patched");
