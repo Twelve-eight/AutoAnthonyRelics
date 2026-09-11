@@ -111,7 +111,7 @@ ChaosRelicModel : BaseLib CustomRelicModel (shared pool).
 - Description: join operation Texts with newline (relic tooltip shows
   the full list, positives and the negative alike).
 - Counter: the badge shows the entry COUNT (DisplayAmount = number of
-  operations), gated on an in-progress combat like vanilla VelvetChoker.
+  operations), gated on a resolved Definition (no badge outside a run).
 - Flash() on each executed entry.
 
 Slot classes: 60 slots (20 per rarity). All routed into the engine
@@ -171,8 +171,9 @@ BaseLib's own settings page and by the dedicated page (see Settings UI).
   user amount bounds set by the budget editor; overlaid on the catalog
   spec by ApplyUserBounds / ChaosTemplates.Effective.
 - ChaosRelicMultiplier (default 3): LEGACY / IDLE. Kept only for save
-  compatibility (the cfg file already has the key, and dropping a
-  property makes BaseLib's loader warn and rewrite); it does NOT affect
+  compatibility: existing cfg files already carry the key, and
+  ChaosRelicRunRegistry.ForSeed still takes it as a parameter (call-shape
+  stability) while ignoring it for generation. It does NOT affect
   generation since the v0.5 point-budget system.
 
 ### Settings UI
