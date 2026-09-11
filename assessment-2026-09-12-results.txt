@@ -1,0 +1,26 @@
+AutoAnthonyRelics assessment - 2026-09-12
+Baseline source commit: 0d4304b
+Scope: isolated compiled-assembly probes, not an in-game UI/combat smoke test.
+Probe: G:/omp works/.tmp/aar-assessment-20260912/Probe.csproj
+Command: dotnet run --project Probe.csproj --no-restore
+Exit code: 0
+Both product builds passed with 0 warnings / 0 errors and CopyToModsFolderOnBuild=false.
+Main build emitted PCK packed. No deployment.
+
+SentryGodotInitializer: Sentry GDExtension not loaded in this process; skipping. If you see this in a running game (not during project export or IDE script analysis), check Godot's log for extension load failures.
+catalog={"corePositive":26,"coreNegative":10,"extraPositive":10,"extraNegative":1}
+boundKeys={"expected":94,"matching":0}
+boundsAfterEditorCall={"before":[1,10],"after":[1,10],"stored":[1,10]}
+boundsAfterDirectPropertyChange=[1,10]
+core45Seeds={"total":2700,"deterministicMismatches":0,"violations":0,"summary":[{"rarity":"Common","count":900,"avgPositive":2.9055555555555554,"negativePercent":37.55555555555556,"avgSpend":14.455555555555556},{"rarity":"Uncommon","count":900,"avgPositive":3.8433333333333333,"negativePercent":57.44444444444444,"avgSpend":22.713333333333335},{"rarity":"Rare","count":900,"avgPositive":4.835555555555556,"negativePercent":76.33333333333333,"avgSpend":31.86888888888889}]}
+extraPool={"error":"InvalidOperationException","Message":"Unknown chaos relic template X_HAND_RETAIN."}
+livePriceVsReference={"live":19,"reference":5}
+sameSeedConfigChange={"cacheUnchanged":true,"freshGeneratorDifferent":true}
+legalUnaffordableConfig={"emptyRelics":60}
+installationMutexLifetime={"firstCreated":true,"secondCreated":true}
+slothEditorText="\u6BCF\u56DE\u5408\u4F60\u65E0\u6CD5\u6253\u51FA\u8D85\u8FC7{M}\u5F20\u724C."
+unpoweredDamageBonus=3
+displayCounter={"show":true,"shown":0,"entries":2}
+loseHpFlagSemantics={"blocked":3,"hpLost":0,"hp":50,"block":2}
+damageQueryConsumesRetainBonus={"firstQuery":7,"secondQuery":3,"remaining":0,"attackType":"Attack"}
+retainedBonusAfterCombatEnd=4

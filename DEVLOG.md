@@ -344,3 +344,86 @@ TEMPLATE-POINTS-LIST.md = user tuning deliverable.
 - **BudgetEditorPanel**: 每词条行 = 效果文本+悬停遗物chip+Min/Max滑条+每点计价 (live). 94 Min_/Max_ config 属性 + ApplyUserBounds. 构建 0/0, 已部署三处.
 - **待办**: 实机验证编辑器 UI; 双端滑条改造 (用户原意一条线段两端滑块, 现为两个独立滑条); 映射表扩充; 全面重定价复审; 工坊发布确认.
 - **交接**: 会话污染, 交接文档 HANDOFF-2026-09-11.md 已写.
+
+## Session 42 (2026-09-12) - 主会话单线项目评估,未改产品代码
+
+### 范围和结论
+- 用户要求展开 HANDOFF 并单线审视项目全貌.本轮没有派子代理,没有把 Pending 当作实施授权,没有启动游戏/部署/发布,没有改任何产品 C# 或价格.
+- 结论: 保留核心架构,但当前新增功能未达到发布状态.旧奖励池替换已有历史实机基础,核心预算生成本轮可运行;配置编辑器/额外池/计价参考/联机时序/双包钥匙补丁存在断点.先修契约,后调价格,不能只把两个滑条改成双端滑条就发布.
+- 评估基线 HEAD=0d4304b,当时 master 与本地 origin/master 对齐且工作区干净.交接头部56ff101只是产品代码提交,后面已有交接/DEVLOG提交.原 Pending第6项已由Session40/41完成.
+- 架构: Config -> Catalog/PointCosts -> Generator(60槽位) -> RunRegistry -> ChaosRelicModel/LocUpdater -> 奖励池与引擎hooks.设置页为横向配置能力,钥匙补丁为共享源码双程序集交付.无须整体重写.
+
+### 本轮验证和边界
+- 实际执行两次构建,均带 --no-restore -p:CopyToModsFolderOnBuild=false: mod/AutoAnthonyRelics.csproj 和 standalone/RrcA4hKeyFix/RrcA4hKeyFix.csproj.两包均0警告0错误,主包输出 PCK packed.所有环境/缓存/临时输出重定向G盘,未安装依赖.
+- 隔离探针 G:/omp works/.tmp/aar-assessment-20260912/Probe.csproj 引用当前构建DLL及实际sts2/BaseLib/GodotSharp程序集.执行 dotnet run --project Probe.csproj --no-restore,退出0.探针输出存入仓库 assessment-2026-09-12-results.txt;脚本和反编译中间文件在上述临时目录,不承诺长期留存.
+- 核心池额外池关闭,固定种子 AAR-ASSESS-0..44,共2700件:确定性,60件/种子,20/20/20稀有度,名字唯一,最多6正1负,三角计价预算不超支,数值在范围内,生成文本无占位符残留均无失败.范围属性未接通,故这里实际检查的是目录范围.
+- 本轮正词条均值 C/U/R=2.906/3.843/4.836;负面率37.556/57.444/76.333%;正面花费均值14.456/22.713/31.869.花费包含负面返还,大于10/16/24不代表超支.这些结果不是战斗正确性/平衡/全配置可玩性证明.
+- 游戏未运行,本轮也未启动.没有预算页视觉或拖动实测,没有实际宝箱发钥匙测试,没有联机整局测试.模型hook用受控内存fixture,失血检查是引擎结算分段调用,不冒称完整战斗.
+- 当前引擎 release_info.json: v0.111.0,commit41cef1ea.编译BaseLib3.4.5,安装包/历史加载日志BaseLib3.4.6.依赖实现通过ilspycmd9.1定向反编译核对.
+- 历史 godot.log mtime=2026-09-10T21:41:20.491587Z.其中618/625行分别记录主包/独立包 OnSkipped patched,作为历史双安装证据;并非本轮运行日志.另有 AutoAnthony 自身启动异常,不能归咎本mod.
+
+### F01 - 额外池生成路径被计价入口截断 [已复现,发布阻断]
+- ChaosRelicCatalog.cs:181-198 的 ChaosPointCosts.CostPerPoint/RefundPerPoint 只查核心目录.虽然 Generator.SpecOf 已解析额外目录,但可负担集合评估调用计价时仍抛异常.
+- EnableExtraPool=true 后 Generate("AAR-EXTRA") -> InvalidOperationException: Unknown chaos relic template X_HAND_RETAIN.
+- 需统一两个目录的计价与查询,不能只修正面,遗漏额外负面 Refund 路径.
+
+### F02 - 范围配置和编辑器没有闭环 [已复现/依赖合约,发布阻断]
+- AutoAnthonyRelicsConfig.cs:184-277 属性叫 Min_StartStrength/Max_StartStrength;309-351用模板值 C_START_STRENGTH 拼 Min_C_START_STRENGTH/Max_C_START_STRENGTH.47模板94预期键命中0.
+- 直接调用 SetTemplateBounds(C_START_STRENGTH,2,2),SpecOf仍1..10,存储仍1..10.直接改Min_StartStrength/Max_StartStrength为2,SpecOf也仍1..10.
+- BudgetEditorPanel.cs:252-260 裸 new NSlider.实际引擎 NSlider._Ready 必须 GetNode<Control>("%Handle"),_Process会使用该handle.当前未建立该子节点.这是明确场景合约不匹配,尚未打开预算页观察报错.
+- BudgetEditorPanel.LocOf / RelicsSettingsSubmenu.TextOf / RelicsSettingsScreenPatch.TextOf 查 gameplay_ui 且没有.title;相关资源实际在 settings_ui,键带.title.引擎LocString按table/key精确取值,不存在自动转换.
+- 94个bounds属性没有ConfigHideInUI;实际BaseLib SimpleModConfig会为所有未隐藏int属性生成滑条,不是注释所述仅作存储.主配置也未重写VisibleInModList,仍注册且可见,因此"退出BaseLib列表"的文档保证不成立.
+- 自定义submenu另new配置实例,没有复用ModConfigRegistry.Get,没有接BaseLib NModConfigSubmenu的ConfigChanged保存计时或OnSubmenuHidden保存.自定义Persist也仅写静态属性.正常退出游戏仍有BaseLib全局保存兜底,不能说绝对不持久化;页面离开/重新实例化/异常退出可靠性仍未闭合.
+- 懒惰编辑行用通用Render,遗留{M};有效生成路径有专门替换所以核心生成检查没有发现.当前确实仍是两个独立NSlider,不是要求的一条线段双端手柄.
+
+### F03 - 核心战斗效果边界不正确 [隔离复现/引擎调用链,发布阻断]
+- ChaosRelicModel.cs:287-291 N_TURN_LOSE_HP使用ValueProp.Unpowered,缺Unblockable.5格挡承受3点此标志伤害,引擎分段调用观测blocked=3,hpLost=0,hp=50,block=2.同一hook267-270先发回合格挡,负面可被同件遗物正面直接抵消.
+- ModifyDamageAdditive:335-350 不检查攻击/卡源/ValueProp.受控模型配置攻击牌伤害+3,无卡源Unpowered伤害查询也返回+3.实际StrengthPower会检查IsPoweredAttack.
+- AfterCardPlayed:302-330 只有懒惰计数检查card.Owner,出牌伤害与格挡未检查.实际Hook.AfterCardPlayed对所有战斗监听者广播,原版DaughterOfTheWind自己检查Owner.因此存在队友出牌触发自己的效果的语义错误,尚未双端实战.
+- [INFERENCE] C_START_ENERGY 在BeforeCombatStart加能量,实际CombatManager之后首回合ResetEnergy=MaxEnergy,正常重置路径会覆盖此增益.原版Lantern在AfterSideTurnStart加能量.需实际首回合场景验收,不要仅凭签名匹配宣称生效.
+- ShowCounter=true但未覆盖DisplayAmount;受控2词条遗物显示值查询为0.这是角标契约遗漏,不是主要发布阻断.
+
+### F04 - 配置冻结/存档/联机时序没有定义完整 [已复现+推断,高风险]
+- RunRegistry:20-43 仅按seed缓存,预算/单价/额外池/bounds/算法版本不在键内.同种子改预算后cacheUnchanged=true,直接Generate却freshGeneratorDifferent=true.
+- 引擎SetUpNewMultiplayer:328-344内部才调用InitializeShared;本mod prefix已通过Capture -> OnSeedCaptured -> ForSeed生成缓存.邻接sts2-mpconfigsync在InitializeShared postfix广播配置,明显晚于本mod首次生成;接收端只是写属性及发Changed/ConfigReloaded,本mod不监听缓存失效.
+- [INFERENCE] 主客机原始配置不同可能先生成不同遗物,后续同步属性也不能纠正已缓存定义.同配置同种子可重复不等于完整联机安全.需要真实双端不同初始配置场景.
+- 定义没有写入存档,重启后按新配置/算法重建,旧存档持有的槽位可能变义.应先明确本局快照/冻结/版本约定.不能简单设置变动就清缓存,否则在役遗物会突然改变,一次性最大生命负面尤其危险.
+
+### F05 - 原版参考表不是可信定价基准 [当前引擎反编译/已复现,发布阻断]
+- 当前sts2.dll的DaughterOfTheWind=RelicRarity.Event,每攻击牌1格挡;映射写罕见/3格挡.TuningFork=每10技能牌7格挡;映射写每3技能牌4格挡.RingOfTheSnake=Starter;映射写普通.至少这三项已反证"全部数值字节核实"的当前适用性.
+- VanillaRelicMapping.cs:91-94把Lantern首回合一次性能量挂到持续MaxEnergy模板.其他条件/频率不同引用可作类比,不能把N相乘叫同效果价格.
+- OurPointsFor:121-134用catalog默认价格.力量live cost改19后Vajra reference仍5.价格显示和生成消费不一致.日后增加衰减映射还需统一三角计价.
+- 先重建绑定引擎版本/来源的事实基准,区分完全对应/条件对应/仅类比,再完整重定价.本轮没有擅自改变用户已定人工制品9点.
+- 当前PlatingPower首回合不减层,后续回合减层,三角累计结构可成立;但目录注释N=4 -> 12点与当前2*N(N+1)/2=20点不一致,不能复用旧注释作为证据.
+
+### F06 - 双包安装去重失效 [已复现+历史日志,发布阻断]
+- RrcTreasureKeyCompat.cs:95-136 using Mutex安装后释放/销毁.顺序两次同名Mutex创建均createdNew=true;历史godot.log618/625又分别记录两包均成功patch.
+- 反证的是单次安装保证,没有证明已重复获得钥匙.发放为TaskHelper.RunSafely(RelicCmd.Obtain),已有钥匙检查与异步取得之间仍需验证竞态.
+- 修复时覆盖主包单装/独立包单装/双装,跳过/领取,已有钥匙,keys_enable关闭,多人个人宝箱.在这些实际路径闭合前不发布独立条目.
+
+### F07 - 额外池运行时状态存在第二层问题 [隔离复现/源码,高风险]
+- ChaosRelicModel.cs:615-624在ModifyDamageAdditive计算期间清空_retainAttackBuff.受控攻击牌连续两次查询返回7,3,额外4点已消耗,未执行出牌.引擎Hook.ModifyDamage用于预览,会进入同一modifier管线.
+- _retainAttackBuff设4后调用AfterCombatEnd仍4.本回合/本战斗的清零边界缺失.多段/多目标攻击及预览都需要实际场景验证.
+- BeforeCombatStart对手牌附魔,早于常规首手抽牌;有提前抽牌效果才可能有目标.Nimble/Imbued循环未按CanEnchant筛选,Sharp先Take N再筛攻击也不等于前N张合法目标.
+- 修好F01只让这些路径可达,不代表额外池完成.保留触发的hand->hand假设与Watcher反射调用仍需运行验收,本轮未确认它们有效.
+
+### F08 - 可配置边界与平衡 [已复现,需明确契约]
+- 滑条允许预算1/正面单价20/负面概率0.实际生成60件无词条遗物.预算不超支检查不能保证可玩结果;是否拒绝该组合/允许空遗物需要先明确,本轮不擅自添加策略.
+- 正负效果抵消,多件永久引擎叠加,大额一次性负面退款,每回合治疗拖回合获利都不是当前生成不变量能覆盖的平衡问题.需按每战/每回合/每牌/全局/一次性分层,药水/卡牌只能当有条件的参考,不能直接按稀有度换价格.
+- Generation的剩余初始预算未结转到refund阶段,注释"最多再买一条"也与循环可买多条不一致.这属于算法与描述的约定漂移,不要当作已经完整分配点数.
+
+### F09 - 文档/证据/版本/交付漂移 [发布门禁]
+- 当前实际26核心正面+10核心负面,额外10正面+1负面,共47模板.清单/DEVLOG旧文仍27正面;DEVELOP前半仍3倍/旧档位,后半才预算;TEMPLATE-POINTS-LIST人工制品仍5且1..1;英文工坊文本仍1/3/5.Manifest仍0.5.0而文档记v0.5.1.
+- zhs/settings_ui.json仍有护体/怠惰/锋锐/轻盈/灌注,所以全量术语对齐未完成.动态名字/效果文本硬编码中文,不能把有eng JSON等同于完整双语支持.
+- 交接指定 .tmp/budget-smoke/,.tmp/locdump/,.tmp/pck-extract/当前找不到;再次限定路径检索仍无相关smoke.csproj/pckv3.py.旧证据不可直接复跑,本轮重新建立隔离探针.项目.omp/hooks/pre/backup.ts缺失,本轮评估没有顺便修复备份机制.
+- mods,mods_disabled,workshop/content三处已有DLL/PCK/manifest各自互相哈希一致.本轮禁部署新构建PCK相同,DLL不同;只报告字节差异,不据此推断部署语义陈旧.未覆盖三处.
+- 维护性优点:目录/生成/执行大体分离,缓存有界,兼容补丁共享源码.风险:属性名反射无编译期保障,价格/范围/文案多份事实源,Definition.All每个hook反复分配数组,额外模板列表反复Concat/ToList.未做性能剖析,不把分配风险夸大为实际卡顿.
+- 主工坊publishedfileid=3798163198;独立工坊无fileid.发布前仍需用户决定是否剥离VDF description以保护网页手改.未动任何push脚本,尤其未触碰triple2-push.ps1.
+
+### 后续建议顺序 (仅评估,非本轮执行授权)
+1. 冻结引擎/有效配置/旧存档契约,定义本局配置何时生效和存档恢复规则.
+2. 修F01/F02:统一模板解析和范围键,复用注册配置,保存/重开闭环,精确loc键,真实双端滑条,实际预算页冒烟.
+3. 修F03/F04/F06/F07:效果时点/拥有者/纯查询/状态清理/双包去重/联机冻结.按真实战斗,首回合,存读档,双端和宝箱矩阵验收.
+4. 修F05/F08:版本化原版基准,全部模板统一消费/展示计价,再执行全面重定价和组合平衡检查.
+5. 统一DEVELOP/清单/术语/manifest/工坊说明,持久保留复现工具与来源,修备份hook,实际场景通过后才部署/发布.
+- 完整分类评估另存 assessment-2026-09-12.canvas.tsx.当前Windows会话没有对应G盘Canvas宿主,C盘禁止写入,故仅提供G盘Canvas源码与本DEVLOG文本,不宣称已在IDE内视觉验证.
