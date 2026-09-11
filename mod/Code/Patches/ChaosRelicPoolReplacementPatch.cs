@@ -6,7 +6,7 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace AutoAnthonyRelics.Patches;
+namespace QuriousCraftingRelics.Patches;
 
 /// <summary>
 /// REPLACES the run relic pool with chaos relics (user order 2026-09-08):
@@ -40,7 +40,7 @@ internal static class ChaosRelicPoolReplacement
     {
         try
         {
-            if (!AutoAnthonyRelicsConfig.EnableChaosRelics)
+            if (!QuriousCraftingRelicsConfig.EnableChaosRelics)
             {
                 return;
             }
@@ -49,7 +49,7 @@ internal static class ChaosRelicPoolReplacement
             var originalsField = AccessTools.Field(bagType, "_originalRelics");
             if (dequesField?.GetValue(bag) is not Dictionary<RelicRarity, List<MegaCrit.Sts2.Core.Models.RelicModel>> deques)
             {
-                MainFile.Logger.Error("[AutoAnthonyRelics] pool replacement: _deques field not found");
+                MainFile.Logger.Error("[QuriousCraftingRelics] pool replacement: _deques field not found");
                 return;
             }
             int removed = 0;
@@ -61,12 +61,12 @@ internal static class ChaosRelicPoolReplacement
             {
                 removed += originals.RemoveAll(r => !IsChaosRelic(r));
             }
-            MainFile.Logger.Info($"[AutoAnthonyRelics] pool replacement: removed {removed} vanilla relics from the run grab bag " +
+            MainFile.Logger.Info($"[QuriousCraftingRelics] pool replacement: removed {removed} vanilla relics from the run grab bag " +
                                  $"({deques.Values.Sum(l => l.Count)} chaos relics remain)");
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] pool replacement failed: {e.Message}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] pool replacement failed: {e.Message}");
         }
     }
 

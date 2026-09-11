@@ -6,10 +6,10 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 
-namespace AutoAnthonyRelics.Patches;
+namespace QuriousCraftingRelics.Patches;
 
 /// <summary>
-/// Dedicated settings page for AutoAnthonyRelics, OUTSIDE BaseLib's mod
+/// Dedicated settings page for QuriousCraftingRelics, OUTSIDE BaseLib's mod
 /// settings screen - sitting beside AutoAnthony's own settings entry in the
 /// vanilla settings screen (user order 2026-09-11: "东尼算法本体的设置菜单
 /// 是在baselib设置页外的.稍后把我们的菜单与它平齐").
@@ -61,7 +61,7 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
 
             var scroll = new ScrollContainer
             {
-                Name = "AutoAnthonyRelicsSettingsScroll",
+                Name = "QuriousCraftingRelicsSettingsScroll",
                 HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
                 VerticalScrollMode = ScrollContainer.ScrollMode.Auto,
                 AnchorLeft = 0.19f,
@@ -76,7 +76,7 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
 
             var options = new VBoxContainer
             {
-                Name = "AutoAnthonyRelicsSettingsOptions",
+                Name = "QuriousCraftingRelicsSettingsOptions",
                 SizeFlagsHorizontal = SizeFlags.ExpandFill,
                 CustomMinimumSize = new Vector2(800f, 0f),
             };
@@ -94,7 +94,7 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] settings page build failed: {e}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] settings page build failed: {e}");
         }
     }
 
@@ -106,10 +106,10 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
             // The REGISTERED instance, not a fresh one: BaseLib persists the
             // registered config, so a throwaway copy would swallow every edit.
             _config = ModConfigRegistry.Get(MainFile.ModId)
-                ?? ModConfigRegistry.Get<AutoAnthonyRelicsConfig>();
+                ?? ModConfigRegistry.Get<QuriousCraftingRelicsConfig>();
             if (_config is null)
             {
-                MainFile.Logger.Error("[AutoAnthonyRelics] no registered config; settings page read-only");
+                MainFile.Logger.Error("[QuriousCraftingRelics] no registered config; settings page read-only");
             }
             else
             {
@@ -134,7 +134,7 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] config UI build failed: {e}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] config UI build failed: {e}");
             options.AddChild(new Label
             {
                 Text = TextOf("SETTINGS_PAGE_UNAVAILABLE"),
@@ -170,7 +170,7 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] config save failed: {e.Message}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] config save failed: {e.Message}");
         }
     }
 
@@ -237,7 +237,7 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
     }
 
     private static string ModPrefix =>
-        typeof(AutoAnthonyRelicsConfig).Namespace is { } ns && ns.Length > 0
+        typeof(QuriousCraftingRelicsConfig).Namespace is { } ns && ns.Length > 0
             ? ns.Split('.')[0].ToUpperInvariant() + "-"
-            : "AUTOANTHONYRELICS-";
+            : "QURIOUSCRAFTINGRELICS-";
 }

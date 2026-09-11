@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using AutoAnthonyRelics.Chaos;
-using AutoAnthonyRelics.Extensions;
+using QuriousCraftingRelics.Chaos;
+using QuriousCraftingRelics.Extensions;
 using BaseLib.Abstracts;
 using BaseLib.Extensions;
 using BaseLib.Utils;
@@ -22,7 +22,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.ValueProps;
 using MegaCrit.Sts2.Core.Commands;
 
-namespace AutoAnthonyRelics.Models;
+namespace QuriousCraftingRelics.Models;
 
 /// <summary>
 /// A generated chaos relic. Slot-marker subclasses (ChaosRelic000..) point at
@@ -64,7 +64,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         // there, and ancient (先古之民) relics must stay vanilla per user order.
         // Chaos relics live ONLY in the Common/Uncommon/Rare reward deques.
         return base.IsAllowed(runState)
-            && AutoAnthonyRelicsConfig.EnableChaosRelics
+            && QuriousCraftingRelicsConfig.EnableChaosRelics
             && ChaosRelicRunRegistry.IsSlotAllowedInRun(Slot, runState);
     }
 
@@ -152,7 +152,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override async Task BeforeCombatStart()
     {
         var definition = Definition;
-        if (definition is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (definition is null || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return;
         }
@@ -267,7 +267,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override bool ShouldPlay(CardModel card, AutoPlayType _)
     {
         var owner = Owner;
-        if (owner is null || card.Owner != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || card.Owner != owner || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return true;
         }
@@ -315,7 +315,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         ICombatState combatState)
     {
         var owner = Owner;
-        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics
+        if (owner is null || !QuriousCraftingRelicsConfig.EnableChaosRelics
             || !participants.Contains(owner.Creature))
         {
             return;
@@ -331,7 +331,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
 
     public override async Task AfterPlayerTurnStartLate(PlayerChoiceContext choiceContext, Player player)
     {
-        if (player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (player != Owner || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return;
         }
@@ -398,7 +398,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
         var owner = Owner;
-        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics
+        if (owner is null || !QuriousCraftingRelicsConfig.EnableChaosRelics
             || cardPlay.Card.Owner != owner)
         {
             return;
@@ -441,7 +441,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         Creature? dealer, CardModel? cardSource, CardPlay? cardPlay)
     {
         var owner = Owner;
-        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics
+        if (owner is null || !QuriousCraftingRelicsConfig.EnableChaosRelics
             || dealer != owner.Creature || target == owner.Creature)
         {
             return 0m;
@@ -482,7 +482,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override decimal ModifyMaxEnergy(Player player, decimal amount)
     {
         var owner = Owner;
-        if (owner is null || player != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || player != owner || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return amount;
         }
@@ -497,7 +497,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override decimal ModifyHandDraw(Player player, decimal count)
     {
         var owner = Owner;
-        if (owner is null || player != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || player != owner || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return count;
         }
@@ -513,7 +513,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override decimal ModifyGoldGained(Player player, decimal amount)
     {
         var owner = Owner;
-        if (owner is null || player != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || player != owner || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return amount;
         }
@@ -525,7 +525,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override decimal ModifyRestSiteHealAmount(Creature creature, decimal amount)
     {
         var owner = Owner;
-        if (owner is null || creature != owner.Creature || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || creature != owner.Creature || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return amount;
         }
@@ -537,7 +537,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override bool ShouldProcurePotion(PotionModel potion, Player player)
     {
         var owner = Owner;
-        if (owner is null || player != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || player != owner || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return true;
         }
@@ -549,7 +549,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         CardModel? cardSource, CardPlay? cardPlay)
     {
         var owner = Owner;
-        if (owner is null || target != owner.Creature || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || target != owner.Creature || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return 0m;
         }
@@ -561,7 +561,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override async Task AfterObtained()
     {
         var owner = Owner;
-        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return;
         }
@@ -579,7 +579,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override async Task AfterCombatVictory(CombatRoom room)
     {
         var owner = Owner;
-        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || !QuriousCraftingRelicsConfig.EnableChaosRelics)
         {
             return;
         }
@@ -604,7 +604,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     // ======================================================================
 
     private static bool ExtraPoolActive =>
-        AutoAnthonyRelicsConfig.EnableChaosRelics && AutoAnthonyRelicsConfig.EnableExtraPool;
+        QuriousCraftingRelicsConfig.EnableChaosRelics && QuriousCraftingRelicsConfig.EnableExtraPool;
 
     /// <summary>
     /// First N hand cards that satisfy <paramref name="eligible"/>. The

@@ -3,7 +3,7 @@
 > 本表由 `mod/Code/Chaos/ChaosRelicCatalog.cs` (核心池) 与
 > `mod/Code/Chaos/ChaosRelicExtraCatalog.cs` (额外池) 直接导出;
 > **两个目录文件是唯一事实源**, 改价/改区间请改目录文件 (以及
-> `AutoAnthonyRelicsConfig` 的同名配置默认值) 后重新同步本表, 不要只改表.
+> `QuriousCraftingRelicsConfig` 的同名配置默认值) 后重新同步本表, 不要只改表.
 
 模板总数 **47** = 核心正面 26 + 核心负面 10 + 额外池正面 10 + 额外池负面 1
 (额外池默认关闭, 开启后加入生成池; 观者姿态 3 项还需要安装观者 mod).
@@ -100,8 +100,8 @@ N 次), 所以第 N 层比第 1 层贵, 总花费
 
 ## 调整方式
 
-- 预算 / 负面概率: 游戏内 设置 -> 常规 -> 东尼算法 - 遗物 -> 打开设置 (专属设置页)
+- 预算 / 负面概率: 游戏内 设置 -> 常规 -> 怪异炼化 - 遗物 -> 打开设置 (专属设置页)
 - 每词条点数与数值区间: 设置页内的滑条 (区间为双手柄范围滑条), 或直接改
-  `mod_configs/AutoAnthonyRelics.cfg`
+  `mod_configs/QuriousCraftingRelics.cfg`
   (键名与配置属性同名, 例: `"Cost_C_START_STRENGTH": "4"`, `"Refund_N_GOLD_DOWN": "3"`)
 - 注意: 联机时两端预算/概率/点数/区间必须一致 (生成确定性键)

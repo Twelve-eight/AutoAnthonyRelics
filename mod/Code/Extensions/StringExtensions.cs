@@ -1,6 +1,6 @@
 using Godot;
 
-namespace AutoAnthonyRelics.Extensions;
+namespace QuriousCraftingRelics.Extensions;
 
 /// <summary>Asset path utilities (Spire1 StringExtensions pattern).</summary>
 public static class StringExtensions

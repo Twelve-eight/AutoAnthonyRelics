@@ -26,10 +26,10 @@
 [*]仅对宝箱流程生效 - 战斗奖励/商店/挖掘的三选一不会误发钥匙
 [*]尊重 Act4Heart 的 keys_enable 配置
 [*]已有钥匙的玩家不会重复获得
-[*]与 AutoAnthony - Relics 内置的同名修复互斥, 两个都装也不会双发
+[*]与 Qurious Crafting - Relics 内置的同名修复互斥, 两个都装也不会双发
 [/list]
 
-[i]When the chest's three-choice reward is skipped (the vanilla \"no vote\" case), the key is granted with vanilla semantics: chest flows only, Act4Heart's keys_enable respected, no duplicate grants, and mutually exclusive with the built-in fix in AutoAnthony - Relics so installing both is safe.[/i]
+[i]When the chest's three-choice reward is skipped (the vanilla \"no vote\" case), the key is granted with vanilla semantics: chest flows only, Act4Heart's keys_enable respected, no duplicate grants, and mutually exclusive with the built-in fix in Qurious Crafting - Relics so installing both is safe.[/i]
 
 [hr]
 
@@ -41,8 +41,8 @@
 [*][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3747537811]Act4Heart[/url]
 [/list]
 
-[b]已订阅 AutoAnthony - Relics 的玩家不需要本 mod[/b] - 那个 mod 已内置同样的修复.
+[b]已订阅 Qurious Crafting - Relics 的玩家不需要本 mod[/b] - 那个 mod 已内置同样的修复.
 
-[i]AutoAnthony - Relics subscribers do NOT need this mod - it already carries the same fix.[/i]"
+[i]Qurious Crafting - Relics subscribers do NOT need this mod - it already carries the same fix.[/i]"
 	"changenote"		"v0.1.0: initial release - Sapphire Key grant when RelicRewardChoices chest reward is skipped (Act4Heart compatibility)."
 }

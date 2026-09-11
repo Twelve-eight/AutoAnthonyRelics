@@ -1,5 +1,14 @@
 # AutoAnthony - Relics (东尼算法 - 遗物) - DEVELOP.md
 
+> **改名迁移 (v0.6.0, 2026-09-12)** - 本 mod 的 mod id / 根命名空间 / 程序集名 / 资源目录 /
+> cfg 文件名 / loc 键前缀已由 `AutoAnthonyRelics` 迁移为 `QuriousCraftingRelics`;
+> 中文显示名 `东尼算法 - 遗物` -> `怪异炼化 - 遗物`, 英文显示名 `AutoAnthony - Relics`
+> -> `Qurious Crafting - Relics`.
+> **本文档正文里出现的 `AutoAnthonyRelics` / `AutoAnthony - Relics` / `东尼算法 - 遗物`
+> 一律视为已被上述新名取代** (正文保留为 v0.6.0 之前的史实, 不逐处改写);
+> 用户 2026-09-07 的原话引用保持原样. 迁移细节见 `DEVLOG.md` Session 45.
+> 旧 id `AutoAnthonyRelics` 由用户裁定腾给后续"真正复原东尼算法特性"的新 mod.
+
 Design and contract document. User order 2026-09-07:
 "写一个使遗物也被东尼算法随机的mod,不过,每个遗物将获得以前3倍数量的词条.
 就叫东尼算法 - 遗物(AutoAnthony - Relics)吧"

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace AutoAnthonyRelics.Chaos;
+namespace QuriousCraftingRelics.Chaos;
 
 /// <summary>One entry (词条) on a generated relic: opcode + single amount + rendered text.</summary>
 public sealed record ChaosRelicOperation(string Template, int Amount, string Text);

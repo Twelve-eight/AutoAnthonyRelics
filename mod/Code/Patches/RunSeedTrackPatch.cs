@@ -5,7 +5,7 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace AutoAnthonyRelics.Patches;
+namespace QuriousCraftingRelics.Patches;
 
 /// <summary>
 /// Tracks the active run seed for ChaosRelicRunRegistry (canonical-model-safe:
@@ -56,12 +56,12 @@ internal static class RunSeedEarlyTrackPatch
             {
                 Chaos.ChaosRelicRunRegistry.CurrentRunSeed = seed;
                 ChaosRelicLocUpdater.OnSeedCaptured(seed);
-                MainFile.Logger.Info($"[AutoAnthonyRelics] run seed early-captured: {seed}");
+                MainFile.Logger.Info($"[QuriousCraftingRelics] run seed early-captured: {seed}");
             }
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] early seed capture failed: {e.Message}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] early seed capture failed: {e.Message}");
         }
     }
 }
@@ -78,11 +78,11 @@ internal static class RunSeedTrackPatch
             // early-capture path already updated the loc table for the same seed
             // (OnSeedCaptured is idempotent per seed), this covers load-without-setup.
             ChaosRelicLocUpdater.OnSeedCaptured(seed);
-            MainFile.Logger.Info($"[AutoAnthonyRelics] run seed captured: {Chaos.ChaosRelicRunRegistry.CurrentRunSeed ?? "(null)"}");
+            MainFile.Logger.Info($"[QuriousCraftingRelics] run seed captured: {Chaos.ChaosRelicRunRegistry.CurrentRunSeed ?? "(null)"}");
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] run seed capture failed: {e.Message}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] run seed capture failed: {e.Message}");
         }
     }
 }

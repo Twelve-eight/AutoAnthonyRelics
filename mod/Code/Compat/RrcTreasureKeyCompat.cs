@@ -11,7 +11,7 @@ using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace AutoAnthonyRelics.Compat;
+namespace QuriousCraftingRelics.Compat;
 
 /// <summary>
 /// Cross-mod bugfix: RelicRewardChoices (workshop 3795496598, "遗物奖励改为三选一")
@@ -53,7 +53,7 @@ namespace AutoAnthonyRelics.Compat;
 /// run via TaskHelper.RunSafely. MP-safe: Obtain is an engine command; both
 /// ends run the same postfix on their own reward instance.
 ///
-/// SHIPPED TWICE on purpose (user order 2026-09-11): inside AutoAnthonyRelics
+/// SHIPPED TWICE on purpose (user order 2026-09-11): inside QuriousCraftingRelics
 /// (default-on for its users) and as the standalone workshop mod
 /// RelicRewardChoicesKeyFix for players who only run RRC + Act4Heart. Both
 /// builds compile this exact source, so TryInstall must stay idempotent across
@@ -85,7 +85,7 @@ internal static class RrcTreasureKeyCompat
     private static bool _installed;
 
     /// <summary>Logger line prefix: the standalone build overrides with its own mod id.</summary>
-    internal static string LogPrefix = "[AutoAnthonyRelics] RRC key compat";
+    internal static string LogPrefix = "[QuriousCraftingRelics] RRC key compat";
 
     private static Type? _rrcChoiceRewardType;
     private static FieldInfo? _rrcTreasureLifetimeField;

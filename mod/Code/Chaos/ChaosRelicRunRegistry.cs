@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace AutoAnthonyRelics.Chaos;
+namespace QuriousCraftingRelics.Chaos;
 
 /// <summary>
 /// Per-run registry of generated relic definitions. Keyed by the run seed
@@ -36,13 +36,13 @@ public static class ChaosRelicRunRegistry
     private static string ConfigFingerprint()
     {
         var sb = new StringBuilder(256);
-        sb.Append(AutoAnthonyRelicsConfig.ChaosRelicBudgetCommon).Append('/')
-          .Append(AutoAnthonyRelicsConfig.ChaosRelicBudgetUncommon).Append('/')
-          .Append(AutoAnthonyRelicsConfig.ChaosRelicBudgetRare).Append('/')
-          .Append(AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceCommon).Append('/')
-          .Append(AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceUncommon).Append('/')
-          .Append(AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceRare).Append('/')
-          .Append(AutoAnthonyRelicsConfig.EnableExtraPool ? '1' : '0').Append('/')
+        sb.Append(QuriousCraftingRelicsConfig.ChaosRelicBudgetCommon).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicBudgetUncommon).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicBudgetRare).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceCommon).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceUncommon).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceRare).Append('/')
+          .Append(QuriousCraftingRelicsConfig.EnableExtraPool ? '1' : '0').Append('/')
           .Append(ChaosTemplates.WatcherModLoaded ? '1' : '0');
         // Per-template economics and bounds. Ordered by template id so the
         // fingerprint does not depend on collection iteration order.
@@ -53,8 +53,8 @@ public static class ChaosRelicRunRegistry
         {
             var spec = ChaosTemplates.Effective(template);
             sb.Append('|').Append(template)
-              .Append(':').Append(AutoAnthonyRelicsConfig.PointCosts.CostPerPoint(template))
-              .Append(':').Append(AutoAnthonyRelicsConfig.PointCosts.RefundPerPoint(template))
+              .Append(':').Append(QuriousCraftingRelicsConfig.PointCosts.CostPerPoint(template))
+              .Append(':').Append(QuriousCraftingRelicsConfig.PointCosts.RefundPerPoint(template))
               .Append(':').Append(spec.Min)
               .Append(':').Append(spec.Max);
         }
@@ -71,13 +71,13 @@ public static class ChaosRelicRunRegistry
                 return cached;
             }
             var generated = ChaosRelicGenerator.Generate(seed,
-                AutoAnthonyRelicsConfig.ChaosRelicBudgetCommon,
-                AutoAnthonyRelicsConfig.ChaosRelicBudgetUncommon,
-                AutoAnthonyRelicsConfig.ChaosRelicBudgetRare,
-                AutoAnthonyRelicsConfig.PointCosts,
-                AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceCommon,
-                AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceUncommon,
-                AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceRare);
+                QuriousCraftingRelicsConfig.ChaosRelicBudgetCommon,
+                QuriousCraftingRelicsConfig.ChaosRelicBudgetUncommon,
+                QuriousCraftingRelicsConfig.ChaosRelicBudgetRare,
+                QuriousCraftingRelicsConfig.PointCosts,
+                QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceCommon,
+                QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceUncommon,
+                QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceRare);
             Cache[key] = generated;
             Order.Enqueue(key);
             while (Order.Count > CacheLimit)
@@ -97,7 +97,7 @@ public static class ChaosRelicRunRegistry
         {
             return null;
         }
-        var pool = ForSeed(seed, AutoAnthonyRelicsConfig.ChaosRelicMultiplier);
+        var pool = ForSeed(seed, QuriousCraftingRelicsConfig.ChaosRelicMultiplier);
         return slot >= 0 && slot < pool.Count ? pool[slot] : null;
     }
 

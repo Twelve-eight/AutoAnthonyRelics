@@ -1,4 +1,4 @@
-[h1]AutoAnthony - Relics (Dongni Algorithm - Relics)[/h1]
+[h1]Qurious Crafting - Relics (Dongni Algorithm - Relics)[/h1]
 
 Every run, deterministically generate 60 chaos relics from the run seed and replace all relic drops.
 
@@ -50,7 +50,7 @@ Extra pool (off by default): hand retain / sly / ethereal, enchantments (Sharp /
 
 [h2]In-game settings[/h2]
 
-Settings -> General -> AutoAnthony - Relics (its own page, next to AutoAnthony's):
+Settings -> General -> Qurious Crafting - Relics (its own page, next to AutoAnthony's):
 [list]
 [*][b]Enable Chaos Relics[/b] - master switch. Off: chaos relics stop generating, the reward pool restores vanilla relics, owned chaos relics stop working
 [*][b]Point budget[/b] - Common / Uncommon / Rare budgets (default 10 / 16 / 24)
@@ -92,5 +92,5 @@ The Workshop BaseLib often lags behind the official GitHub. If BaseLib errors af
 [h2]Console test (optional)[/h2]
 
 Open the developer console with ` in-game and type:
-[code]relic add AUTOANTHONYRELICS-CHAOS_RELIC005[/code]
+[code]relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005[/code]
 to grant one chaos relic and see the top bar icon and tooltip.

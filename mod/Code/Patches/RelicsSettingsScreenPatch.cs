@@ -7,10 +7,10 @@ using MegaCrit.Sts2.Core.Nodes.Screens.Settings;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 
-namespace AutoAnthonyRelics.Patches;
+namespace QuriousCraftingRelics.Patches;
 
 /// <summary>
-/// Adds the "AutoAnthony - Relics settings" entry row to the vanilla
+/// Adds the "Qurious Crafting - Relics settings" entry row to the vanilla
 /// settings screen's General panel, beside AutoAnthony's own group row -
 /// both mods live OUTSIDE BaseLib's mod settings page (user order
 /// 2026-09-11). Row pattern copied from AutoAnthony's AddGroupRow
@@ -28,7 +28,7 @@ internal static class RelicsSettingsScreenPatch
             var content = panel.Content;
             // Templates: the Modding group row (label + open-page button).
             var moddingRow = content.GetNodeOrNull<Control>("Modding");
-            if (moddingRow is null || content.GetNodeOrNull("AutoAnthonyRelicsSettingsGroup") is not null)
+            if (moddingRow is null || content.GetNodeOrNull("QuriousCraftingRelicsSettingsGroup") is not null)
             {
                 return;
             }
@@ -47,14 +47,14 @@ internal static class RelicsSettingsScreenPatch
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] settings row patch failed: {e.Message}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] settings row patch failed: {e.Message}");
         }
     }
 
     private static void AddGroupRow(VBoxContainer content, Control source, int insertionIndex)
     {
         var row = (Control)source.Duplicate(6); // signals+groups, like AutoAnthony
-        row.Name = "AutoAnthonyRelicsSettingsGroup";
+        row.Name = "QuriousCraftingRelicsSettingsGroup";
         FixOwnerRecursive(row, row);
         content.AddChild(row, false, 0);
         content.MoveChild(row, insertionIndex);
@@ -64,10 +64,10 @@ internal static class RelicsSettingsScreenPatch
         var button = row.GetNodeOrNull<NOpenModdingScreenButton>("ModdingButton");
         if (button is null)
         {
-            MainFile.Logger.Error("[AutoAnthonyRelics] duplicated settings row has no button");
+            MainFile.Logger.Error("[QuriousCraftingRelics] duplicated settings row has no button");
             return;
         }
-        button.Name = "AutoAnthonyRelicsSettingsGroupButton";
+        button.Name = "QuriousCraftingRelicsSettingsGroupButton";
         ((NClickableControl)button).Enable();
         button.Connect(NButton.SignalName.Released, Callable.From<NButton>(_ => OpenDedicatedPage(row)), 0u);
         SetLabel(button.GetNodeOrNull<Node>("Label"), TextOf("SETTINGS_OPEN"));
@@ -84,7 +84,7 @@ internal static class RelicsSettingsScreenPatch
                 return;
             }
         }
-        MainFile.Logger.Error("[AutoAnthonyRelics] could not locate a submenu stack for the settings page");
+        MainFile.Logger.Error("[QuriousCraftingRelics] could not locate a submenu stack for the settings page");
     }
 
     /// <summary>Re-own duplicated nodes (Godot Duplicate keeps old owner refs).</summary>
@@ -126,9 +126,9 @@ internal static class RelicsSettingsScreenPatch
     }
 
     private static string ModPrefix =>
-        typeof(AutoAnthonyRelicsConfig).Namespace is { } ns && ns.Length > 0
+        typeof(QuriousCraftingRelicsConfig).Namespace is { } ns && ns.Length > 0
             ? ns.Split('.')[0].ToUpperInvariant() + "-"
-            : "AUTOANTHONYRELICS-";
+            : "QURIOUSCRAFTINGRELICS-";
 }
 
 /// <summary>

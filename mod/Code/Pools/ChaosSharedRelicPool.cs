@@ -4,7 +4,7 @@ using System.Linq;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.RelicPools;
 
-namespace AutoAnthonyRelics.Pools;
+namespace QuriousCraftingRelics.Pools;
 
 /// <summary>
 /// Slot-marker type registry: every concrete ChaosRelicModel subclass in this

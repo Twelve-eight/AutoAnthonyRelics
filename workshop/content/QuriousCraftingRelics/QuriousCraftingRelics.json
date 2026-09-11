@@ -1,6 +1,6 @@
 {
-  "id": "AutoAnthonyRelics",
-  "name": "AutoAnthony - Relics (东尼算法 - 遗物)",
+  "id": "QuriousCraftingRelics",
+  "name": "Qurious Crafting - Relics (怪异炼化 - 遗物)",
   "author": "omp",
   "description": "Chaos relics generated per run with the Anthony algorithm. Each relic spends a rarity-scaled point budget on positive entries, with negative entries refunding points for more positives (qurious-crafting style). Standalone; no AutoAnthony dependency.",
   "version": "0.5.1",

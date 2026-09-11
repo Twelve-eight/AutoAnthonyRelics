@@ -10,7 +10,7 @@
         <PathMap>$(AppOutputBase)=.\</PathMap>
         <GodotDisabledSourceGenerators>GodotPluginsInitializer</GodotDisabledSourceGenerators>
         <!-- Mod id must match manifest + resource folder name inside the pck. -->
-        <ModId>AutoAnthonyRelics</ModId>
+        <ModId>QuriousCraftingRelics</ModId>
     </PropertyGroup>
 
     <PropertyGroup>

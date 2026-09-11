@@ -2,9 +2,9 @@ import json, io, os
 root = r"G:/omp works/AutoAnthonyRelics"
 def load(p):
     with io.open(p, encoding='utf-8-sig') as f: return json.load(f)
-zhs = load(os.path.join(root, r"mod\AutoAnthonyRelics\localization\zhs\settings_ui.json"))
-eng = load(os.path.join(root, r"mod\AutoAnthonyRelics\localization\eng\settings_ui.json"))
-P = "AUTOANTHONYRELICS-"
+zhs = load(os.path.join(root, r"mod\QuriousCraftingRelics\localization\zhs\settings_ui.json"))
+eng = load(os.path.join(root, r"mod\QuriousCraftingRelics\localization\eng\settings_ui.json"))
+P = "QURIOUSCRAFTINGRELICS-"
 rows = []
 with io.open("slug-map.tsv", encoding='utf-8-sig') as f:
     for line in f:

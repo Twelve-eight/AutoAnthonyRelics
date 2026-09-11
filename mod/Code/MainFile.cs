@@ -5,7 +5,7 @@ using HarmonyLib;
 using Godot;
 using MegaCrit.Sts2.Core.Modding;
 
-namespace AutoAnthonyRelics;
+namespace QuriousCraftingRelics;
 
 /// <summary>
 /// Mod entry point. v1 needs no Harmony patches: chaos relics reach the run
@@ -14,7 +14,7 @@ namespace AutoAnthonyRelics;
 [ModInitializer(nameof(Initialize))]
 public partial class MainFile : Node
 {
-    public const string ModId = "AutoAnthonyRelics";
+    public const string ModId = "QuriousCraftingRelics";
     public const string ResPath = $"res://{ModId}";
 
     public static MegaCrit.Sts2.Core.Logging.Logger Logger { get; } =
@@ -24,8 +24,28 @@ public partial class MainFile : Node
     {
         try
         {
+            // MUST run before the config instance exists: the ModConfig
+            // constructor chain (CheckConfigProperties -> Init -> Load) is
+            // synchronous and reads the cfg file by root-namespace-derived
+            // path, so a post-construction migration would be too late.
+            // The migration never throws and touches no Godot API (see its
+            // doc), so it cannot abort init; we log its report from here
+            // because this method really does run inside Godot.
+            ConfigMigrationReport migration = ConfigMigration.MigrateLegacyConfig();
+            if (migration.Describe() is { } migrationLine)
+            {
+                if (migration.Succeeded)
+                {
+                    Logger.Info($"[QuriousCraftingRelics] {migrationLine}");
+                }
+                else
+                {
+                    Logger.Error($"[QuriousCraftingRelics] {migrationLine}");
+                }
+            }
+
             // Settings -> Mod Settings UI registration.
-            ModConfigRegistry.Register(ModId, new AutoAnthonyRelicsConfig());
+            ModConfigRegistry.Register(ModId, new QuriousCraftingRelicsConfig());
 
             // Godot scenes shipped in the .pck (v1: none, but register anyway -
             // costs nothing and future-proof for icon-atlas scenes).
@@ -58,13 +78,13 @@ public partial class MainFile : Node
             // type-load failure surfaces in the log immediately instead of on
             // first pool generation mid-run.
             int slots = Pools.ChaosRelicRegistry.Types.Count;
-            Logger.Info($"[AutoAnthonyRelics] initialized: {slots} chaos relic slots, " +
-                        $"multiplier x{AutoAnthonyRelicsConfig.ChaosRelicMultiplier}, " +
-                        $"enabled={AutoAnthonyRelicsConfig.EnableChaosRelics}");
+            Logger.Info($"[QuriousCraftingRelics] initialized: {slots} chaos relic slots, " +
+                        $"multiplier x{QuriousCraftingRelicsConfig.ChaosRelicMultiplier}, " +
+                        $"enabled={QuriousCraftingRelicsConfig.EnableChaosRelics}");
         }
         catch (Exception e)
         {
-            Logger.Error($"[AutoAnthonyRelics] initializer failed: {e}");
+            Logger.Error($"[QuriousCraftingRelics] initializer failed: {e}");
             throw;
         }
     }

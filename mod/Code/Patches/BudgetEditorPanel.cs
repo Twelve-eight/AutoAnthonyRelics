@@ -6,10 +6,10 @@ using BaseLib.Config;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
-using AutoAnthonyRelics.Chaos;
+using QuriousCraftingRelics.Chaos;
 using MegaCrit.Sts2.addons.mega_text;
 
-namespace AutoAnthonyRelics.Patches;
+namespace QuriousCraftingRelics.Patches;
 
 /// <summary>
 /// Visual point-budget editor for all chaos relic templates (user order
@@ -28,7 +28,7 @@ namespace AutoAnthonyRelics.Patches;
 /// The panel owns no config instance: it takes the one registered in
 /// <see cref="ModConfigRegistry"/> and a save callback, so edits land on the
 /// live config and are persisted through the same debounce path BaseLib's own
-/// settings page uses. Building a fresh <c>new AutoAnthonyRelicsConfig()</c>
+/// settings page uses. Building a fresh <c>new QuriousCraftingRelicsConfig()</c>
 /// here (as the first version did) mutated a throwaway object: BaseLib writes
 /// the registered instance to disk, so nothing the user did in the editor
 /// survived a restart.
@@ -61,7 +61,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] budget editor build failed: {e}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] budget editor build failed: {e}");
         }
     }
 
@@ -84,7 +84,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         AddRows(ChaosRelicCatalog.PositiveTemplates);
         AddSection(Loc("BUDGET_SECTION_NEGATIVE"));
         AddRows(ChaosRelicCatalog.NegativeTemplates);
-        if (AutoAnthonyRelicsConfig.EnableExtraPool)
+        if (QuriousCraftingRelicsConfig.EnableExtraPool)
         {
             AddSection(Loc("BUDGET_SECTION_EXTRA"));
             AddRows(ChaosRelicExtraCatalog.PositiveTemplates
@@ -173,8 +173,8 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
             // Live config values (ChaosPointCosts resolves user-tuned costs);
             // negatives show refund per point.
             int per = spec.IsNegative
-                ? AutoAnthonyRelicsConfig.PointCosts.RefundPerPoint(template)
-                : AutoAnthonyRelicsConfig.PointCosts.CostPerPoint(template);
+                ? QuriousCraftingRelicsConfig.PointCosts.RefundPerPoint(template)
+                : QuriousCraftingRelicsConfig.PointCosts.CostPerPoint(template);
             costLabel.SetTextAutoSize(Loc("BUDGET_PERPOINT").Replace("{P}", per.ToString()));
         }
 
@@ -188,19 +188,20 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     }
 
     /// <summary>
-    /// Rendered effect text for a row. Uses the SAME renderer as the generator,
-    /// so a template whose displayed number is not its own amount (sloth shows
-    /// the resulting card cap, 7 - N) shows the real text here too instead of
-    /// the literal placeholder the first version printed.
+    /// Rendered effect text for a row. Uses the EDITOR renderer, not the
+    /// generator's: a row is a template, not a generated relic, so the amount
+    /// is shown as the literal N that the row's range slider supplies (and
+    /// sloth's derived cap as the expression 7-N). Passing spec.Max here - as
+    /// this used to - printed the band's upper bound as if it were the value.
     /// </summary>
     private static string EffectText(ChaosRelicCatalog.TemplateSpec spec) =>
-        ChaosRelicGenerator.RenderOperation(spec, spec.Max);
+        ChaosRelicGenerator.RenderEditorText(spec);
 
     private void Persist(string template, int low, int high)
     {
         try
         {
-            AutoAnthonyRelicsConfig.SetTemplateBounds(template, low, high);
+            QuriousCraftingRelicsConfig.SetTemplateBounds(template, low, high);
             // Persist through the registered config: mark it dirty and let the
             // submenu's debounce timer write it out. BaseLib's own page does
             // exactly this (Changed() -> OnConfigChanged -> autosave).
@@ -209,7 +210,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] persist bounds {template}: {e.Message}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] persist bounds {template}: {e.Message}");
         }
     }
 
@@ -233,7 +234,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
             }
             catch (Exception e)
             {
-                MainFile.Logger.Error($"[AutoAnthonyRelics] hover tip: {e.Message}");
+                MainFile.Logger.Error($"[QuriousCraftingRelics] hover tip: {e.Message}");
             }
         };
         chip.MouseExited += () =>
@@ -268,9 +269,9 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     private static string LocKey(string name) => $"{ModPrefix}{name}";
 
     private static string ModPrefix =>
-        typeof(AutoAnthonyRelicsConfig).Namespace is { } ns && ns.Length > 0
+        typeof(QuriousCraftingRelicsConfig).Namespace is { } ns && ns.Length > 0
             ? ns.Split('.')[0].ToUpperInvariant() + "-"
-            : "AUTOANTHONYRELICS-";
+            : "QURIOUSCRAFTINGRELICS-";
 
     private static string Loc(string name)
     {

@@ -1,7 +1,7 @@
 using System;
 using Godot;
 
-namespace AutoAnthonyRelics.Patches;
+namespace QuriousCraftingRelics.Patches;
 
 /// <summary>
 /// A single-track, double-ended range slider: one line, two draggable handles.

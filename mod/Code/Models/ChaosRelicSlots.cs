@@ -1,6 +1,6 @@
-using AutoAnthonyRelics.Models;
+using QuriousCraftingRelics.Models;
 
-namespace AutoAnthonyRelics.Models
+namespace QuriousCraftingRelics.Models
 {
     public sealed class ChaosRelic000 : ChaosRelicModel
     {

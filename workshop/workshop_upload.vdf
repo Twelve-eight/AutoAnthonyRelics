@@ -4,8 +4,8 @@
 	"contentfolder"		"G:\\omp works\\AutoAnthonyRelics\\workshop\\content"
 	"previewfile"		"G:\\omp works\\AutoAnthonyRelics\\workshop\\preview.png"
 	"visibility"		"0"
-	"title"		"AutoAnthony - Relics (Chaos Relic Generator / Dongni Algorithm - Relics)"
-	"description"		"[h1]AutoAnthony - Relics(东尼算法 - 遗物)[/h1]
+	"title"		"Qurious Crafting - Relics (Chaos Relic Generator / Dongni Algorithm - Relics)"
+	"description"		"[h1]Qurious Crafting - Relics(怪异炼化 - 遗物)[/h1]
 
 每局游戏,用东尼算法从本局种子确定性地生成 60 件混沌遗物,并替换本局全部的遗物掉落.
 [i]Every run, deterministically generate 60 chaos relics from the run seed and replace all relic drops.[/i]
@@ -58,7 +58,7 @@
 
 [h2]游戏内设置 / In-game settings[/h2]
 
-设置 -> 常规 -> 东尼算法 - 遗物(专属设置页,与东尼算法本体入口相邻):
+设置 -> 常规 -> 怪异炼化 - 遗物(专属设置页,与东尼算法本体入口相邻):
 [list]
 [*][b]启用混沌遗物[/b] - 总开关.关闭后:混沌遗物不再生成,奖励池恢复原版遗物,已拥有的混沌遗物效果停用
 [*][b]点数预算[/b] - 普通 / 罕见 / 稀有 各自的预算(默认 10 / 16 / 24)
@@ -104,7 +104,7 @@
 [h2]控制台验证(可选)/ Console test[/h2]
 
 局内按 ` 打开开发者控制台,输入:
-[code]relic add AUTOANTHONYRELICS-CHAOS_RELIC005[/code]"
+[code]relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005[/code]"
 	"changenote"		"v0.5.1: point-budget entry system (qurious-crafting style) - rarity-scaled budgets, 47 effect templates (26 core positives + 10 core negatives, plus an optional extra pool of 10 positives + 1 negative), negative entries refund points for extra positives; built-in RelicRewardChoices + Act4Heart Sapphire Key fix; all budgets/chances/costs/amount-ranges configurable in-game."
 	"publishedfileid"		"3798163198"
 }

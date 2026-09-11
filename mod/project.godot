@@ -10,9 +10,9 @@ config_version=5
 
 [application]
 
-config/name="AutoAnthonyRelics"
+config/name="QuriousCraftingRelics"
 config/features=PackedStringArray("4.5", "C#", "Mobile")
-config/icon="res://AutoAnthonyRelics/mod_image.png"
+config/icon="res://QuriousCraftingRelics/mod_image.png"
 
 [display]
 
@@ -24,7 +24,7 @@ window/stretch/aspect="expand"
 
 [dotnet]
 
-project/assembly_name="AutoAnthonyRelics"
+project/assembly_name="QuriousCraftingRelics"
 
 [rendering]
 

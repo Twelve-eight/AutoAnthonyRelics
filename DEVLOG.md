@@ -611,3 +611,196 @@ filename = 根命名空间(去特殊字符) + ".cfg".
 - research/tools/slug-map.ps1 (重新生成上表)
 - research/tools/verify-loc-keys.py (核对新名是否命中现有 loc 键)
 - research/tools/slug-ground-truth.txt (真 .NET 正则实测样本)
+
+## Session 45 - 2026-09-12 - 改名 / id 迁移 / 文本修复 (实现) + 原版映射回填
+
+依据: `HANDOFF-2026-09-12-PT2.md` 的 D1-D7, 范围 = `HANDOFF-2026-09-12.md`
+第 8 节 8 步. 本会话完成第 1-2 步, 并实现第 5 步; 第 3 步(契约)已在上一会话完成.
+
+### 第 1 步 - 改名 + 三处文本修复 + id 迁移 (完成)
+
+- 机械改名: 43 个文本文件 + 5 处重命名 + 4 个 payload 重命名, 残留 0.
+  `AUTOANTHONYRELICS-` -> `QURIOUSCRAFTINGRELICS-` (loc 前缀),
+  `AutoAnthonyRelics` -> `QuriousCraftingRelics` (id/命名空间/csproj/程序集),
+  `东尼算法 - 遗物` -> `怪异炼化 - 遗物`, `AutoAnthony - Relics` -> `Qurious Crafting - Relics`.
+- 仓库根目录 `G:/omp works/AutoAnthonyRelics` 保持不动 (用户裁定).
+- 属性名迁移: 146 处, 152 个名字全部命中 (0 ZERO-HIT).
+  规则 = `TitleSnake` (按 `_` 切段, 每段首字母大写其余小写), 使 BaseLib 的
+  Slugify 成为不动点, 因此 loc 键零改动. 规则收在 `Code/ConfigKeyNaming.cs`.
+- cfg 迁移: `Code/ConfigMigration.cs` (新建). BaseLib 无迁移钩子, 迁移必须在
+  `MainFile.Initialize()` 里 `new QuriousCraftingRelicsConfig()` **之前**执行.
+  **关键教训**: 迁移函数一度用 `MainFile.Logger` 打日志, 在 Godot 外触发
+  `Godot.OS..cctor()` 原生访问违例 (0xC0000005) —— try/catch 接不住原生 AV.
+  已改为 `MigrateLegacyConfig()` 只返回 `ConfigMigrationReport`, 由调用方
+  (真的在 Godot 内) 打日志.
+- 文本修复 (A)(B)(C): 新增 `ChaosRelicGenerator.RenderEditorText`, 编辑器行显示
+  字面 `N` / `(7-N)`; `RenderOperation` 三处生成器调用语义不变; 删除死键
+  `RESTORE_DEFAULTS_BUTTON` (zhs/eng 各 1 行).
+- loc 覆盖校验: 154 行中 94 个 Min_/Max_ 隐藏不渲染, 60 个非隐藏全部命中,
+  未解析的非隐藏键 = 0.
+
+### 第 2 步 - 构建 + 探针 + 部署三处 + 实机冒烟 (完成)
+
+- 构建: 主 mod 与孪生包 `RrcA4hKeyFix` 均 0 警告 0 错误, 主 mod 打印 `PCK packed`.
+  **环境坑**: 本 Bash 沙箱缺 `APPDATA`/`PROGRAMDATA`/`ProgramFiles*`, 导致
+  NuGet 报 `Value cannot be null. (Parameter 'path1')` + `MSB4236 Godot.NET.Sdk 找不到`.
+  修法 = `mod/.tmp/dotnet-env.py` 包装器补齐环境变量 (bash 无法 export 带括号的名字).
+- 隔离探针 (全绿): catalog 计数正确; 94 个 Min/Max 键全部命中; 编辑器写入路径通;
+  2700 次核心 4-5 槽生成 0 违例 0 不确定; 编辑器文本含占位符 = false;
+  cfg 迁移四段验收全通 (150 键 150 保留, 5 项用户调价原样, 幂等, 合并保留已有,
+  损坏文件不吞异常且不删旧文件).
+- 部署三处: `mods/`, `mods_disabled/`, `workshop/content/`; 旧副本移到
+  `.tmp/removed-AutoAnthonyRelics-deploy/` (保留可回滚).
+- 实机冒烟 (seed QCRREN1): 第 1 轮全部 mod 被 "user has not yet seen the mods
+  warning" 跳过 —— autoslay 在该弹窗上点了"加载 mod"后退出, 确认写入 settings;
+  第 2 轮 mod 真正加载. 引擎层证据:
+  `Found mod manifest file ...\mods\QuriousCraftingRelics\QuriousCraftingRelics.json`,
+  排序表第 12 位 `Qurious Crafting - Relics (怪异炼化 - 遗物) (QuriousCraftingRelics)`,
+  日志中 `AutoAnthonyRelics` 残留计数 = 0.
+  运行期证据: `initialized: 60 chaos relic slots, multiplier x3, enabled=True`;
+  `RRC key compat: dormant: RelicRewardChoices and/or Act4Heart not loaded`;
+  `relic descriptions updated for seed QCRREN1 (60 slots)`;
+  `pool replacement: removed 236 / 244 vanilla relics from the run grab bag`;
+  `run seed captured: QCRREN1`; 本 mod `[ERROR]` 计数 = 0.
+- **事故 (已处置)**: 冒烟快照 (06:20) 之后, 实机目录
+  `SlayTheSpire2/mod_configs/AutoAnthonyRelics.cfg` 不再位于原位, 且无
+  `.v0.5.1.bak`. 因此第 2 轮 `MainFile.Initialize` 未找到旧文件,
+  `QuriousCraftingRelics.cfg` 以**默认值**新建 (用户调价丢失: BudgetRare 30->24,
+  Multiplier 0->3, NegativeChanceCommon 10->35, Uncommon 30->55,
+  Cost_C_Start_Artifact 5->9). 用户调价完整保存在
+  `.tmp/smoke-prep/AutoAnthonyRelics.cfg.orig` (06:20, 权威) 与
+  `.tmp/AutoAnthonyRelics.cfg.bak` (04:28, 旧). 根因未定位, 疑为本会话的准备步骤
+  把旧文件移走; 教训是**实机状态快照要连 cfg 一起做双份 (原位 + 仓库存档)**.
+  处置: 从 06:20 快照把旧文件放回原位, 把默认值文件移到
+  `.tmp/smoke-prep/QuriousCraftingRelics.cfg.defaults-created-by-run2` 留证,
+  然后跑第 3 轮验证迁移.
+
+### 第 2 步收尾 - 第 3 轮实机冒烟 (seed QCRMIG1): cfg 迁移端到端验证通过
+
+日志 (真实游戏内):
+```
+[QuriousCraftingRelics] cfg migrated: 150 legacy keys, 150 carried over
+    (0 already present); old file kept as AutoAnthonyRelics.cfg.v0.5.1.bak
+[QuriousCraftingRelics] RRC key compat: active: RelicRewardChoices + Act4Heart
+    detected, OnSkipped patched
+[QuriousCraftingRelics] initialized: 60 chaos relic slots, multiplier x0, enabled=True
+```
+`multiplier x0` 即用户调价 (默认 x3), 说明迁移无损. 逐键全量比对:
+旧 150 键 -> 141 个被重命名 -> 丢失 0 / 值不一致 0 / 多出 0.
+`AutoAnthonyRelics.cfg.v0.5.1.bak` 与新的 `QuriousCraftingRelics.cfg` 均已生成.
+
+三轮冒烟把孪生包的两条分支都跑通了: 第 2 轮 `dormant`, 第 3 轮 `active:
+... OnSkipped patched`.
+
+**状态恢复**: 按承诺把 mod 列表恢复原样 —— `BaseLib` 与 `Spire1` 从 `mods/` 移回
+`mods_disabled/`, 与 `.tmp/smoke-prep/` 的两个快照 `diff` 逐行一致 (11 / 17 项).
+
+### 第 6 步 - 消除字典枚举顺序依赖 (完成, 零行为变化)
+
+- **先取证再改**: 探针新增 `templateOrder` 转储, 三个独立进程跑出的顺序
+  字节级一致 (`md5sum` 相同), 且等于源码声明顺序 —— 证实 .NET 9 的 Dictionary
+  在实践中按插入顺序枚举. 但"实践上稳定"不是契约.
+- **改法**: 两个 catalog 的 `Specs` 从 `Dictionary<string, TemplateSpec>` 字面量
+  改为**显式顺序数组** (`TemplateSpec[]`), 另建 `SpecsById` 只做查找.
+  核心 36 条 + 额外 11 条机械转换.
+  - 顺序成为单一来源的契约, 不再依赖字典枚举.
+  - 数组顺序**刻意等于**旧字典的枚举顺序, 所以**没有任何 seed 的产出改变** ——
+    这一点用改造前的 `templateOrder` 作黄金参照回归验证, 字节一致.
+  - 新增模板必须**追加**到所属段落末尾 (写进代码注释); 插在中间会改变
+    seed->遗物 的对应关系.
+- `ConfigFingerprint` 早已对模板列表 `Sort(StringComparer.Ordinal)`, 不依赖顺序,
+  故无需改动.
+- 回归: `core45Seeds` 的 total/deterministicMismatches/violations 与各项均值
+  改造前后完全相同.
+
+### 第 7 步 - 7.2 遗留三项 (完成)
+
+1. `X_RETAIN_ATTACK_BUFF` 文案与时机不符 **[已修]**.
+   实测: buff 由 `AfterFlush` (回合结束) 发放, 且 `_retainAttackBuff` 只在
+   `AfterCombatEnd` 清零 (不按回合). 所以旧文案"本回合你的下一张攻击牌"是错的
+   (它指的那个回合已经结束), 而"下个回合"又过窄 (不攻击就会一直留着).
+   改为无时间限定: `每当你保留一张牌时,你的下一张攻击牌伤害+{N}.`
+2. `OurPointsFor` 用 live 定价 **[已在第 5 步修]**.
+3. `PickAffordablePositive` 的 `UniqueOnly` 是否真生效 **[已实测确认生效]**.
+   代码里 `UniqueOnly.Contains(t)` 会 `continue` (硬排除). 探针在
+   `EnableExtraPool=true` 下生成 400 个种子, `UniqueOnly`
+   = [T_START_ENERGY, PASSIVE_MAX_ENERGY, T_START_DRAW] 三个模板
+   **一次都没有被选中** (`pickedAny=[]`).
+   另: `PlayerCombatState?.TurnNumber <= 1` 的 null 语义也做了实测 ——
+   C# 提升关系运算符在任一操作数为 null 时返回 `false`, 探针确认
+   `null<=1=false` / `null>1=false`, 所以非战斗场景不会误发首回合能量
+   (三处调用点: ChaosRelicModel.cs:324, :347, :505).
+
+
+### 第 5 步 - 原版映射回填 (已实现, 待构建验证)
+
+- `Code/Chaos/ChaosTemplates.cs`: 新增 `RefundOf(spec, costs, amount)`.
+  `ChaosPointCosts.CostPerPoint` 对负向模板刻意返回 0, 所以负向必须走
+  `RefundPerPoint`, 否则悬停会显示 0 点返还.
+- `Code/Chaos/VanillaRelicMapping.cs`: 按 §7.1 实测数据集整体重写.
+  - 修正 8 处矛盾: DaughterOfTheWind(事件遗物/每次攻击+1格挡)、
+    TuningFork(罕见/每10张技能牌+7格挡)、RingOfTheSnake(初始遗物/仅首回合)、
+    BeltBuckle(商店遗物/无药水为条件)、**Lantern 从 PASSIVE_MAX_ENERGY 移到
+    StartEnergy** (原版无任何遗物提升能量上限)、EmberTea(接下来 5 场)、
+    PhilosophersStone/BlessedAntler(先古遗物).
+  - 中文名修正: 奥利哈钢 / 赐福鹿角 / 风的女儿 / 蛇之戒指 / 腰带扣.
+  - 稀有度标签改用引擎自己的 zhs 文案: 初始/普通/罕见/稀有/商店/事件/先古遗物
+    (旧表的"远古"在引擎里不存在).
+  - 补齐实测有对应物的空组: StartVulnAll(弹珠袋)、StartWeakAll(红面具)、
+    StartPlating(护喉甲)、RestHealBonus(皇家枕头)、NegMaxHpDown(树叶药膏/原初之爪),
+    并扩充 TurnStartEnergy/TurnStartDraw/PlayBlock/PlayDamageRandom/
+    PassiveAttackDamage/VictoryHeal.
+  - 逐条渲染 zhs 描述 (BBCode 已剥离, `{Var}` 按反编译数值代入), 不再照抄占位符.
+  - `OurPointsFor` 改走 `ChaosTemplates.Spec` (双池) + live
+    `QuriousCraftingRelicsConfig.PointCosts` + `PriceOf`/`RefundOf`
+    (Decaying 走三角定价); 旧的 `ChaosRelicCatalog.Spec` + `spec.CostPerPoint`
+    两处缺陷消除.
+  - 新增 `TemplateByRelicId` 反向索引, 取代对 Dictionary 的线性扫描.
+  - **决断**: 每个模板最多挂 4 枚芯片 —— 编辑器芯片是不换行的 HBoxContainer
+    (hint 宽 760), 更多会横向溢出. 选取偏好无条件/持续效果.
+  - **决断**: 只有"N 的含义与我们的模板一致"的原版遗物才给价格. 因此
+    TuningFork / OrnamentalFan (每 N 张牌)、Tingsha (弃牌时)、Kusarigama /
+    LetterOpener (每 3 张牌)、Pendulum / PollinousCore (每 N 回合)、
+    BowlerHat (百分比) 不给价格, 悬停显示"不适用", 但 EffectNote 仍列出原版数值.
+    作用范围更窄但同含义的 (打击木偶/微型大炮/神秘打火机) 仍给价格, 由
+    EffectNote 说明限制.
+  - 已验证为空的原版组保留空数组并写明核实依据 (Regen/Artifact/战斗开始群体伤害
+    与中毒/能量上限/格挡加成/战斗胜利金币).
+
+### 第 8 步 - MpConfigSync 三缺陷 + 两项确认 (完成)
+
+范围由用户裁定: **只做 MpConfigSync 的三个已确认缺陷**, 四个跨仓库审查
+(Heartshake / MpConfigSync / Perfect / ChaosBridge) 不做.
+
+- 缺陷 #1 `MainFile.cs`: `harmony.PatchAll` 外包**单个** try/catch (与注释"逐类型
+  隔离"矛盾, 一类抛异常则整批失效) -> 逐类型 `CreateClassProcessor(type).Patch()` +
+  每类独立 try/catch + `HasHarmonyPatch(Type)` 预筛 + 每类日志与末尾汇总.
+- 缺陷 #2 `ConfigPropertyScanner.Scan`: `FlattenHierarchy` 会多返回**继承的**
+  public static 属性 (BaseLib 的 `CheckConfigProperties` 不持久化它们) ->
+  逐条对齐 `BaseLib/Config/ModConfig.cs:143-153`.
+- 缺陷 #3 `ConfigSyncMessage.ShouldBuffer`: 保持 `ICustomMessage` 默认 `true`,
+  **判定为刻意行为**, 只补 XML 文档不改代码. 证据链: 开缓冲
+  `StartRunLobby.cs:498` / `LoadRunLobby.cs:320` -> 本 mod 在 `InitializeShared`
+  postfix 发送 -> 释放于 `RunManager.Launch()` (`RunManager.cs:711-717`,
+  `SetBufferMessages(false)`), 由 `NGame.LoadRun` / `NGame.StartRun` 调用, 晚于
+  `SetUp*`. 改成 `false` 会在初始化中途投递, 严格更差.
+- 两项"另需确认"均已由源码查实 (不再是推理):
+  - `RunManager.CleanUp` 的恢复路径覆盖全部结束方式 —— 胜利/死亡、局内放弃
+    (单机 + 联机主机 + 客户端, 均经 `GuaranteeKillAllPlayers` -> 死亡)、
+    暂停菜单保存并退出、暂停菜单断开、本端掉线 (`LocalPlayerDisconnected`)、
+    关窗口 (`NRun._Notification(1006)`)、Steam 覆盖层加入好友局、主菜单继续失败;
+    唯一不经过的主菜单放弃存档局此时 `State == null`, 而覆盖只可能在
+    `State != null` 期间存在 (apply 只发生在 `Launch()` 释放缓冲之后, `Launch()`
+    晚于断言 `State` 非 null 的 `InitializeShared`), 不存在"覆盖活着但 CleanUp
+    提前 return"的窗口.
+  - `InitializeShared` postfix 与 BaseLib 注册补丁**顺序无关**: 发送端三件前置
+    (`CustomMessageWrapper.Initialize()` 开机 `PostModInitPatch.cs:65`;
+    `MessageTypes.Initialize()` 于 `OneTimeInitialization.cs:84` 且 wrapper id 由
+    BaseLib 后置写入; `NetService` 于 `RunManager.cs:470` 赋值, 早于任何 postfix)
+    全部开机期就绪; 投递只在 `NetMessageBus.Update()` 泵时发生 (`NRun._Process`,
+    而 `NRun` 由 `Launch()` 之后创建), 必然晚于 BaseLib 的注册. 顺带核实主机广播门
+    `readyForBroadcasting` 在大厅握手时置位 (`StartRunLobby.cs:272` /
+    `LoadRunLobby.cs:204` / `RunLobby.cs:118`), 早于 run 启动.
+- 构建: `0 个警告 / 0 个错误` + `PCK packed`.
+- 过程细节、引擎行号表与新记录的已知限制 (重连对端拿不到快照, 未决) 见
+  `G:/omp works/sts2-mpconfigsync/DEVLOG.md` Session 3.

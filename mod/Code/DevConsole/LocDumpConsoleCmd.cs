@@ -7,7 +7,7 @@ using MegaCrit.Sts2.Core.DevConsole;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Entities.Players;
 
-namespace AutoAnthonyRelics.Code.DevConsole;
+namespace QuriousCraftingRelics.Code.DevConsole;
 
 /// <summary>
 /// Dev-only console command that dumps vanilla loc tables to JSON so we can

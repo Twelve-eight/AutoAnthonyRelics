@@ -4,9 +4,9 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Localization;
-using AutoAnthonyRelics.Chaos;
+using QuriousCraftingRelics.Chaos;
 
-namespace AutoAnthonyRelics.Patches;
+namespace QuriousCraftingRelics.Patches;
 
 /// <summary>
 /// Live relic descriptions (user order 2026-09-08: "遗物需要在描述中显示它的效果").
@@ -37,11 +37,11 @@ internal static class ChaosRelicLocUpdater
                 return;
             }
             _lastSeed = seed;
-            var definitions = ChaosRelicRunRegistry.ForSeed(seed, AutoAnthonyRelicsConfig.ChaosRelicMultiplier);
+            var definitions = ChaosRelicRunRegistry.ForSeed(seed, QuriousCraftingRelicsConfig.ChaosRelicMultiplier);
             if (LocManager.Instance is null || LocDictionaryField?.GetValue(LocManager.Instance.GetTable("relics"))
                     is not Dictionary<string, string> dict)
             {
-                MainFile.Logger.Error("[AutoAnthonyRelics] loc update: relics table not found");
+                MainFile.Logger.Error("[QuriousCraftingRelics] loc update: relics table not found");
                 return;
             }
             int entries = 0;
@@ -52,11 +52,11 @@ internal static class ChaosRelicLocUpdater
                 dict[$"{key}.description"] = string.Join("\n", definition.Operations.Select(op => op.Text));
                 entries++;
             }
-            MainFile.Logger.Info($"[AutoAnthonyRelics] relic descriptions updated for seed {seed} ({entries} slots)");
+            MainFile.Logger.Info($"[QuriousCraftingRelics] relic descriptions updated for seed {seed} ({entries} slots)");
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] loc update failed: {e.Message}");
+            MainFile.Logger.Error($"[QuriousCraftingRelics] loc update failed: {e.Message}");
         }
     }
 }

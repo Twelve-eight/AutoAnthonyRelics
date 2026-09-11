@@ -3,13 +3,13 @@ using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
 
-namespace AutoAnthonyRelics;
+namespace QuriousCraftingRelics;
 
 /// <summary>
 /// Standalone entry point for the RelicRewardChoices + Act4Heart Sapphire Key
 /// fix (see Compat.RrcTreasureKeyCompat for the full bug analysis).
 ///
-/// This assembly provides AutoAnthonyRelics.MainFile (ModId/Logger) purely as
+/// This assembly provides QuriousCraftingRelics.MainFile (ModId/Logger) purely as
 /// the compile-time home of the SHARED compat source; the real game mod id
 /// is RrcA4hKeyFix.
 /// </summary>
@@ -36,7 +36,7 @@ public partial class MainFile : Node
             }
             else
             {
-                Logger.Info("[RrcA4hKeyFix] initialized dormant (mods missing, keys disabled, or AutoAnthonyRelics already carries the fix)");
+                Logger.Info("[RrcA4hKeyFix] initialized dormant (mods missing, keys disabled, or QuriousCraftingRelics already carries the fix)");
             }
         }
         catch (Exception e)

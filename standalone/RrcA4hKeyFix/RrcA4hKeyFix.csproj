@@ -42,11 +42,11 @@
     </ItemGroup>
 
     <!--
-      Shared compat source: the SAME file the AutoAnthonyRelics build compiles
+      Shared compat source: the SAME file the QuriousCraftingRelics build compiles
       (../mod/Code/Compat/RrcTreasureKeyCompat.cs). Single source of truth;
       the in-mod copy and this standalone mod must behave identically, and the
       process-wide mutex inside that file makes double-installation safe.
-      Its only external dependency is MainFile.Logger + the AutoAnthonyRelics
+      Its only external dependency is MainFile.Logger + the QuriousCraftingRelics
       namespace, both provided by StandaloneMain.cs below (namespace bridge).
     -->
     <ItemGroup>

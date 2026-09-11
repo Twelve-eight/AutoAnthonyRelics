@@ -1,11 +1,11 @@
-# Steam Workshop Upload Guide - AutoAnthony - Relics
+# Steam Workshop Upload Guide - Qurious Crafting - Relics
 
 Prepared 2026-09-08. Everything is staged; only credentials/2FA are needed to publish.
 
 ## What's staged (this folder)
 
-- `content/AutoAnthonyRelics/` - the mod payload exactly as the game loads it:
-  `AutoAnthonyRelics.dll`, `AutoAnthonyRelics.pck`, `AutoAnthonyRelics.json`.
+- `content/QuriousCraftingRelics/` - the mod payload exactly as the game loads it:
+  `QuriousCraftingRelics.dll`, `QuriousCraftingRelics.pck`, `QuriousCraftingRelics.json`.
   This mirrors the structure of installed workshop items (e.g. BaseLib's item folder).
 - `preview.png` - 512x512 preview (4x4 fan of slot icons on dark gradient).
 - `DESCRIPTION.md` - full bilingual description text to paste into the workshop page.
@@ -45,8 +45,8 @@ still needs a one-time steamcmd login (Option A). If avoiding steamcmd entirely:
 
 - Verify the item page loads: https://steamcommunity.com/sharedfiles/filedetails/?id=<publishedfileid>
 - Subscribe from another machine/profile (or same) -> Steam downloads to
-  `G:\steam\steamapps\workshop\content\2868840\<item id>\AutoAnthonyRelics\` -> game
+  `G:\steam\steamapps\workshop\content\2868840\<item id>\QuriousCraftingRelics\` -> game
   picks it up in the Mods screen.
 - Unsubscribe test: confirm removal works.
-- Update flow: bump `version` in `mod/AutoAnthonyRelics.json`, rebuild, re-stage
+- Update flow: bump `version` in `mod/QuriousCraftingRelics.json`, rebuild, re-stage
   `content/`, edit `changenote` in the VDF, rerun the steamcmd command.

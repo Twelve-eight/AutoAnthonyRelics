@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace AutoAnthonyRelics.Chaos;
+namespace QuriousCraftingRelics.Chaos;
 
 /// <summary>
 /// Single resolution point for chaos relic templates across BOTH pools
@@ -40,7 +40,7 @@ internal static class ChaosTemplates
 
     /// <summary>Raw spec with the user's Min/Max bounds overlay applied.</summary>
     internal static ChaosRelicCatalog.TemplateSpec Effective(string template) =>
-        AutoAnthonyRelicsConfig.ApplyUserBounds(Spec(template));
+        QuriousCraftingRelicsConfig.ApplyUserBounds(Spec(template));
 
     /// <summary>Negative lookup across both pools.</summary>
     internal static bool IsNegative(string template) =>
@@ -59,7 +59,7 @@ internal static class ChaosTemplates
     /// the generator indexes this list with the seeded RNG.
     /// </summary>
     internal static IReadOnlyList<string> PositiveTemplates =>
-        (AutoAnthonyRelicsConfig.EnableExtraPool
+        (QuriousCraftingRelicsConfig.EnableExtraPool
             ? ChaosRelicCatalog.PositiveTemplates.Concat(ChaosRelicExtraCatalog.PositiveTemplates)
             : ChaosRelicCatalog.PositiveTemplates)
         .Where(t => !ChaosRelicExtraCatalog.WatcherTemplates.Contains(t) || WatcherModLoaded)
@@ -67,7 +67,7 @@ internal static class ChaosTemplates
 
     /// <summary>Active negative pool: core always, extra only while enabled.</summary>
     internal static IReadOnlyList<string> NegativeTemplates =>
-        AutoAnthonyRelicsConfig.EnableExtraPool
+        QuriousCraftingRelicsConfig.EnableExtraPool
             ? ChaosRelicCatalog.NegativeTemplates.Concat(ChaosRelicExtraCatalog.NegativeTemplates).ToList()
             : ChaosRelicCatalog.NegativeTemplates;
 
@@ -118,4 +118,15 @@ internal static class ChaosTemplates
         spec.Decaying
             ? costs.CostPerPoint(spec.Template) * amount * (amount + 1) / 2
             : costs.CostPerPoint(spec.Template) * amount;
+
+    /// <summary>
+    /// Points REFUNDED by an amount of a negative spec, using the LIVE
+    /// per-point table. Mirrors <see cref="PriceOf"/> for the negative side:
+    /// <see cref="ChaosPointCosts.CostPerPoint"/> deliberately returns 0 for
+    /// negatives, so a consumer that priced a negative through PriceOf would
+    /// silently show a 0-point refund. Refunds are linear (see
+    /// <c>TemplateSpec.Refund</c>); no negative template is Decaying.
+    /// </summary>
+    internal static int RefundOf(ChaosRelicCatalog.TemplateSpec spec, ChaosPointCosts costs, int amount) =>
+        costs.RefundPerPoint(spec.Template) * amount;
 }

@@ -9,10 +9,16 @@ livePriceVsReference={"live":19,"reference":5}
 sameSeedConfigChange={"cacheUnchanged":false,"freshGeneratorDifferent":true}
 legalUnaffordableConfig={"emptyRelics":0}
 installationDedup={"mutexMembers":0,"usesPatchInfo":true}
-slothEditorText="\u6BCF\u56DE\u5408\u4F60\u65E0\u6CD5\u6253\u51FA\u8D85\u8FC72\u5F20\u724C."
+editorVsGeneratedText={"editorNormal":"\u6218\u6597\u5F00\u59CB\u65F6,\u5BF9\u6240\u6709\u654C\u4EBA\u9020\u6210N\u70B9\u4F24\u5BB3.","editorSloth":"\u6BCF\u56DE\u5408\u4F60\u65E0\u6CD5\u6253\u51FA\u8D85\u8FC7(7-N)\u5F20\u724C.","generatedNormal":"\u6218\u6597\u5F00\u59CB\u65F6,\u5BF9\u6240\u6709\u654C\u4EBA\u9020\u62105\u70B9\u4F24\u5BB3.","generatedSloth":"\u6BCF\u56DE\u5408\u4F60\u65E0\u6CD5\u6253\u51FA\u8D85\u8FC72\u5F20\u724C.","editorHasPlaceholder":false}
 cheapestFloor=20
 unpoweredDamageBonus=0
 displayCounter={"show":true,"shown":2,"entries":2}
 loseHpFlagSemantics={"unpoweredOnlyBlocked":3,"withUnblockableBlocked":0}
 damageQueryConsumesRetainBonus={"firstQuery":4,"secondQuery":4,"remaining":4,"attackType":"Attack"}
 retainedBonusAfterCombatEnd=0
+cfgMigrationFromLiveFile={"succeeded":true,"reportLine":"cfg migrated: 150 legacy keys, 150 carried over (0 already present); old file kept as AutoAnthonyRelics.cfg.v0.5.1.bak","legacyKeyCount":150,"migratedKeyCount":150,"keysStillNotTitleSnake":[],"backupCreated":true,"legacyRemoved":true,"userTuned":{"budgetRare":"30","costStartArtifact":"5","negChanceCommon":"10","negChanceUncommon":"30","multiplier":"0"},"deadLegacyKeys":0}
+cfgMigrationIdempotent=true
+cfgMigrationMergeKeepsExisting={"costStartArtifact":"17","keys":150}
+cfgMigrationCorruptFile={"succeeded":false,"errorType":"JsonException","legacyKept":true}
+
+[dotnet-env exit=0]

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using MegaCrit.Sts2.Core.Entities.Relics;
 
-namespace AutoAnthonyRelics.Chaos;
+namespace QuriousCraftingRelics.Chaos;
 
 /// <summary>
 /// Seeded chaos relic generator: the relic-side mirror of AutoAnthony's
@@ -222,16 +222,38 @@ public static class ChaosRelicGenerator
     }
 
     /// <summary>
-    /// Text for one entry. Sloth is the one template whose rendered number is
+    /// Text for one generated entry - a relic that already exists, so the
+    /// numbers are concrete. Sloth is the one template whose rendered number is
     /// not its own amount: the relic caps cards played per turn at 7 - N, and
-    /// the tooltip must show the cap, not N. The generator used to substitute
-    /// it here only, so the budget editor (which calls TemplateSpec.Render
-    /// directly) displayed the literal placeholder to the user.
+    /// the tooltip must show the cap, not N.
+    ///
+    /// Three generator call sites (:148, :187, :217) depend on this exact
+    /// semantics - do NOT repurpose it for the editor. The editor has its own
+    /// renderer, <see cref="RenderEditorText"/>.
     /// </summary>
     internal static string RenderOperation(ChaosRelicCatalog.TemplateSpec spec, int amount) =>
         spec.Template == ChaosRelicCatalog.NegStartSloth
             ? spec.TextPattern.Replace("{M}", Math.Max(1, 7 - amount).ToString())
             : spec.Render(amount);
+
+    /// <summary>
+    /// Text for the BUDGET EDITOR's row header, where the amount is not a
+    /// rolled value but the parameter the user is about to bound with the range
+    /// slider underneath. Substituting a concrete number here was actively
+    /// misleading: <c>RenderOperation(spec, spec.Max)</c> made every row show
+    /// the band's upper bound as if it were the template's value, and made
+    /// sloth read "you cannot play more than 2 cards per turn" for a template
+    /// whose N had not been chosen yet.
+    ///
+    /// So: ordinary templates render their placeholder as the literal N, and
+    /// sloth renders its derived cap as the expression (7-N) - the editor has
+    /// no single N to fold into it. The generated relic's description still
+    /// shows concrete numbers via <see cref="RenderOperation"/>.
+    /// </summary>
+    internal static string RenderEditorText(ChaosRelicCatalog.TemplateSpec spec) =>
+        spec.Template == ChaosRelicCatalog.NegStartSloth
+            ? spec.TextPattern.Replace("{M}", "(7-N)")
+            : spec.TextPattern.Replace("{N}", "N");
 
     /// <summary>
     /// Positive templates that may appear at most once per relic: repeatable

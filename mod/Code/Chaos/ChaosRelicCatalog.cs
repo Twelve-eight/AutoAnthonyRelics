@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace AutoAnthonyRelics.Chaos;
+namespace QuriousCraftingRelics.Chaos;
 
 /// <summary>
 /// Effect catalog: every entry template binds to exactly one relic hook and knows
@@ -15,7 +15,7 @@ namespace AutoAnthonyRelics.Chaos;
 /// positive entries COST points (CostPerPoint x Amount), negative entries
 /// REFUND points (RefundPerPoint x Amount), and the generator assembles
 /// "a few positives + one negative" within budget. Every cost is a config
-/// key (user-tunable default; see AutoAnthonyRelicsConfig).
+/// key (user-tunable default; see QuriousCraftingRelicsConfig).
 /// </summary>
 public static class ChaosRelicCatalog
 {
@@ -89,68 +89,93 @@ public static class ChaosRelicCatalog
         public int Refund(int amount) => RefundPerPoint * amount;
     }
 
-    /// <summary>Default point economics (user-tunable via config; see config class).</summary>
-    private static readonly Dictionary<string, TemplateSpec> Specs = new(StringComparer.Ordinal)
+    /// <summary>
+    /// Default point economics (user-tunable via config; see config class).
+    ///
+    /// DECLARED AS AN ARRAY, NOT A DICTIONARY, ON PURPOSE. The generator
+    /// indexes the derived template lists with the seeded RNG
+    /// (PickAffordablePositive / PickNegative), so the list ORDER is part of
+    /// the generation contract. A Dictionary enumerates in insertion order
+    /// only as an implementation detail, not as a contract - the probe
+    /// measured it as byte-identical across three separate processes on
+    /// .NET 9, but "stable in practice" is not something two MP clients may
+    /// rely on. This array is the explicit single source of order;
+    /// SpecsById only serves lookups.
+    ///
+    /// The order below is identical to the order the old Dictionary literal
+    /// enumerated in, so no seed produces different relics than before.
+    ///
+    /// ADDING A TEMPLATE: append it at the end of its section (positives
+    /// first, then negatives, as laid out below). Inserting in the middle
+    /// changes which template a given seed picks.
+    /// </summary>
+    private static readonly TemplateSpec[] Specs =
     {
         // Combat-start one-shot effects: generous bands, moderate cost.
-[StartDamageAll] = new(StartDamageAll, false, 3, 8, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,对所有敌人造成{N}点伤害."),
-[StartBlock] = new(StartBlock, false, 4, 10, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}点格挡."),
-[StartStrength] = new(StartStrength, false, 1, 10, CostPerPoint: 5, RefundPerPoint: 0, "战斗开始时,获得{N}点力量."),
-[StartDexterity] = new(StartDexterity, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "战斗开始时,获得{N}点敏捷."),
-[StartDraw] = new(StartDraw, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,抽{N}张牌."),
-[StartEnergy] = new(StartEnergy, false, 1, 3, CostPerPoint: 6, RefundPerPoint: 0, "战斗开始时,获得{N}点能量."),
-[StartVulnAll] = new(StartVulnAll, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层易伤."),
-[StartWeakAll] = new(StartWeakAll, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层虚弱."),
-[StartRegen] = new(StartRegen, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层再生.", Decaying: true), // 三角定价: 总花费=2*N(N+1)/2; N=4 -> 20点
-[StartThorns] = new(StartThorns, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "战斗开始时,获得{N}点荆棘."),
-[StartArtifact] = new(StartArtifact, false, 1, 2, CostPerPoint: 9, RefundPerPoint: 0, "战斗开始时,获得{N}层人工制品."), // 原版无遗物给人工制品; 核心电涌(Spire1 mod)=1层+11伤害, 层价值极高: 9/层 (用户裁定: 人工制品显著贵于力量5/敏捷4)
-[StartPoisonAll] = new(StartPoisonAll, false, 2, 6, CostPerPoint: 1, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层中毒.", Decaying: true), // 三角定价: N=6 -> 21点 (全体敌人,已含群体溢价)
-[StartPlating] = new(StartPlating, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层覆甲.", Decaying: true), // 覆甲=PlatingPower; 三角定价 N=4 -> 20点; 机制详情悬停可见 (原版描述: 回合结束时获得格挡, 回合开始时层数-1)
-// Per-turn effects: small bands, high cost (they repeat every turn).
-[TurnStartBlock] = new(TurnStartBlock, false, 2, 5, CostPerPoint: 4, RefundPerPoint: 0, "每回合开始时,获得{N}点格挡."),
-[TurnStartEnergy] = new(TurnStartEnergy, false, 1, 1, CostPerPoint: 10, RefundPerPoint: 0, "每回合开始时,获得{N}点能量."),
-[TurnStartHeal] = new(TurnStartHeal, false, 1, 3, CostPerPoint: 7, RefundPerPoint: 0, "每回合开始时,回复{N}点生命."),
-[TurnStartDraw] = new(TurnStartDraw, false, 1, 1, CostPerPoint: 9, RefundPerPoint: 0, "每回合开始时,抽{N}张牌."),
-// Card-play triggers: small bands.
-[PlayDamageRandom] = new(PlayDamageRandom, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "每当你打出一张牌,对随机一名敌人造成{N}点伤害."),
-[PlayBlock] = new(PlayBlock, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "每当你打出一张牌,获得{N}点格挡."),
-// Passives: fixed-ish, priced by permanence.
-[PassiveAttackDamage] = new(PassiveAttackDamage, false, 1, 8, CostPerPoint: 7, RefundPerPoint: 0, "你的攻击牌伤害+{N}."),
-[PassiveMaxEnergy] = new(PassiveMaxEnergy, false, 1, 1, CostPerPoint: 8, RefundPerPoint: 0, "每回合能量上限+{N}."),
-[PassiveBlockAdd] = new(PassiveBlockAdd, false, 1, 2, CostPerPoint: 6, RefundPerPoint: 0, "你获得格挡时,格挡值+{N}."),
-[VictoryHeal] = new(VictoryHeal, false, 2, 8, CostPerPoint: 3, RefundPerPoint: 0, "战斗胜利后,回复{N}点生命."),
-[VictoryGold] = new(VictoryGold, false, 5, 20, CostPerPoint: 1, RefundPerPoint: 0, "战斗胜利后,获得{N}金币."),
-[PassiveGoldGain] = new(PassiveGoldGain, false, 1, 3, CostPerPoint: 2, RefundPerPoint: 0, "你获得的金币+{N}."),
-[RestHealBonus] = new(RestHealBonus, false, 1, 5, CostPerPoint: 1, RefundPerPoint: 0, "营火休息时,额外回复{N}点生命."),
-// Negatives: refund points. Bands sized so refunds matter but stay playable.
-[NegStartFrail] = new(NegStartFrail, true, 1, 2, CostPerPoint: 0, RefundPerPoint: 4, "战斗开始时,你获得{N}层脆弱."),
-[NegTurnLoseHp] = new(NegTurnLoseHp, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 3, "每回合开始时,失去{N}点生命."),
-[NegTurnEnergyDown] = new(NegTurnEnergyDown, true, 1, 1, CostPerPoint: 0, RefundPerPoint: 6, "每回合能量上限-{N}."),
-[NegTurnDrawDown] = new(NegTurnDrawDown, true, 1, 5, CostPerPoint: 0, RefundPerPoint: 6, "每回合抽牌数-{N}."),
-[NegGoldDown] = new(NegGoldDown, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 2, "你获得的金币-{N}."),
-[NegPotionBlock] = new(NegPotionBlock, true, 1, 1, CostPerPoint: 0, RefundPerPoint: 30, "你无法获得药水."),
-[NegStartSloth] = new(NegStartSloth, true, 1, 5, CostPerPoint: 0, RefundPerPoint: 6, "每回合你无法打出超过{M}张牌."), // 原版SlothPower文案对齐; VelvetChoker式: 上限=7-N, 返还6N点; 文案由模型层渲染(7-N)
-[NegRestHealDown] = new(NegRestHealDown, true, 1, 4, CostPerPoint: 0, RefundPerPoint: 2, "营火休息时,回复的生命-{N}."),
-[NegAttackDamageDown] = new(NegAttackDamageDown, true, 1, 2, CostPerPoint: 0, RefundPerPoint: 3, "你的攻击牌伤害-{N}."),
-[NegMaxHpDown] = new(NegMaxHpDown, true, 1, 20, CostPerPoint: 0, RefundPerPoint: 4, "获得此遗物时,最大生命值-{N}."),
+        new(StartDamageAll, false, 3, 8, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,对所有敌人造成{N}点伤害."),
+        new(StartBlock, false, 4, 10, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}点格挡."),
+        new(StartStrength, false, 1, 10, CostPerPoint: 5, RefundPerPoint: 0, "战斗开始时,获得{N}点力量."),
+        new(StartDexterity, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "战斗开始时,获得{N}点敏捷."),
+        new(StartDraw, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,抽{N}张牌."),
+        new(StartEnergy, false, 1, 3, CostPerPoint: 6, RefundPerPoint: 0, "战斗开始时,获得{N}点能量."),
+        new(StartVulnAll, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层易伤."),
+        new(StartWeakAll, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层虚弱."),
+        new(StartRegen, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层再生.", Decaying: true), // 三角定价: 总花费=2*N(N+1)/2; N=4 -> 20点
+        new(StartThorns, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "战斗开始时,获得{N}点荆棘."),
+        new(StartArtifact, false, 1, 2, CostPerPoint: 9, RefundPerPoint: 0, "战斗开始时,获得{N}层人工制品."), // 原版无遗物给人工制品; 核心电涌(Spire1 mod)=1层+11伤害, 层价值极高: 9/层 (用户裁定: 人工制品显著贵于力量5/敏捷4)
+        new(StartPoisonAll, false, 2, 6, CostPerPoint: 1, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层中毒.", Decaying: true), // 三角定价: N=6 -> 21点 (全体敌人,已含群体溢价)
+        new(StartPlating, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层覆甲.", Decaying: true), // 覆甲=PlatingPower; 三角定价 N=4 -> 20点; 机制详情悬停可见 (原版描述: 回合结束时获得格挡, 回合开始时层数-1)
+        // Per-turn effects: small bands, high cost (they repeat every turn).
+        new(TurnStartBlock, false, 2, 5, CostPerPoint: 4, RefundPerPoint: 0, "每回合开始时,获得{N}点格挡."),
+        new(TurnStartEnergy, false, 1, 1, CostPerPoint: 10, RefundPerPoint: 0, "每回合开始时,获得{N}点能量."),
+        new(TurnStartHeal, false, 1, 3, CostPerPoint: 7, RefundPerPoint: 0, "每回合开始时,回复{N}点生命."),
+        new(TurnStartDraw, false, 1, 1, CostPerPoint: 9, RefundPerPoint: 0, "每回合开始时,抽{N}张牌."),
+        // Card-play triggers: small bands.
+        new(PlayDamageRandom, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "每当你打出一张牌,对随机一名敌人造成{N}点伤害."),
+        new(PlayBlock, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "每当你打出一张牌,获得{N}点格挡."),
+        // Passives: fixed-ish, priced by permanence.
+        new(PassiveAttackDamage, false, 1, 8, CostPerPoint: 7, RefundPerPoint: 0, "你的攻击牌伤害+{N}."),
+        new(PassiveMaxEnergy, false, 1, 1, CostPerPoint: 8, RefundPerPoint: 0, "每回合能量上限+{N}."),
+        new(PassiveBlockAdd, false, 1, 2, CostPerPoint: 6, RefundPerPoint: 0, "你获得格挡时,格挡值+{N}."),
+        new(VictoryHeal, false, 2, 8, CostPerPoint: 3, RefundPerPoint: 0, "战斗胜利后,回复{N}点生命."),
+        new(VictoryGold, false, 5, 20, CostPerPoint: 1, RefundPerPoint: 0, "战斗胜利后,获得{N}金币."),
+        new(PassiveGoldGain, false, 1, 3, CostPerPoint: 2, RefundPerPoint: 0, "你获得的金币+{N}."),
+        new(RestHealBonus, false, 1, 5, CostPerPoint: 1, RefundPerPoint: 0, "营火休息时,额外回复{N}点生命."),
+        // Negatives: refund points. Bands sized so refunds matter but stay playable.
+        new(NegStartFrail, true, 1, 2, CostPerPoint: 0, RefundPerPoint: 4, "战斗开始时,你获得{N}层脆弱."),
+        new(NegTurnLoseHp, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 3, "每回合开始时,失去{N}点生命."),
+        new(NegTurnEnergyDown, true, 1, 1, CostPerPoint: 0, RefundPerPoint: 6, "每回合能量上限-{N}."),
+        new(NegTurnDrawDown, true, 1, 5, CostPerPoint: 0, RefundPerPoint: 6, "每回合抽牌数-{N}."),
+        new(NegGoldDown, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 2, "你获得的金币-{N}."),
+        new(NegPotionBlock, true, 1, 1, CostPerPoint: 0, RefundPerPoint: 30, "你无法获得药水."),
+        new(NegStartSloth, true, 1, 5, CostPerPoint: 0, RefundPerPoint: 6, "每回合你无法打出超过{M}张牌."), // 原版SlothPower文案对齐; VelvetChoker式: 上限=7-N, 返还6N点; 文案由模型层渲染(7-N)
+        new(NegRestHealDown, true, 1, 4, CostPerPoint: 0, RefundPerPoint: 2, "营火休息时,回复的生命-{N}."),
+        new(NegAttackDamageDown, true, 1, 2, CostPerPoint: 0, RefundPerPoint: 3, "你的攻击牌伤害-{N}."),
+        new(NegMaxHpDown, true, 1, 20, CostPerPoint: 0, RefundPerPoint: 4, "获得此遗物时,最大生命值-{N}."),
     };
 
-    public static IReadOnlyList<string> AllTemplates { get; } = Specs.Keys.ToArray();
+    /// <summary>Lookup index only - never enumerated for generation order.</summary>
+    private static readonly Dictionary<string, TemplateSpec> SpecsById =
+        Specs.ToDictionary(s => s.Template, StringComparer.Ordinal);
+
+    /// <summary>Every template id, in explicit generation order.</summary>
+    public static IReadOnlyList<string> AllTemplates { get; } =
+        Specs.Select(s => s.Template).ToArray();
 
     public static IReadOnlyList<string> PositiveTemplates { get; } =
-        Specs.Values.Where(s => !s.IsNegative).Select(s => s.Template).ToArray();
+        Specs.Where(s => !s.IsNegative).Select(s => s.Template).ToArray();
 
     public static IReadOnlyList<string> NegativeTemplates { get; } =
-        Specs.Values.Where(s => s.IsNegative).Select(s => s.Template).ToArray();
+        Specs.Where(s => s.IsNegative).Select(s => s.Template).ToArray();
 
     public static TemplateSpec Spec(string template) =>
-        Specs.TryGetValue(template, out var spec) ? spec
+        SpecsById.TryGetValue(template, out var spec) ? spec
             : throw new InvalidOperationException($"Unknown chaos relic template {template}.");
 
     public static bool IsNegative(string template) => Spec(template).IsNegative;
 
     /// <summary>Does this template id live in the core pool?</summary>
-    public static bool HasTemplate(string template) => Specs.ContainsKey(template);
+    public static bool HasTemplate(string template) => SpecsById.ContainsKey(template);
 }
 
 /// <summary>

@@ -1,13 +1,13 @@
 [Steam Workshop item description - paste into the workshop upload form]
 
 Title:
-AutoAnthony - Relics (Chaos Relic Generator / Dongni Algorithm - Relics)
+Qurious Crafting - Relics (Chaos Relic Generator / Dongni Algorithm - Relics)
 
 Tags: Relics, Gameplay, Balanced
 
 English:
 
-AutoAnthony - Relics: every run, 60 chaos relics are generated from the run seed with the Anthony algorithm. Each relic spends a rarity-scaled point budget (10 / 16 / 24 by default) on positive entries, and may roll one negative entry that refunds points for even more positives - Monster Hunter qurious-crafting style. Every relic gets a per-slot rarity, a name, and a dynamic entry-list description.
+Qurious Crafting - Relics: every run, 60 chaos relics are generated from the run seed with the Anthony algorithm. Each relic spends a rarity-scaled point budget (10 / 16 / 24 by default) on positive entries, and may roll one negative entry that refunds points for even more positives - Monster Hunter qurious-crafting style. Every relic gets a per-slot rarity, a name, and a dynamic entry-list description.
 
 How it works
 - 60 relic slots (Chaos Relic 1-60) injected into the shared relic pool: they show up in elite/combat rewards and shops like any vanilla relic.
@@ -22,7 +22,7 @@ How it works
 
 Requires: BaseLib (3.4.5+)
 
-Configuration (Settings -> General -> AutoAnthony - Relics, its own page):
+Configuration (Settings -> General -> Qurious Crafting - Relics, its own page):
 - Enable Chaos Relics: master switch (default on)
 - Point budget per rarity (default 10 / 16 / 24)
 - Negative-entry chance per rarity (default 35% / 55% / 75%)
@@ -30,14 +30,14 @@ Configuration (Settings -> General -> AutoAnthony - Relics, its own page):
 - Enable Extra Effect Pool (default off): hand retain / sly / ethereal, enchantments, retain triggers, Watcher stances
 
 Console verification (optional): in a run, open the dev console and use
-  relic add AUTOANTHONYRELICS-CHAOS_RELIC005
+  relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005
 to grant a chaos relic immediately; check the top-bar relic icons.
 
 Compat: works alongside AutoAnthony (cards) but does NOT require it.
 
 Chinese (Simplified):
 
-AutoAnthony - Relics(东尼算法 - 遗物):每局游戏依据本局种子确定性地生成 60 件混沌遗物.每件遗物按稀有度获得点数预算(默认 普通 10 / 罕见 16 / 稀有 24),正词条消耗点数,并可能掷出一条负面词条返还点数换取更多正词条(怪猎炼化风格).每件都有独立稀有度,名字与动态效果描述.
+Qurious Crafting - Relics(怪异炼化 - 遗物):每局游戏依据本局种子确定性地生成 60 件混沌遗物.每件遗物按稀有度获得点数预算(默认 普通 10 / 罕见 16 / 稀有 24),正词条消耗点数,并可能掷出一条负面词条返还点数换取更多正词条(怪猎炼化风格).每件都有独立稀有度,名字与动态效果描述.
 
 Mechanics
 - 60 个遗物槽位(混沌遗物 1-60)进入共享遗物池,像原版遗物一样出现在精英/战斗奖励与商店.
@@ -52,7 +52,7 @@ Mechanics
 
 Requires: BaseLib (3.4.5+)
 
-Configuration (设置 -> 常规 -> 东尼算法 - 遗物 专属设置页):
+Configuration (设置 -> 常规 -> 怪异炼化 - 遗物 专属设置页):
 - 启用混沌遗物:总开关(默认开)
 - 各稀有度点数预算(默认 10 / 16 / 24)
 - 各稀有度负面词条概率(默认 35% / 55% / 75%)
@@ -60,7 +60,7 @@ Configuration (设置 -> 常规 -> 东尼算法 - 遗物 专属设置页):
 - 启用额外效果池(默认关):手牌保留 / 奇巧 / 虚无,附魔,保留触发,观者姿态
 
 Console verification (optional): 局内按 ` 打开开发者控制台并输入
-  relic add AUTOANTHONYRELICS-CHAOS_RELIC005
+  relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005
 可直接获得一件混沌遗物,查看顶栏图标与提示框效果.
 
 Compatibility: 可与 AutoAnthony(卡牌侧)联用,但不依赖它,可单独订阅.
