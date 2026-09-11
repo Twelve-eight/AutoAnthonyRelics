@@ -427,3 +427,62 @@ TEMPLATE-POINTS-LIST.md = user tuning deliverable.
 4. 修F05/F08:版本化原版基准,全部模板统一消费/展示计价,再执行全面重定价和组合平衡检查.
 5. 统一DEVELOP/清单/术语/manifest/工坊说明,持久保留复现工具与来源,修备份hook,实际场景通过后才部署/发布.
 - 完整分类评估另存 assessment-2026-09-12.canvas.tsx.当前Windows会话没有对应G盘Canvas宿主,C盘禁止写入,故仅提供G盘Canvas源码与本DEVLOG文本,不宣称已在IDE内视觉验证.
+
+## Session 43 - 2026-09-12 (F01-F08 修复 + 跨项目侦察)
+
+### 结论
+F01/F02/F03/F07/F08 已修复并构建通过(0 警告 0 错误, PCK packed), 探针全部断言翻转. F05/F06/F09 由子代理并行完成. 部署三处完成.
+
+### 修复内容(commit 13ff225)
+契约层:
+- 新增 `ChaosTemplates`: 两池统一解析器(spec/pool/price). `ChaosPointCosts` 与生成器预算下限都走它; 原来只查核心池, 额外池任何模板都会抛 InvalidOperationException(探针 X_HAND_RETAIN).
+- 94 个 Min_/Max_ 属性改名为模板 id 形式并加 `[ConfigHideInUI]`: 原名与查找键不一致(0/94 命中), 且 BaseLib 会把它们全渲染成设置滑块.
+- 属性反射从每次 Array.Find 改为一次性 name->PropertyInfo 索引.
+- `ChaosRelicRunRegistry` 缓存键改为 seed + 配置指纹: 原来只按 seed, 配置变更后仍返回旧池(探针 cacheUnchanged=true).
+- 删除重复的 `X_HAND_ETHEREAL_NEG` 常量陷阱.
+- uniqueOnly 模板集真正生效; 每件遗物保证至少一条正面词条, 预算低于下限时抬到下限(F08 契约).
+
+战斗语义:
+- 战斗开始能量从 BeforeCombatStart 移到 AfterSideTurnStart(vanilla Lantern): SetupPlayerTurn 的 ResetEnergy 会覆盖.
+- 战斗开始抽牌改为回合 1 的 ModifyHandDraw 加成(vanilla BagOfPreparation).
+- `N_TURN_LOSE_HP` 加 `ValueProp.Unblockable`: 原来被格挡完全吸收(探针 blocked=3, hpLost=0).
+- `ModifyDamageAdditive` 门控为已充能攻击 + 所有者可变的攻击牌(vanilla StrengthPower), 且改为纯读取; 保留增伤改在 AfterAttack 消费, 伤害预览不再吃掉它.
+- `AfterCardPlayed` 自门控所有者(vanilla DaughterOfTheWind).
+- ShowCounter/DisplayAmount 报告词条数.
+- 额外池附魔改到玩家第一回合(此时手牌存在), 每个候选都先用附魔自己的 CanEnchant 校验; Sharp 先过滤再取 N; 虚无跳过已有该关键词的牌.
+- 保留触发改挂 AfterFlush(引擎真正携带保留牌列表的钩子); 原来挂 AfterCardChangedPiles, 保留不产生手牌到手的移动, 所以从未触发.
+- 保留增伤与延迟能量在战斗结束时清零.
+
+UI:
+- 新增 `RangeSlider`: 单轨双端手柄, 自包含. NSlider._Ready 要求 `%Handle` 子节点且每帧解引用, 裸 `new NSlider` 无法渲染.
+- `BudgetEditorPanel` 编辑注册的配置实例并安排保存; 设置页接上 BaseLib 的防抖计时器 + OnSubmenuHidden 落盘.
+- 本地化查询改到 `settings_ui` 并带 `.title` 后缀(BaseLib 自己的约定); 原来查 `gameplay_ui` 且无后缀, 必然落空.
+- 怠惰行用生成器的渲染器显示真实手牌上限.
+
+### 探针对比(修复前 -> 修复后)
+```
+boundKeys                0/94  -> 94/94
+boundsAfterEditorCall    [1,10]->[2,2]
+extraPool                InvalidOperationException -> completed
+sameSeedConfigChange     cacheUnchanged=true -> false
+legalUnaffordableConfig  emptyRelics=60 -> 0
+unpoweredDamageBonus     3 -> 0
+displayCounter           shown=0 -> shown=2
+loseHpFlagSemantics      blocked=3,hpLost=0 -> withUnblockableBlocked=0
+damageQueryConsumes...   first=7,second=3,remaining=0 -> first=4,second=4,remaining=4
+retainedBonusAfterCombatEnd  4 -> 0
+slothEditorText          含 {M} -> 显示 2
+```
+新增断言: `installationDedup={"mutexMembers":0,"usesPatchInfo":true}`, `cheapestFloor=20`.
+探针输出存档: `probe-2026-09-12-after-fix.txt`.
+
+### 实机日志证据(修复前, godot.log 618/626 行)
+两个包都报告 `active: ... OnSkipped patched`, 确认 F06 双重打补丁. 修复后第二个包会走 patch-info 分支转为 dormant.
+
+### 跨项目侦察结果
+- sts2-heartshake: 已完成并发布(fileid 3799286717 已核实), 仅文档漂移.
+- sts2-mpconfigsync: MP 接收路径从未在真实第二端执行过; 文档仍描述已废弃的 Save() 设计.
+- sts2-regentfxfastboot + sts2-boottimer: project.godot 的 config/name 与 assembly_name 仍是脚手架残留 "Perfect", GlobalUsings 注释指向 MpConfigSync. 已修复并推送(afa6e60).
+- chaosbridge: DEVELOP.md 文件布局漏 TransformBatchDedup.cs; DEVLOG 缺 2026-09-08 条目.
+- aftp: 好友包内的 AFTP dll 落后于 fork 构建(MD5 317ad034 vs 58310ad9).
+- sts2-spire1: v1.1.0 已构建但 DEVLOG 未记录; workshop VDF 描述仍是 v1.0.0 的 233 卡/28 遗物.
