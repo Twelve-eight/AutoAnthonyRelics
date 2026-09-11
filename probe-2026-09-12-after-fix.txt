@@ -1,0 +1,18 @@
+SentryGodotInitializer: Sentry GDExtension not loaded in this process; skipping. If you see this in a running game (not during project export or IDE script analysis), check Godot's log for extension load failures.
+catalog={"corePositive":26,"coreNegative":10,"extraPositive":10,"extraNegative":1}
+boundKeys={"expected":94,"matching":94}
+boundsAfterEditorCall={"before":[1,10],"after":[2,2],"stored":[2,2]}
+boundsAfterDirectPropertyChange=[2,2]
+core45Seeds={"total":2700,"deterministicMismatches":0,"violations":0,"summary":[{"rarity":"Common","count":900,"avgPositive":2.951111111111111,"negativePercent":38.44444444444444,"avgSpend":14.556666666666667},{"rarity":"Uncommon","count":900,"avgPositive":3.8855555555555554,"negativePercent":59.22222222222222,"avgSpend":23.01},{"rarity":"Rare","count":900,"avgPositive":4.696666666666666,"negativePercent":74.11111111111111,"avgSpend":31.783333333333335}]}
+extraPool="completed"
+livePriceVsReference={"live":19,"reference":5}
+sameSeedConfigChange={"cacheUnchanged":false,"freshGeneratorDifferent":true}
+legalUnaffordableConfig={"emptyRelics":0}
+installationDedup={"mutexMembers":0,"usesPatchInfo":true}
+slothEditorText="\u6BCF\u56DE\u5408\u4F60\u65E0\u6CD5\u6253\u51FA\u8D85\u8FC72\u5F20\u724C."
+cheapestFloor=20
+unpoweredDamageBonus=0
+displayCounter={"show":true,"shown":2,"entries":2}
+loseHpFlagSemantics={"unpoweredOnlyBlocked":3,"withUnblockableBlocked":0}
+damageQueryConsumesRetainBonus={"firstQuery":4,"secondQuery":4,"remaining":4,"attackType":"Attack"}
+retainedBonusAfterCombatEnd=0
