@@ -105,7 +105,7 @@ public static class ChaosRelicCatalog
 [StartThorns] = new(StartThorns, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0, "战斗开始时,获得{N}点荆棘."),
 [StartArtifact] = new(StartArtifact, false, 1, 2, CostPerPoint: 9, RefundPerPoint: 0, "战斗开始时,获得{N}层人工制品."), // 原版无遗物给人工制品; 核心电涌(Spire1 mod)=1层+11伤害, 层价值极高: 9/层 (用户裁定: 人工制品显著贵于力量5/敏捷4)
 [StartPoisonAll] = new(StartPoisonAll, false, 2, 6, CostPerPoint: 1, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层中毒.", Decaying: true), // 三角定价: N=6 -> 21点 (全体敌人,已含群体溢价)
-[StartPlating] = new(StartPlating, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层覆甲.", Decaying: true), // 覆甲=PlatingPower; 三角定价 N=4 -> 12点; 机制详情悬停可见 (原版描述: 回合结束时获得格挡, 回合开始时层数-1)
+[StartPlating] = new(StartPlating, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层覆甲.", Decaying: true), // 覆甲=PlatingPower; 三角定价 N=4 -> 20点; 机制详情悬停可见 (原版描述: 回合结束时获得格挡, 回合开始时层数-1)
 // Per-turn effects: small bands, high cost (they repeat every turn).
 [TurnStartBlock] = new(TurnStartBlock, false, 2, 5, CostPerPoint: 4, RefundPerPoint: 0, "每回合开始时,获得{N}点格挡."),
 [TurnStartEnergy] = new(TurnStartEnergy, false, 1, 1, CostPerPoint: 10, RefundPerPoint: 0, "每回合开始时,获得{N}点能量."),
