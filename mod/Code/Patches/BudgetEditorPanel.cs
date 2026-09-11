@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
-using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
+using BaseLib.Config;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
@@ -17,25 +17,40 @@ namespace AutoAnthonyRelics.Patches;
 ///   [effect text]([vanilla relic 1],[vanilla relic 2],..)
 ///   - hovering a vanilla relic name shows its full description, rarity,
 ///     and its cost under OUR pricing (VanillaRelicMapping.OurPointsFor);
-///   - Min/Max double-ended slider (left = Min, right = Max);
+///   - one double-ended range slider (single track, two handles) for the
+///     amount band;
 ///   - per-point cost label.
 ///
-/// Backed by config keys Min_<T> / Max_<T> / Cost_<T> / Refund_<T>
-/// (persisted through BaseLib like every other key; MP Tier-1).
-/// Uses engine NHoverTipSet.CreateAndShow for the hover popups and NSlider
-/// (Godot.Range) for the sliders - both byte-verified against sts2.dll.
+/// Backed by config keys Min_&lt;TEMPLATE&gt; / Max_&lt;TEMPLATE&gt; /
+/// Cost_&lt;TEMPLATE&gt; / Refund_&lt;TEMPLATE&gt; (persisted through BaseLib
+/// like every other key; MP Tier-1).
+///
+/// The panel owns no config instance: it takes the one registered in
+/// <see cref="ModConfigRegistry"/> and a save callback, so edits land on the
+/// live config and are persisted through the same debounce path BaseLib's own
+/// settings page uses. Building a fresh <c>new AutoAnthonyRelicsConfig()</c>
+/// here (as the first version did) mutated a throwaway object: BaseLib writes
+/// the registered instance to disk, so nothing the user did in the editor
+/// survived a restart.
 /// </summary>
 internal sealed partial class BudgetEditorPanel : VBoxContainer
 {
     private sealed class TemplateRow
     {
         internal required string Template;
-        internal required NSlider MinSlider;
-        internal required NSlider MaxSlider;
+        internal required RangeSlider Slider;
         internal required MegaLabel CostLabel;
     }
 
     private readonly List<TemplateRow> _rows = new();
+    private readonly ModConfig _config;
+    private readonly Action _scheduleSave;
+
+    public BudgetEditorPanel(ModConfig config, Action scheduleSave)
+    {
+        _config = config;
+        _scheduleSave = scheduleSave;
+    }
 
     public override void _Ready()
     {
@@ -52,27 +67,26 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
 
     private void Build()
     {
-        var title = new MegaLabel { Text = LocOf("AUTOANTHONYRELICS-BUDGET_TITLE") };
+        var title = new MegaLabel { Text = Loc("BUDGET_TITLE") };
         title.AddThemeFontSizeOverride("font_size", 26);
         AddChild(title);
 
         var hint = new Label
         {
-            Text = LocOf("AUTOANTHONYRELICS-BUDGET_HINT"),
+            Text = Loc("BUDGET_HINT"),
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
             CustomMinimumSize = new Vector2(760f, 0f),
         };
         hint.AddThemeFontSizeOverride("font_size", 14);
         AddChild(hint);
 
-        // Core pool
-        AddSection(LocOf("AUTOANTHONYRELICS-BUDGET_SECTION_CORE"));
+        AddSection(Loc("BUDGET_SECTION_CORE"));
         AddRows(ChaosRelicCatalog.PositiveTemplates);
-        AddSection(LocOf("AUTOANTHONYRELICS-BUDGET_SECTION_NEGATIVE"));
+        AddSection(Loc("BUDGET_SECTION_NEGATIVE"));
         AddRows(ChaosRelicCatalog.NegativeTemplates);
         if (AutoAnthonyRelicsConfig.EnableExtraPool)
         {
-            AddSection(LocOf("AUTOANTHONYRELICS-BUDGET_SECTION_EXTRA"));
+            AddSection(Loc("BUDGET_SECTION_EXTRA"));
             AddRows(ChaosRelicExtraCatalog.PositiveTemplates
                 .Concat(ChaosRelicExtraCatalog.NegativeTemplates));
         }
@@ -96,7 +110,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         }
     }
 
-    /// <summary>One template row: effect text + vanilla refs + sliders + cost.</summary>
+    /// <summary>One template row: effect text + vanilla refs + range slider + cost.</summary>
     private Control BuildRow(string template, ChaosRelicCatalog.TemplateSpec spec)
     {
         var row = new VBoxContainer
@@ -110,9 +124,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         var textLine = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         var effect = new MegaLabel
         {
-            Text = spec.Min == spec.Max && !spec.TextPattern.Contains("{N}")
-                ? spec.Render(spec.Min)
-                : spec.Render(spec.Max),
+            Text = EffectText(spec),
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
         };
         textLine.AddChild(effect);
@@ -121,8 +133,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         var refs = VanillaRelicMapping.For(template);
         if (refs.Count > 0)
         {
-            var open = new MegaLabel { Text = " (" };
-            textLine.AddChild(open);
+            textLine.AddChild(new MegaLabel { Text = " (" });
             for (int i = 0; i < refs.Count; i++)
             {
                 if (i > 0)
@@ -135,16 +146,11 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         }
         row.AddChild(textLine);
 
-        // ---- Line 2: Min/Max sliders + per-point cost ----
+        // ---- Line 2: range slider + per-point cost ----
         var sliderLine = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        var minLabel = new MegaLabel { Text = LocOf("AUTOANTHONYRELICS-BUDGET_MIN") };
-        sliderLine.AddChild(minLabel);
-        var minSlider = MakeSlider(spec.Min);
-        sliderLine.AddChild(minSlider);
-        var maxLabel = new MegaLabel { Text = LocOf("AUTOANTHONYRELICS-BUDGET_MAX") };
-        sliderLine.AddChild(maxLabel);
-        var maxSlider = MakeSlider(spec.Max);
-        sliderLine.AddChild(maxSlider);
+        sliderLine.AddChild(new MegaLabel { Text = Loc("BUDGET_RANGE") });
+        var slider = new RangeSlider();
+        sliderLine.AddChild(slider);
         var costLabel = new MegaLabel();
         sliderLine.AddChild(costLabel);
         row.AddChild(sliderLine);
@@ -152,54 +158,58 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         var rw = new TemplateRow
         {
             Template = template,
-            MinSlider = minSlider,
-            MaxSlider = maxSlider,
+            Slider = slider,
             CostLabel = costLabel,
         };
         _rows.Add(rw);
 
-        // Slider ranges: engine allows any band; Min<=Max enforced on commit.
+        // Band: wide enough for the catalog range plus headroom, floored at 8
+        // so a small template can still be widened by hand.
         int band = Math.Max(spec.Max, 8) * 2;
-        minSlider.MinValue = Math.Max(0, spec.Min - 2);
-        minSlider.MaxValue = band;
-        maxSlider.MinValue = Math.Max(0, spec.Min - 2);
-        maxSlider.MaxValue = band;
-        minSlider.Step = 1;
-        maxSlider.Step = 1;
+        slider.Configure(0, band, spec.Min, spec.Max);
 
         void Refresh()
         {
-            int mn = (int)minSlider.Value, mx = (int)maxSlider.Value;
-            if (mn > mx)
-            {
-                (mn, mx) = (mx, mn);
-                (minSlider.Value, maxSlider.Value) = (mn, mx);
-            }
             // Live config values (ChaosPointCosts resolves user-tuned costs);
             // negatives show refund per point.
             int per = spec.IsNegative
                 ? AutoAnthonyRelicsConfig.PointCosts.RefundPerPoint(template)
                 : AutoAnthonyRelicsConfig.PointCosts.CostPerPoint(template);
-            costLabel.SetTextAutoSize(
-                LocOf("AUTOANTHONYRELICS-BUDGET_PERPOINT").Replace("{P}", per.ToString()));
+            costLabel.SetTextAutoSize(Loc("BUDGET_PERPOINT").Replace("{P}", per.ToString()));
         }
-        minSlider.ValueChanged += _ => { Refresh(); Persist(rw, spec); };
-        maxSlider.ValueChanged += _ => { Refresh(); Persist(rw, spec); };
+
+        slider.RangeChanged += (low, high) =>
+        {
+            Persist(template, low, high);
+            Refresh();
+        };
         Refresh();
         return row;
     }
 
-    private void Persist(TemplateRow rw, ChaosRelicCatalog.TemplateSpec spec)
+    /// <summary>
+    /// Rendered effect text for a row. Uses the SAME renderer as the generator,
+    /// so a template whose displayed number is not its own amount (sloth shows
+    /// the resulting card cap, 7 - N) shows the real text here too instead of
+    /// the literal placeholder the first version printed.
+    /// </summary>
+    private static string EffectText(ChaosRelicCatalog.TemplateSpec spec) =>
+        ChaosRelicGenerator.RenderOperation(spec, spec.Max);
+
+    private void Persist(string template, int low, int high)
     {
         try
         {
-            int mn = (int)rw.MinSlider.Value, mx = (int)rw.MaxSlider.Value;
-            if (mn > mx) (mn, mx) = (mx, mn);
-            AutoAnthonyRelicsConfig.SetTemplateBounds(rw.Template, mn, mx);
+            AutoAnthonyRelicsConfig.SetTemplateBounds(template, low, high);
+            // Persist through the registered config: mark it dirty and let the
+            // submenu's debounce timer write it out. BaseLib's own page does
+            // exactly this (Changed() -> OnConfigChanged -> autosave).
+            _config.Changed();
+            _scheduleSave();
         }
         catch (Exception e)
         {
-            MainFile.Logger.Error($"[AutoAnthonyRelics] persist bounds {rw.Template}: {e.Message}");
+            MainFile.Logger.Error($"[AutoAnthonyRelics] persist bounds {template}: {e.Message}");
         }
     }
 
@@ -214,12 +224,11 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         chip.AddThemeColorOverride("font_color", new Color(0.98f, 0.84f, 0.25f));
         chip.AddThemeColorOverride("font_hover_color", new Color(1f, 1f, 1f));
 
-        var tip = BuildRelicTip(vref);
         chip.MouseEntered += () =>
         {
             try
             {
-                NHoverTipSet.CreateAndShow(chip, tip)?
+                NHoverTipSet.CreateAndShow(chip, BuildRelicTip(vref))?
                     .SetGlobalPosition(chip.GlobalPosition + new Vector2(0f, 40f));
             }
             catch (Exception e)
@@ -239,36 +248,33 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     private static HoverTip BuildRelicTip(VanillaRelicMapping.VanillaRef vref)
     {
         string our = VanillaRelicMapping.OurPointsFor(vref) is int pts
-            ? LocOf("AUTOANTHONYRELICS-BUDGET_OURCOST").Replace("{P}", pts.ToString())
-            : LocOf("AUTOANTHONYRELICS-BUDGET_OURCOST_NA");
+            ? Loc("BUDGET_OURCOST").Replace("{P}", pts.ToString())
+            : Loc("BUDGET_OURCOST_NA");
         string desc =
             $"[b]{vref.DisplayName}[/b]\n{vref.Description}\n" +
-            $"[color=#c9a227]{LocOf("AUTOANTHONYRELICS-BUDGET_RARITY")}: {vref.Rarity}[/color]\n" +
+            $"[color=#c9a227]{Loc("BUDGET_RARITY")}: {vref.Rarity}[/color]\n" +
             $"[color=#8fd48f]{our}[/color]\n" +
             $"[color=#9e9e9e]{vref.EffectNote}[/color]";
-        return new HoverTip(new LocString("gameplay_ui", "AUTOANTHONYRELICS-BUDGET_TITLE"), desc);
+        return new HoverTip(new LocString("settings_ui", LocKey("BUDGET_TITLE")), desc);
     }
 
-    private static NSlider MakeSlider(double initial)
-    {
-        var s = new NSlider
-        {
-            CustomMinimumSize = new Vector2(180f, 24f),
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-            Value = initial,
-        };
-        return s;
-    }
+    /// <summary>
+    /// Loc key for a settings string. BaseLib's own settings labels resolve
+    /// <c>{ModPrefix}{SLUGIFIED_NAME}.title</c> out of the <c>settings_ui</c>
+    /// table, where ModPrefix is the uppercased root namespace plus '-'. The
+    /// first version queried the <c>gameplay_ui</c> table without the
+    /// <c>.title</c> suffix, so every label fell through to its raw key.
+    /// </summary>
+    private static string LocKey(string name) => $"{ModPrefix}{name}";
 
-    private static string LocOf(string key)
+    private static string ModPrefix =>
+        typeof(AutoAnthonyRelicsConfig).Namespace is { } ns && ns.Length > 0
+            ? ns.Split('.')[0].ToUpperInvariant() + "-"
+            : "AUTOANTHONYRELICS-";
+
+    private static string Loc(string name)
     {
-        try
-        {
-            return new LocString("gameplay_ui", key).GetRawText();
-        }
-        catch
-        {
-            return key;
-        }
+        var loc = LocString.GetIfExists("settings_ui", LocKey(name) + ".title");
+        return loc?.GetFormattedText() ?? LocKey(name);
     }
 }

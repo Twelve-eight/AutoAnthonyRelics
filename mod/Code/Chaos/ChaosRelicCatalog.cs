@@ -149,16 +149,8 @@ public static class ChaosRelicCatalog
 
     public static bool IsNegative(string template) => Spec(template).IsNegative;
 
-    /// <summary>Cheapest single unit of any positive template (budget floor).</summary>
-    public static int CheapestPositiveUnit(ChaosPointCosts costs)
-    {
-        int cheapest = int.MaxValue;
-        foreach (var template in PositiveTemplates)
-        {
-            cheapest = Math.Min(cheapest, costs.CostPerPoint(template));
-        }
-        return cheapest == int.MaxValue ? 1 : cheapest;
-    }
+    /// <summary>Does this template id live in the core pool?</summary>
+    public static bool HasTemplate(string template) => Specs.ContainsKey(template);
 }
 
 /// <summary>
@@ -178,9 +170,15 @@ public sealed class ChaosPointCosts
         _refundLookup = refundLookup;
     }
 
+    /// <summary>
+    /// Points charged per unit of Amount. Resolves across BOTH pools
+    /// (core + extra) - the core-only lookup this replaced threw
+    /// InvalidOperationException on every extra-pool template while
+    /// EnableExtraPool was on (probe: X_HAND_RETAIN).
+    /// </summary>
     public int CostPerPoint(string template)
     {
-        var spec = ChaosRelicCatalog.Spec(template);
+        var spec = ChaosTemplates.Spec(template);
         if (!spec.IsNegative && _costLookup(template) is int configured && configured > 0)
         {
             return configured;
@@ -188,9 +186,14 @@ public sealed class ChaosPointCosts
         return spec.CostPerPoint;
     }
 
+    /// <summary>
+    /// Points refunded per unit of Amount, across both pools. The extra pool's
+    /// only negative (X_HAND_ETHEREAL) is a refund path, so a core-only lookup
+    /// broke the negative roll too.
+    /// </summary>
     public int RefundPerPoint(string template)
     {
-        var spec = ChaosRelicCatalog.Spec(template);
+        var spec = ChaosTemplates.Spec(template);
         if (spec.IsNegative && _refundLookup(template) is int configured && configured > 0)
         {
             return configured;

@@ -25,12 +25,33 @@ using MegaCrit.Sts2.Core.Commands;
 namespace AutoAnthonyRelics.Models;
 
 /// <summary>
-/// A generated chaos relic. Slot-marker subclasses (ChaosRelic000...) point at
+/// A generated chaos relic. Slot-marker subclasses (ChaosRelic000..) point at
 /// their slot; the definition (rarity, name, entries) is regenerated per run
 /// seed, exactly like AutoAnthony's ChaosCardModel resolves Definition/Card.
 ///
 /// Entry execution: every catalog template binds to exactly one hook here;
 /// hooks iterate their Operations and execute via engine commands.
+///
+/// TIMING AND OWNERSHIP CONTRACT (F03/F07, verified against the engine
+/// decompile under sts2-spire1/research/engine-dllsrc on 2026-09-12):
+/// - Combat-start ENERGY cannot be granted from BeforeCombatStart:
+///   SetupPlayerTurn calls PlayerCombatState.ResetEnergy() right before the
+///   opening draw, which overwrites whatever was added. Vanilla's Lantern
+///   grants it from AfterSideTurnStart gated on TurnNumber &lt;= 1, and that is
+///   the pattern used here.
+/// - Combat-start DRAW is a ModifyHandDraw bonus gated on turn 1 (vanilla's
+///   BagOfPreparation / RingOfTheSnake), not a separate draw call, so it
+///   cannot be swallowed by Fiddle-style draw prevention.
+/// - Combat-start BLOCK stays in BeforeCombatStart (vanilla Anchor): block is
+///   not cleared on turn 1 (Creature.AfterTurnStart returns early while
+///   PlayerCombatState.TurnNumber == 1).
+/// - Every hook that fires for ALL listeners must self-gate on owner: the
+///   engine broadcasts AfterCardPlayed / AfterFlush / ModifyDamageAdditive to
+///   every listener with no owner filter.
+/// - ModifyDamageAdditive is a pure READ. It is called during card-hover
+///   previews as well as real damage, so consuming state there (as the retain
+///   attack buff used to) means a preview eats the buff. Consumption happens
+///   in AfterAttack instead, mirroring vanilla VigorPower.
 /// </summary>
 [Pool(typeof(MegaCrit.Sts2.Core.Models.RelicPools.SharedRelicPool))]
 public abstract class ChaosRelicModel : CustomRelicModel
@@ -70,7 +91,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// fallback. The canonical (menu/preview) instance has no run yet, so it
     /// shows a generic line; in a run the definition's entry texts are joined
     /// into the description. Rendered fresh on table rebuild (language switch,
-    /// save load), and the tooltip reads the table - good enough for v0.2.
+    /// save load), and the tooltip reads the table.
     public override List<(string, string)>? Localization
     {
         get
@@ -88,8 +109,22 @@ public abstract class ChaosRelicModel : CustomRelicModel
         }
     }
 
-    public override bool ShowCounter => true;
+    // ---------- Counter (entry count) ----------
 
+    /// <summary>
+    /// The relic icon badge shows how many entries this relic rolled. Without
+    /// an override the engine's RelicModel.DisplayAmount is 0, so the badge
+    /// the description promises rendered as a literal zero (probe 2026-09-12:
+    /// show=true, shown=0, entries=2).
+    ///
+    /// Gated on Definition rather than on combat: outside a run the canonical
+    /// instance has no definition, so there is nothing to count and no badge
+    /// appears. Inside a run the count is meaningful in every room, not only
+    /// mid-combat.
+    /// </summary>
+    public override bool ShowCounter => Definition is not null;
+
+    public override int DisplayAmount => Definition?.Operations.Count ?? 0;
 
     // ---------- Icons (Spire1Relic pattern; placeholder art per slot) ----------
 
@@ -98,6 +133,19 @@ public abstract class ChaosRelicModel : CustomRelicModel
     protected override string PackedIconOutlinePath => $"{Id.Entry.RemovePrefix().ToLowerInvariant()}_outline.png".RelicImagePath();
 
     protected override string BigIconPath => $"{Id.Entry.RemovePrefix().ToLowerInvariant()}.png".BigRelicImagePath();
+
+    // ---------- Per-slot amount lookup ----------
+
+    /// <summary>
+    /// Total amount of one template on this relic. Sums the operations without
+    /// allocating: the previous `definition.All(template)` built a fresh array
+    /// on every hook call, and ModifyDamageAdditive runs for every damage
+    /// instance including card-hover previews.
+    /// </summary>
+    private int AmountOf(string template) => Definition?.Sum(template) ?? 0;
+
+    /// <summary>Combat-start one-shots that must NOT be granted from BeforeCombatStart.</summary>
+    private int _startEnergyPending;
 
     // ---------- Combat-start hooks ----------
 
@@ -113,96 +161,93 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return;
         }
-        bool flashed = false;
-        foreach (var op in definition.All(ChaosRelicCatalog.StartDamageAll))
+        var context = new ThrowingPlayerChoiceContext();
+
+        int damageAll = AmountOf(ChaosRelicCatalog.StartDamageAll);
+        if (damageAll > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await CreatureCmd.Damage(new ThrowingPlayerChoiceContext(), owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>(),
-                op.Amount, ValueProp.Unpowered, owner.Creature, null, null);
+            Flash();
+            await CreatureCmd.Damage(context,
+                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>(),
+                damageAll, ValueProp.Unpowered, owner.Creature, null, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartBlock))
+        int block = AmountOf(ChaosRelicCatalog.StartBlock);
+        if (block > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await CreatureCmd.GainBlock(owner.Creature, op.Amount, ValueProp.Unpowered, null);
+            Flash();
+            await CreatureCmd.GainBlock(owner.Creature, block, ValueProp.Unpowered, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartStrength))
+        int strength = AmountOf(ChaosRelicCatalog.StartStrength);
+        if (strength > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<StrengthPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
-                op.Amount, owner.Creature, null);
+            Flash();
+            await PowerCmd.Apply<StrengthPower>(context, owner.Creature, strength, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartDexterity))
+        int dexterity = AmountOf(ChaosRelicCatalog.StartDexterity);
+        if (dexterity > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<DexterityPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
-                op.Amount, owner.Creature, null);
+            Flash();
+            await PowerCmd.Apply<DexterityPower>(context, owner.Creature, dexterity, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartVulnAll))
+        int vulnerable = AmountOf(ChaosRelicCatalog.StartVulnAll);
+        if (vulnerable > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<VulnerablePower>(new ThrowingPlayerChoiceContext(),
-                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<MegaCrit.Sts2.Core.Entities.Creatures.Creature>(), op.Amount, owner.Creature, null);
+            Flash();
+            await PowerCmd.Apply<VulnerablePower>(context,
+                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>(),
+                vulnerable, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartWeakAll))
+        int weak = AmountOf(ChaosRelicCatalog.StartWeakAll);
+        if (weak > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<WeakPower>(new ThrowingPlayerChoiceContext(),
-                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<MegaCrit.Sts2.Core.Entities.Creatures.Creature>(), op.Amount, owner.Creature, null);
+            Flash();
+            await PowerCmd.Apply<WeakPower>(context,
+                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>(),
+                weak, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartDraw))
+        int regen = AmountOf(ChaosRelicCatalog.StartRegen);
+        if (regen > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await CardPileCmd.Draw(new ThrowingPlayerChoiceContext(), op.Amount, owner);
+            Flash();
+            await PowerCmd.Apply<RegenPower>(context, owner.Creature, regen, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartEnergy))
+        int thorns = AmountOf(ChaosRelicCatalog.StartThorns);
+        if (thorns > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await PlayerCmd.GainEnergy(op.Amount, owner);
+            Flash();
+            await PowerCmd.Apply<ThornsPower>(context, owner.Creature, thorns, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartRegen))
+        int artifact = AmountOf(ChaosRelicCatalog.StartArtifact);
+        if (artifact > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<RegenPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
-                op.Amount, owner.Creature, null);
+            Flash();
+            await PowerCmd.Apply<ArtifactPower>(context, owner.Creature, artifact, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartThorns))
+        int poison = AmountOf(ChaosRelicCatalog.StartPoisonAll);
+        if (poison > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<ThornsPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
-                op.Amount, owner.Creature, null);
+            Flash();
+            await PowerCmd.Apply<PoisonPower>(context,
+                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>(),
+                poison, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartArtifact))
+        int plating = AmountOf(ChaosRelicCatalog.StartPlating);
+        if (plating > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<ArtifactPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
-                op.Amount, owner.Creature, null);
+            Flash();
+            await PowerCmd.Apply<PlatingPower>(context, owner.Creature, plating, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartPoisonAll))
+        int frail = AmountOf(ChaosRelicCatalog.NegStartFrail);
+        if (frail > 0)
         {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<PoisonPower>(new ThrowingPlayerChoiceContext(),
-                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<MegaCrit.Sts2.Core.Entities.Creatures.Creature>(), op.Amount, owner.Creature, null);
+            Flash();
+            await PowerCmd.Apply<FrailPower>(context, owner.Creature, frail, owner.Creature, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.StartPlating))
-        {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<PlatingPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
-                op.Amount, owner.Creature, null);
-        }
-        // Negatives: self-applied debuffs at combat start.
-        // (Sloth is NOT a power here anymore: the VelvetChoker-style
-        // card-cap lives in ShouldPlay below.)
-        foreach (var op in definition.All(ChaosRelicCatalog.NegStartFrail))
-        {
-            if (!flashed) { Flash(); flashed = true; }
-            await PowerCmd.Apply<FrailPower>(new ThrowingPlayerChoiceContext(), owner.Creature,
-                op.Amount, owner.Creature, null);
-        }
-        // Extra pool: one-shot hand enchants (opt-in pool).
-        if (ExtraPoolActive)
-        {
-            RunExtraCombatStartEnchants(owner);
-        }
+
+        // Combat-start energy is DEFERRED to AfterSideTurnStart: ResetEnergy
+        // runs in SetupPlayerTurn, between this hook and the player's turn
+        // start, and would discard anything granted here.
+        _startEnergyPending = AmountOf(ChaosRelicCatalog.StartEnergy);
     }
 
     // ---------- Sloth (VelvetChoker-style card cap; user order 2026-09-11) ----------
@@ -214,22 +259,15 @@ public abstract class ChaosRelicModel : CustomRelicModel
     {
         get
         {
-            var definition = Definition;
-            if (definition is null)
-            {
-                return int.MaxValue;
-            }
-            int n = definition.All(ChaosRelicCatalog.NegStartSloth).Sum(op => op.Amount);
+            int n = AmountOf(ChaosRelicCatalog.NegStartSloth);
             return n <= 0 ? int.MaxValue : Math.Max(1, 7 - n);
         }
     }
 
     public override bool ShouldPlay(CardModel card, AutoPlayType _)
     {
-        var definition = Definition;
         var owner = Owner;
-        if (definition is null || owner is null || card.Owner != owner
-            || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || card.Owner != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
             return true;
         }
@@ -239,57 +277,115 @@ public abstract class ChaosRelicModel : CustomRelicModel
     public override Task BeforeSideTurnStart(PlayerChoiceContext choiceContext, CombatSide side,
         IReadOnlyList<Creature> participants, ICombatState combatState)
     {
-        _slothCardsPlayedThisTurn = 0;
+        // Owner gate: this hook fires for both sides and for every listener.
+        if (Owner is not null && participants.Contains(Owner.Creature))
+        {
+            _slothCardsPlayedThisTurn = 0;
+        }
         return Task.CompletedTask;
     }
 
     public override Task AfterRoomEntered(AbstractRoom room)
     {
-        _slothCardsPlayedThisTurn = 0;
+        if (room is CombatRoom)
+        {
+            _slothCardsPlayedThisTurn = 0;
+        }
         return Task.CompletedTask;
     }
 
     public override Task AfterCombatEnd(CombatRoom room)
     {
         _slothCardsPlayedThisTurn = 0;
+        // Combat-scoped extra-pool state must not leak into the next fight.
+        // The probe found the retain attack buff surviving combat end with a
+        // value of 4 still attached to the relic instance.
+        _retainAttackBuff = 0;
+        _startEnergyPending = 0;
         return Task.CompletedTask;
     }
 
     // ---------- Turn-start hooks ----------
 
-    public override async Task AfterPlayerTurnStartLate(PlayerChoiceContext choiceContext, Player player)
+    /// <summary>
+    /// Vanilla Lantern pattern: the player's turn start is the only point at
+    /// which granted energy survives (ResetEnergy already ran).
+    /// </summary>
+    public override async Task AfterSideTurnStart(CombatSide side, IReadOnlyList<Creature> participants,
+        ICombatState combatState)
     {
-        var definition = Definition;
-        if (definition is null || player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        var owner = Owner;
+        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics
+            || !participants.Contains(owner.Creature))
         {
             return;
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.TurnStartBlock))
+        int pending = _startEnergyPending;
+        if (pending > 0 && owner.PlayerCombatState?.TurnNumber <= 1)
         {
+            _startEnergyPending = 0;
             Flash();
-            await CreatureCmd.GainBlock(player.Creature, op.Amount, ValueProp.Unpowered, null);
+            await PlayerCmd.GainEnergy(pending, owner);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.TurnStartEnergy))
+    }
+
+    public override async Task AfterPlayerTurnStartLate(PlayerChoiceContext choiceContext, Player player)
+    {
+        if (player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
-            Flash();
-            await PlayerCmd.GainEnergy(op.Amount, player);
+            return;
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.TurnStartHeal))
+        var definition = Definition;
+        if (definition is null)
         {
-            Flash();
-            await CreatureCmd.Heal(player.Creature, op.Amount);
+            return;
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.TurnStartDraw))
+
+        // Extra pool: combat-start enchants run HERE, not in BeforeCombatStart.
+        // BeforeCombatStart fires before the opening draw, so the hand is empty
+        // and every enchant loop iterated zero cards.
+        if (ExtraPoolActive && player.PlayerCombatState?.TurnNumber <= 1)
         {
-            Flash();
-            await CardPileCmd.Draw(choiceContext, op.Amount, player);
+            RunExtraCombatStartEnchants(player);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.NegTurnLoseHp))
+
+        int block = AmountOf(ChaosRelicCatalog.TurnStartBlock);
+        if (block > 0)
         {
             Flash();
+            await CreatureCmd.GainBlock(player.Creature, block, ValueProp.Unpowered, null);
+        }
+        int energy = AmountOf(ChaosRelicCatalog.TurnStartEnergy);
+        if (energy > 0)
+        {
+            Flash();
+            await PlayerCmd.GainEnergy(energy, player);
+        }
+        int heal = AmountOf(ChaosRelicCatalog.TurnStartHeal);
+        if (heal > 0)
+        {
+            Flash();
+            await CreatureCmd.Heal(player.Creature, heal);
+        }
+        int draw = AmountOf(ChaosRelicCatalog.TurnStartDraw);
+        if (draw > 0)
+        {
+            Flash();
+            await CardPileCmd.Draw(choiceContext, draw, player);
+        }
+        int loseHp = AmountOf(ChaosRelicCatalog.NegTurnLoseHp);
+        if (loseHp > 0)
+        {
+            Flash();
+            // Unblockable, mirroring the engine's own "HP loss like Poison"
+            // convention (CreatureCmd self-damage uses Unblockable |
+            // Unpowered). With Unpowered alone the loss was fully absorbed by
+            // block (probe: blocked=3, hpLost=0) - a negative entry that did
+            // nothing whenever the player held block.
             await CreatureCmd.Damage(new ThrowingPlayerChoiceContext(), player.Creature,
-                op.Amount, ValueProp.Unpowered, player.Creature, null, null);
+                loseHp, ValueProp.Unblockable | ValueProp.Unpowered, player.Creature, null, null);
         }
+
         // Extra pool: per-turn hand keywords + stance entry (opt-in pool).
         if (ExtraPoolActive)
         {
@@ -301,143 +397,180 @@ public abstract class ChaosRelicModel : CustomRelicModel
 
     public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        var definition = Definition;
         var owner = Owner;
-        if (definition is null || owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics
+            || cardPlay.Card.Owner != owner)
         {
             return;
         }
-        // Sloth cap counter (velvet-choker style; only when the relic has one).
-        if (SlothCardCap != int.MaxValue && cardPlay.Card.Owner == owner)
+        if (SlothCardCap != int.MaxValue)
         {
             _slothCardsPlayedThisTurn++;
+            InvokeDisplayAmountChanged();
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.PlayDamageRandom))
+
+        int damage = AmountOf(ChaosRelicCatalog.PlayDamageRandom);
+        if (damage > 0)
         {
-            var enemies = owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<MegaCrit.Sts2.Core.Entities.Creatures.Creature>();
-            if (enemies.Count == 0)
+            var enemies = owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>();
+            if (enemies.Count > 0)
             {
-                continue;
+                Flash();
+                var target = enemies[owner.RunState.Rng.CombatTargets.NextInt(enemies.Count)];
+                await CreatureCmd.Damage(choiceContext, target, damage, ValueProp.Unpowered, owner.Creature, null, null);
             }
-            Flash();
-            var target = enemies[owner.RunState.Rng.CombatTargets.NextInt(enemies.Count)];
-            await CreatureCmd.Damage(choiceContext, target, op.Amount, ValueProp.Unpowered, owner.Creature, null, null);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.PlayBlock))
+        int block = AmountOf(ChaosRelicCatalog.PlayBlock);
+        if (block > 0)
         {
             Flash();
-            await CreatureCmd.GainBlock(owner.Creature, op.Amount, ValueProp.Unpowered, null);
+            await CreatureCmd.GainBlock(owner.Creature, block, ValueProp.Unpowered, null);
         }
     }
 
     // ---------- Passive hooks ----------
 
+    /// <summary>
+    /// Pure read (see the class contract). Gated like vanilla StrengthPower:
+    /// only powered attacks (ValueProp.Move without Unpowered) from a real
+    /// attack card owned by this relic's owner. Without the gate the bonus was
+    /// added to relic damage, poison ticks and every other Unpowered source
+    /// (probe: unpoweredDamageBonus=3).
+    /// </summary>
     public override decimal ModifyDamageAdditive(Creature? target, decimal amount, ValueProp props,
         Creature? dealer, CardModel? cardSource, CardPlay? cardPlay)
     {
-        var definition = Definition;
-        if (definition is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
-        {
-            return 0m;
-        }
         var owner = Owner;
-        if (owner is null || dealer != owner.Creature || target == owner.Creature)
+        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics
+            || dealer != owner.Creature || target == owner.Creature)
         {
             return 0m;
         }
-        int bonus = definition.All(ChaosRelicCatalog.PassiveAttackDamage).Sum(op => op.Amount);
-        int malus = definition.All(ChaosRelicCatalog.NegAttackDamageDown).Sum(op => op.Amount);
-        return bonus - malus + ConsumeRetainAttackBuff(cardSource);
+        // IsMutable gate before touching cardSource.Owner: that getter asserts
+        // mutable and throws CanonicalModelException on a canonical card, the
+        // same trap RunSeedOf documents for RelicModel.Owner. A canonical card
+        // is never in a live combat, so it can never be the source here.
+        if (!props.IsPoweredAttack() || cardSource is null || !cardSource.IsMutable
+            || cardSource.Type != CardType.Attack || cardSource.Owner != owner)
+        {
+            return 0m;
+        }
+        int bonus = AmountOf(ChaosRelicCatalog.PassiveAttackDamage);
+        int malus = AmountOf(ChaosRelicCatalog.NegAttackDamageDown);
+        int retainBonus = ExtraPoolActive ? _retainAttackBuff : 0;
+        return bonus - malus + retainBonus;
+    }
+
+    /// <summary>
+    /// Consumes the retain attack buff once the attack it empowered has fully
+    /// resolved. Vanilla VigorPower consumes in AfterAttack for the same
+    /// reason: ModifyDamageAdditive is also called for previews, so the
+    /// decrement cannot live there.
+    /// </summary>
+    public override Task AfterAttack(PlayerChoiceContext choiceContext, MegaCrit.Sts2.Core.Commands.Builders.AttackCommand command)
+    {
+        if (ExtraPoolActive && _retainAttackBuff > 0
+            && Owner is not null && command.Attacker == Owner.Creature
+            && command.DamageProps.IsPoweredAttack()
+            && command.ModelSource is CardModel)
+        {
+            _retainAttackBuff = 0;
+        }
+        return Task.CompletedTask;
     }
 
     public override decimal ModifyMaxEnergy(Player player, decimal amount)
     {
-        var definition = Definition;
-        if (definition is null || player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        var owner = Owner;
+        if (owner is null || player != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
             return amount;
         }
         return Math.Max(0m, amount
-            + definition.All(ChaosRelicCatalog.PassiveMaxEnergy).Sum(op => op.Amount)
-            - definition.All(ChaosRelicCatalog.NegTurnEnergyDown).Sum(op => op.Amount));
+            + AmountOf(ChaosRelicCatalog.PassiveMaxEnergy)
+            - AmountOf(ChaosRelicCatalog.NegTurnEnergyDown));
     }
 
+    /// <summary>
+    /// Turn-1 draw bonus, vanilla BagOfPreparation / RingOfTheSnake pattern.
+    /// </summary>
     public override decimal ModifyHandDraw(Player player, decimal count)
     {
-        var definition = Definition;
-        if (definition is null || player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        var owner = Owner;
+        if (owner is null || player != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
             return count;
         }
+        decimal result = count;
+        if (player.PlayerCombatState?.TurnNumber <= 1)
+        {
+            result += AmountOf(ChaosRelicCatalog.StartDraw);
+        }
         // Floor 1: a 0-card hand would brick the run; NoDraw semantics.
-        return Math.Max(1m, count - definition.All(ChaosRelicCatalog.NegTurnDrawDown).Sum(op => op.Amount));
+        return Math.Max(1m, result - AmountOf(ChaosRelicCatalog.NegTurnDrawDown));
     }
 
     public override decimal ModifyGoldGained(Player player, decimal amount)
     {
-        var definition = Definition;
-        if (definition is null || player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        var owner = Owner;
+        if (owner is null || player != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
             return amount;
         }
         return amount
-            + definition.All(ChaosRelicCatalog.PassiveGoldGain).Sum(op => op.Amount)
-            - definition.All(ChaosRelicCatalog.NegGoldDown).Sum(op => op.Amount);
+            + AmountOf(ChaosRelicCatalog.PassiveGoldGain)
+            - AmountOf(ChaosRelicCatalog.NegGoldDown);
     }
 
     public override decimal ModifyRestSiteHealAmount(Creature creature, decimal amount)
     {
-        var definition = Definition;
         var owner = Owner;
-        if (definition is null || owner is null || creature != owner.Creature
-            || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || creature != owner.Creature || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
             return amount;
         }
         return amount
-            + definition.All(ChaosRelicCatalog.RestHealBonus).Sum(op => op.Amount)
-            - definition.All(ChaosRelicCatalog.NegRestHealDown).Sum(op => op.Amount);
+            + AmountOf(ChaosRelicCatalog.RestHealBonus)
+            - AmountOf(ChaosRelicCatalog.NegRestHealDown);
     }
 
     public override bool ShouldProcurePotion(PotionModel potion, Player player)
     {
-        var definition = Definition;
-        if (definition is null || player != Owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        var owner = Owner;
+        if (owner is null || player != owner || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
             return true;
         }
         // Negative: cannot acquire potions at all.
-        return definition.All(ChaosRelicCatalog.NegPotionBlock).Count == 0;
+        return AmountOf(ChaosRelicCatalog.NegPotionBlock) == 0;
     }
 
     public override decimal ModifyBlockAdditive(Creature? target, decimal block, ValueProp props,
         CardModel? cardSource, CardPlay? cardPlay)
     {
-        var definition = Definition;
         var owner = Owner;
-        if (definition is null || owner is null || target != owner.Creature
-            || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || target != owner.Creature || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
             return 0m;
         }
-        return definition.All(ChaosRelicCatalog.PassiveBlockAdd).Sum(op => op.Amount);
+        return AmountOf(ChaosRelicCatalog.PassiveBlockAdd);
     }
 
     // ---------- Obtain hook (one-shot negatives) ----------
 
     public override async Task AfterObtained()
     {
-        var definition = Definition;
         var owner = Owner;
-        if (definition is null || owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
             return;
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.NegMaxHpDown))
+        int maxHpDown = AmountOf(ChaosRelicCatalog.NegMaxHpDown);
+        if (maxHpDown > 0)
         {
             Flash();
             await CreatureCmd.LoseMaxHp(new ThrowingPlayerChoiceContext(), owner.Creature,
-                op.Amount, isFromCard: false);
+                maxHpDown, isFromCard: false);
         }
     }
 
@@ -445,21 +578,22 @@ public abstract class ChaosRelicModel : CustomRelicModel
 
     public override async Task AfterCombatVictory(CombatRoom room)
     {
-        var definition = Definition;
         var owner = Owner;
-        if (definition is null || owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
+        if (owner is null || !AutoAnthonyRelicsConfig.EnableChaosRelics)
         {
             return;
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.VictoryHeal))
+        int heal = AmountOf(ChaosRelicCatalog.VictoryHeal);
+        if (heal > 0)
         {
             Flash();
-            await CreatureCmd.Heal(owner.Creature, op.Amount);
+            await CreatureCmd.Heal(owner.Creature, heal);
         }
-        foreach (var op in definition.All(ChaosRelicCatalog.VictoryGold))
+        int gold = AmountOf(ChaosRelicCatalog.VictoryGold);
+        if (gold > 0)
         {
             Flash();
-            await PlayerCmd.GainGold(op.Amount, owner);
+            await PlayerCmd.GainGold(gold, owner);
         }
     }
 
@@ -472,73 +606,85 @@ public abstract class ChaosRelicModel : CustomRelicModel
     private static bool ExtraPoolActive =>
         AutoAnthonyRelicsConfig.EnableChaosRelics && AutoAnthonyRelicsConfig.EnableExtraPool;
 
-    /// <summary>First N hand cards (combat RNG; deterministic both ends).</summary>
-    private static IReadOnlyList<CardModel> TakeFirstN(Player owner, int n)
+    /// <summary>
+    /// First N hand cards that satisfy <paramref name="eligible"/>. The
+    /// eligibility filter is applied BEFORE the take: filtering afterwards
+    /// (as the Sharp loop did) means requesting 2 attack cards can enchant
+    /// fewer than 2 while non-attack cards ahead of them in hand order are
+    /// counted against the quota.
+    /// </summary>
+    private static IEnumerable<CardModel> TakeEligible(Player owner, int n, Func<CardModel, bool> eligible)
     {
         var hand = owner.PlayerCombatState?.Hand.Cards;
-        if (hand is null || hand.Count == 0)
+        if (hand is null || hand.Count == 0 || n <= 0)
         {
             return Array.Empty<CardModel>();
         }
-        return hand.Take(n).ToList();
+        return hand.Where(eligible).Take(n);
     }
 
-    /// <summary>Combat-start: enchants on hand cards (one-shot).</summary>
+    /// <summary>
+    /// Combat-start enchants (one-shot). Called from the first player turn so
+    /// the opening hand exists, and every candidate is validated with the
+    /// enchantment's own CanEnchant before CardCmd.Enchant - which THROWS
+    /// InvalidOperationException on an ineligible card (Nimble requires
+    /// GainsBlock, Imbued requires a Skill) rather than returning null.
+    /// </summary>
     private void RunExtraCombatStartEnchants(Player owner)
     {
-        foreach (var op in Definition?.All(ChaosRelicExtraCatalog.EnchantSharp) ?? Array.Empty<ChaosRelicOperation>())
+        int sharp = AmountOf(ChaosRelicExtraCatalog.EnchantSharp);
+        if (sharp > 0)
         {
-            foreach (var card in TakeFirstN(owner, op.Amount).Where(c => c.Type == CardType.Attack))
-            {
-                Flash();
-                CardCmd.Enchant<MegaCrit.Sts2.Core.Models.Enchantments.Sharp>(card, 1);
-            }
+            ApplyEnchant<Sharp>(owner, sharp);
         }
-        foreach (var op in Definition?.All(ChaosRelicExtraCatalog.EnchantNimble) ?? Array.Empty<ChaosRelicOperation>())
+        int nimble = AmountOf(ChaosRelicExtraCatalog.EnchantNimble);
+        if (nimble > 0)
         {
-            foreach (var card in TakeFirstN(owner, op.Amount))
-            {
-                Flash();
-                CardCmd.Enchant<MegaCrit.Sts2.Core.Models.Enchantments.Nimble>(card, 1);
-            }
+            ApplyEnchant<Nimble>(owner, nimble);
         }
-        foreach (var op in Definition?.All(ChaosRelicExtraCatalog.EnchantImbued) ?? Array.Empty<ChaosRelicOperation>())
+        int imbued = AmountOf(ChaosRelicExtraCatalog.EnchantImbued);
+        if (imbued > 0)
         {
-            foreach (var card in TakeFirstN(owner, op.Amount))
-            {
-                Flash();
-                CardCmd.Enchant<MegaCrit.Sts2.Core.Models.Enchantments.Imbued>(card, 1);
-            }
+            ApplyEnchant<Imbued>(owner, imbued);
+        }
+    }
+
+    private void ApplyEnchant<T>(Player owner, int count) where T : EnchantmentModel
+    {
+        var canonical = ModelDb.Enchantment<T>();
+        foreach (var card in TakeEligible(owner, count, canonical.CanEnchant))
+        {
+            Flash();
+            CardCmd.Enchant<T>(card, 1);
         }
     }
 
     /// <summary>Per-turn: hand keywords + stance entry (re-applied each turn).</summary>
     private async Task RunExtraTurnStart(Player player)
     {
-        var definition = Definition;
-        if (definition is null)
+        int retain = AmountOf(ChaosRelicExtraCatalog.HandRetain);
+        if (retain > 0)
         {
-            return;
-        }
-        foreach (var op in definition.All(ChaosRelicExtraCatalog.HandRetain))
-        {
-            foreach (var card in TakeFirstN(player, op.Amount))
+            foreach (var card in TakeEligible(player, retain, static _ => true))
             {
                 Flash();
                 card.GiveSingleTurnRetain();
             }
         }
-        foreach (var op in definition.All(ChaosRelicExtraCatalog.HandSly))
+        int sly = AmountOf(ChaosRelicExtraCatalog.HandSly);
+        if (sly > 0)
         {
-            foreach (var card in TakeFirstN(player, op.Amount))
+            foreach (var card in TakeEligible(player, sly, static _ => true))
             {
                 Flash();
                 card.GiveSingleTurnSly();
             }
         }
-        foreach (var op in definition.All(ChaosRelicExtraCatalog.NegHandEthereal))
+        int ethereal = AmountOf(ChaosRelicExtraCatalog.NegHandEthereal);
+        if (ethereal > 0)
         {
-            foreach (var card in TakeFirstN(player, op.Amount))
+            foreach (var card in TakeEligible(player, ethereal,
+                static c => !c.Keywords.Contains(CardKeyword.Ethereal)))
             {
                 Flash();
                 card.AddKeyword(CardKeyword.Ethereal);
@@ -552,12 +698,11 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// <summary>Watcher-mod stance entry via reflection (skipped when absent).</summary>
     private async Task RunStanceEntry(Player player, string template, string helperMethod)
     {
-        var definition = Definition;
-        if (definition is null || definition.All(template).Count == 0)
+        if (AmountOf(template) == 0)
         {
             return;
         }
-        var watcher = System.AppDomain.CurrentDomain.GetAssemblies()
+        var watcher = AppDomain.CurrentDomain.GetAssemblies()
             .FirstOrDefault(a => a.GetName().Name == "Watcher");
         var helper = watcher?.GetType("WatcherMod.WatcherCombatHelper");
         var method = helper?.GetMethod(helperMethod,
@@ -574,53 +719,49 @@ public abstract class ChaosRelicModel : CustomRelicModel
         }
     }
 
-    /// <summary>Retain-triggered effects (called from AfterCardChangedPiles).</summary>
-    private void RunExtraRetainTriggers(Player owner, CardModel card)
+    /// <summary>
+    /// Retain-triggered effects. Driven by AfterFlush, which the engine calls
+    /// with the exact list of cards that survived the end-of-turn hand flush -
+    /// the definition of "this card was retained". The previous implementation
+    /// listened to AfterCardChangedPiles looking for a hand-to-hand move,
+    /// which the engine never produces for a retain, so these entries were
+    /// inert.
+    /// </summary>
+    public override Task AfterFlush(PlayerChoiceContext choiceContext, Player player,
+        IReadOnlyCollection<CardModel> flushedCards, IReadOnlyCollection<CardModel> retainedCards)
     {
-        var definition = Definition;
-        if (definition is null)
+        var owner = Owner;
+        if (!ExtraPoolActive || owner is null || player != owner || retainedCards.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
-        foreach (var op in definition.All(ChaosRelicExtraCatalog.RetainEnergyDiscount))
+        int discount = AmountOf(ChaosRelicExtraCatalog.RetainEnergyDiscount);
+        int attackBuff = AmountOf(ChaosRelicExtraCatalog.RetainAttackBuff);
+        if (discount == 0 && attackBuff == 0)
         {
-            Flash();
-            // Relative modifier, until played, reduce-only via negative amount.
-            card.EnergyCost.AddUntilPlayed(-op.Amount, reduceOnly: true);
+            return Task.CompletedTask;
         }
-        foreach (var op in definition.All(ChaosRelicExtraCatalog.RetainAttackBuff))
+        foreach (var card in retainedCards)
         {
-            Flash();
-            _retainAttackBuff += op.Amount;
-        }
-    }
-
-    private int _retainAttackBuff;
-
-    /// <summary>Retain detection: a card staying in hand at end of turn.</summary>
-    public override Task AfterCardChangedPiles(CardModel card, PileType oldPile, AbstractModel? clonedBy)
-    {
-        if (ExtraPoolActive && oldPile == PileType.Hand
-            && card.Pile?.Type == PileType.Hand && card.Owner == Owner
-            && card.ShouldRetainThisTurn)
-        {
-            RunExtraRetainTriggers(Owner!, card);
+            if (discount > 0)
+            {
+                Flash();
+                // Relative modifier, until played, reduce-only via negative amount.
+                card.EnergyCost.AddUntilPlayed(-discount, reduceOnly: true);
+            }
+            if (attackBuff > 0)
+            {
+                Flash();
+                _retainAttackBuff += attackBuff;
+            }
         }
         return Task.CompletedTask;
     }
+
     /// <summary>
-    /// Retained-attack buff (extra pool): next attack this turn gains the
-    /// stacked bonus, then resets (StS "next attack" semantics).
+    /// Retained-attack buff (extra pool): the next powered attack card gains
+    /// the stacked bonus, then resets. Consumption happens in AfterAttack, not
+    /// here - see the class contract.
     /// </summary>
-    private int ConsumeRetainAttackBuff(CardModel? cardSource)
-    {
-        if (!ExtraPoolActive || _retainAttackBuff <= 0 || cardSource is null
-            || cardSource.Type != CardType.Attack)
-        {
-            return 0;
-        }
-        int bonus = _retainAttackBuff;
-        _retainAttackBuff = 0;
-        return bonus;
-    }
+    private int _retainAttackBuff;
 }

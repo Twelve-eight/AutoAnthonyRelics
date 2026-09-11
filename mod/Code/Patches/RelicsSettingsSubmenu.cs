@@ -1,6 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
+using BaseLib.Config;
 using Godot;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 
@@ -18,12 +20,21 @@ namespace AutoAnthonyRelics.Patches;
 /// - NMainMenuSubmenuStack.GetSubmenuType prefix intercepts our type and
 ///   lazily instantiates the page into the stack (AutoAnthony registry
 ///   pattern).
-/// - The page itself hosts BaseLib's SimpleModConfig UI for our existing
-///   config class, so all 46 sliders/toggles render unchanged.
+/// - The page itself hosts BaseLib's SimpleModConfig UI for the REGISTERED
+///   config instance, so the sliders/toggles render and edit the live values.
+///
+/// Persistence follows BaseLib's own NModConfigSubmenu: the config's
+/// Changed() event arms a debounce timer, the timer writes the file, and
+/// OnSubmenuHidden flushes immediately. Without that wiring (the first
+/// version) nothing the user changed on this page reached the config file.
 /// </summary>
 internal sealed partial class RelicsSettingsSubmenu : NSubmenu
 {
+    private const double AutosaveDelay = 5.0;
+
     private Control? _initialFocus;
+    private ModConfig? _config;
+    private double _saveTimer = -1;
 
     protected override Control? InitialFocusedControl => _initialFocus;
 
@@ -37,7 +48,7 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
 
             var title = new Label
             {
-                Text = TextOf("AUTOANTHONYRELICS-SETTINGS_PAGE_TITLE"),
+                Text = TextOf("SETTINGS_PAGE_TITLE"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 MouseFilter = MouseFilterEnum.Ignore,
@@ -51,17 +62,17 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
             var scroll = new ScrollContainer
             {
                 Name = "AutoAnthonyRelicsSettingsScroll",
-                HorizontalScrollMode = (ScrollContainer.ScrollMode)0,
-                VerticalScrollMode = (ScrollContainer.ScrollMode)1,
+                HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+                VerticalScrollMode = ScrollContainer.ScrollMode.Auto,
                 AnchorLeft = 0.19f,
                 AnchorRight = 0.81f,
                 AnchorTop = 0f,
                 AnchorBottom = 1f,
                 OffsetTop = 115f,
                 OffsetBottom = -105f,
+                CustomMinimumSize = new Vector2(800f, 0f),
             };
             AddChild(scroll, false, 0);
-            scroll.CustomMinimumSize = new Vector2(800f, 0f);
 
             var options = new VBoxContainer
             {
@@ -92,44 +103,92 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
     {
         try
         {
-            // SimpleModConfig.SetupConfigUI builds all rows (sections,
-            // sliders, toggles) into a container; hand it ours directly.
-            var config = new AutoAnthonyRelicsConfig();
-            config.SetupConfigUI(options);
-
-            // Visual budget editor (user order 2026-09-11): effect text +
-            // vanilla relic refs with hover popups + Min/Max sliders.
-            var editorHeader = new Godot.Label
+            // The REGISTERED instance, not a fresh one: BaseLib persists the
+            // registered config, so a throwaway copy would swallow every edit.
+            _config = ModConfigRegistry.Get(MainFile.ModId)
+                ?? ModConfigRegistry.Get<AutoAnthonyRelicsConfig>();
+            if (_config is null)
             {
-                Text = TextOf("AUTOANTHONYRELICS-BUDGET_TITLE"),
+                MainFile.Logger.Error("[AutoAnthonyRelics] no registered config; settings page read-only");
+            }
+            else
+            {
+                _config.ConfigChanged += OnConfigChanged;
+                _config.SetupConfigUI(options);
+            }
+
+            var editorHeader = new Label
+            {
+                Text = TextOf("BUDGET_TITLE"),
             };
             editorHeader.AddThemeFontSizeOverride("font_size", 24);
             options.AddChild(editorHeader, false, 0);
-            var editor = new BudgetEditorPanel();
-            options.AddChild(editor, false, 0);
-            _initialFocus = options.GetChildOrNull<Godot.Control>(0);
+
+            if (_config is not null)
+            {
+                var editor = new BudgetEditorPanel(_config, ScheduleSave);
+                options.AddChild(editor, false, 0);
+            }
+
+            _initialFocus = options.GetChildOrNull<Control>(0);
         }
-        catch (System.Exception e)
+        catch (Exception e)
         {
             MainFile.Logger.Error($"[AutoAnthonyRelics] config UI build failed: {e}");
-            options.AddChild(new Godot.Label
+            options.AddChild(new Label
             {
-                Text = TextOf("AUTOANTHONYRELICS-SETTINGS_PAGE_UNAVAILABLE"),
-                HorizontalAlignment = Godot.HorizontalAlignment.Center,
+                Text = TextOf("SETTINGS_PAGE_UNAVAILABLE"),
+                HorizontalAlignment = HorizontalAlignment.Center,
             }, false, 0);
         }
     }
 
-    private static string TextOf(string key)
+    private void OnConfigChanged(object? sender, EventArgs e) => ScheduleSave();
+
+    private void ScheduleSave() => _saveTimer = AutosaveDelay;
+
+    public override void _Process(double delta)
     {
+        base._Process(delta);
+        if (_saveTimer <= 0)
+        {
+            return;
+        }
+        _saveTimer -= delta;
+        if (_saveTimer <= 0)
+        {
+            SaveNow();
+        }
+    }
+
+    private void SaveNow()
+    {
+        _saveTimer = -1;
         try
         {
-            return new MegaCrit.Sts2.Core.Localization.LocString("gameplay_ui", key).GetRawText();
+            _config?.Save();
         }
-        catch
+        catch (Exception e)
         {
-            return key;
+            MainFile.Logger.Error($"[AutoAnthonyRelics] config save failed: {e.Message}");
         }
+    }
+
+    /// <summary>Leaving the page flushes pending edits (BaseLib does the same).</summary>
+    protected override void OnSubmenuHidden()
+    {
+        SaveNow();
+        base.OnSubmenuHidden();
+    }
+
+    public override void _ExitTree()
+    {
+        SaveNow();
+        if (_config is not null)
+        {
+            _config.ConfigChanged -= OnConfigChanged;
+        }
+        base._ExitTree();
     }
 
     /// <summary>
@@ -164,4 +223,21 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
     }
 
     private static readonly ConditionalWeakTable<NSubmenuStack, PageHolder> Pages = new();
+
+    /// <summary>
+    /// Settings string lookup. BaseLib resolves config labels from the
+    /// <c>settings_ui</c> table under <c>{ModPrefix}{NAME}.title</c>; the first
+    /// version queried <c>gameplay_ui</c> with no suffix and always missed.
+    /// </summary>
+    private static string TextOf(string name)
+    {
+        string key = ModPrefix + name + ".title";
+        var loc = LocString.GetIfExists("settings_ui", key);
+        return loc?.GetFormattedText() ?? key;
+    }
+
+    private static string ModPrefix =>
+        typeof(AutoAnthonyRelicsConfig).Namespace is { } ns && ns.Length > 0
+            ? ns.Split('.')[0].ToUpperInvariant() + "-"
+            : "AUTOANTHONYRELICS-";
 }

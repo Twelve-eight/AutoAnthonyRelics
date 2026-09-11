@@ -1,14 +1,29 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace AutoAnthonyRelics.Chaos;
 
 /// <summary>
-/// Per-run registry of generated relic definitions. Keyed by run seed string:
-/// same seed -> same relic pool on both MP ends (deterministic regeneration,
-/// the same contract AutoAnthony uses for its pool snapshots minus transport).
-/// Lazily generated on first query for a seed; cache bounded to a few runs.
+/// Per-run registry of generated relic definitions. Keyed by the run seed
+/// PLUS a fingerprint of every config value that feeds generation: same seed
+/// AND same fingerprint -> same relic pool on both MP ends (deterministic
+/// regeneration, the same contract AutoAnthony uses for its pool snapshots
+/// minus transport). Lazily generated on first query; cache bounded to a few
+/// runs.
+///
+/// Why the fingerprint (F04, probe 2026-09-12): the cache used to be keyed by
+/// the seed alone while the generated content depends on the budgets, the
+/// negative chances, the per-template costs, the extra-pool switch and the
+/// Min/Max bounds. The probe changed every budget after a first generation for
+/// the same seed and got back the OLD pool (cacheUnchanged=true) while a fresh
+/// generator call produced a different one. In multiplayer that means a client
+/// whose config sync arrives late keeps serving a pool generated from its own
+/// pre-sync config, and the two ends diverge.
+///
+/// The fingerprint is a stable string hash over the generation inputs, so the
+/// key is (seed, inputs) rather than (seed, first-writer-wins).
 /// </summary>
 public static class ChaosRelicRunRegistry
 {
@@ -17,11 +32,41 @@ public static class ChaosRelicRunRegistry
     private static readonly Dictionary<string, IReadOnlyList<ChaosRelicDefinition>> Cache = new(StringComparer.Ordinal);
     private static readonly Queue<string> Order = new();
 
+    /// <summary>Generation config fingerprint for the current process state.</summary>
+    private static string ConfigFingerprint()
+    {
+        var sb = new StringBuilder(256);
+        sb.Append(AutoAnthonyRelicsConfig.ChaosRelicBudgetCommon).Append('/')
+          .Append(AutoAnthonyRelicsConfig.ChaosRelicBudgetUncommon).Append('/')
+          .Append(AutoAnthonyRelicsConfig.ChaosRelicBudgetRare).Append('/')
+          .Append(AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceCommon).Append('/')
+          .Append(AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceUncommon).Append('/')
+          .Append(AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceRare).Append('/')
+          .Append(AutoAnthonyRelicsConfig.EnableExtraPool ? '1' : '0').Append('/')
+          .Append(ChaosTemplates.WatcherModLoaded ? '1' : '0');
+        // Per-template economics and bounds. Ordered by template id so the
+        // fingerprint does not depend on collection iteration order.
+        var templates = new List<string>(ChaosTemplates.PositiveTemplates);
+        templates.AddRange(ChaosTemplates.NegativeTemplates);
+        templates.Sort(StringComparer.Ordinal);
+        foreach (var template in templates)
+        {
+            var spec = ChaosTemplates.Effective(template);
+            sb.Append('|').Append(template)
+              .Append(':').Append(AutoAnthonyRelicsConfig.PointCosts.CostPerPoint(template))
+              .Append(':').Append(AutoAnthonyRelicsConfig.PointCosts.RefundPerPoint(template))
+              .Append(':').Append(spec.Min)
+              .Append(':').Append(spec.Max);
+        }
+        return sb.ToString();
+    }
+
     public static IReadOnlyList<ChaosRelicDefinition> ForSeed(string seed, int multiplier)
     {
+        string key = seed + "\u0000" + ConfigFingerprint();
         lock (Gate)
         {
-            if (Cache.TryGetValue(seed, out var cached))
+            if (Cache.TryGetValue(key, out var cached))
             {
                 return cached;
             }
@@ -33,8 +78,8 @@ public static class ChaosRelicRunRegistry
                 AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceCommon,
                 AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceUncommon,
                 AutoAnthonyRelicsConfig.ChaosRelicNegativeChanceRare);
-            Cache[seed] = generated;
-            Order.Enqueue(seed);
+            Cache[key] = generated;
+            Order.Enqueue(key);
             while (Order.Count > CacheLimit)
             {
                 Cache.Remove(Order.Dequeue());

@@ -49,10 +49,20 @@ public static class ChaosRelicGenerator
         var definitions = new List<ChaosRelicDefinition>(TotalSlots);
         var usedNames = new HashSet<string>(StringComparer.Ordinal);
         var usedEffectSets = new HashSet<string>(StringComparer.Ordinal);
+
+        // Budget floor contract (F08, explicit - not a silent clamp): a relic
+        // always carries at least one positive entry, so a configured budget
+        // below the price of the cheapest minimum-amount positive is raised to
+        // that price for generation. The probe reproduced the degenerate case
+        // this prevents: budget 1 with every positive priced 20 and negative
+        // chance 0 produced 60 relics with zero entries.
+        int floor = ChaosTemplates.CheapestPositiveFloor(costs);
+
         for (int slot = 0; slot < TotalSlots; slot++)
         {
             RelicRarity rarity = RarityForSlot(slot);
-            int budget = BudgetFor(rarity, budgetCommon, budgetUncommon, budgetRare);
+            int configured = BudgetFor(rarity, budgetCommon, budgetUncommon, budgetRare);
+            int budget = Math.Max(configured, floor);
             int negativeChance = NegativeChanceFor(rarity,
                 negativeChancePercentCommon, negativeChancePercentUncommon, negativeChancePercentRare);
             ChaosRelicDefinition definition = GenerateOne(random, slot, rarity, budget, negativeChance,
@@ -135,15 +145,46 @@ public static class ChaosRelicGenerator
             {
                 var spec = SpecOf(negative);
                 int amount = RollAmount(random, spec);
-                string text = negative == ChaosRelicCatalog.NegStartSloth
-                    ? spec.TextPattern.Replace("{M}", Math.Max(1, 7 - amount).ToString())
-                    : spec.Render(amount);
-                operations.Add(new ChaosRelicOperation(negative, amount, text));
+                operations.Add(new ChaosRelicOperation(negative, amount, RenderOperation(spec, amount)));
                 negativesTaken.Add(negative);
 
                 // Phase 3: refund buys more positives.
                 int refund = costs.RefundPerPoint(negative) * amount;
                 SpendOnPositives(random, refund, rarity, costs, positivesTaken, operations, finalAttempt);
+            }
+        }
+
+        // Guarantee: at least one positive entry, always. Normally phase 1
+        // already produced one (the caller raises the budget to the floor), but
+        // a pathological cost table can still leave the pool unaffordable, and
+        // an entry-less relic is not a relic. The fallback picks the cheapest
+        // minimum-amount positive, ordered by template id so the choice is
+        // identical on both MP ends.
+        if (!operations.Any(op => !ChaosTemplates.IsNegative(op.Template)))
+        {
+            string? cheapest = null;
+            int cheapestPrice = int.MaxValue;
+            foreach (var template in ChaosTemplates.PositiveTemplates)
+            {
+                if (UniqueOnly.Contains(template))
+                {
+                    continue;
+                }
+                var candidate = ChaosTemplates.Spec(template);
+                int price = ChaosTemplates.PriceOf(candidate, costs, candidate.Min);
+                bool cheaper = price < cheapestPrice
+                    || (price == cheapestPrice && cheapest is not null
+                        && string.CompareOrdinal(template, cheapest) < 0);
+                if (cheaper)
+                {
+                    cheapest = template;
+                    cheapestPrice = price;
+                }
+            }
+            if (cheapest is not null)
+            {
+                var spec = ChaosTemplates.Spec(cheapest);
+                operations.Insert(0, new ChaosRelicOperation(cheapest, spec.Min, RenderOperation(spec, spec.Min)));
             }
         }
 
@@ -153,19 +194,13 @@ public static class ChaosRelicGenerator
     private static void SpendOnPositives(Random random, int budget, RelicRarity rarity,
         ChaosPointCosts costs, HashSet<string> taken, List<ChaosRelicOperation> operations, bool finalAttempt)
     {
-        // Unique-only positives: repeatable engines would stack degenerately.
-        var uniqueOnly = new HashSet<string>(StringComparer.Ordinal)
-        {
-            ChaosRelicCatalog.TurnStartEnergy,
-            ChaosRelicCatalog.PassiveMaxEnergy,
-            ChaosRelicCatalog.TurnStartDraw,
-        };
-        int cheapestUnit = ChaosRelicCatalog.CheapestPositiveUnit(costs);
+        int cheapestUnit = ChaosTemplates.CheapestPositiveUnit(costs);
         int spendable = budget;
-        while (spendable >= cheapestUnit && operations.Count < ActivePositiveTemplates.Count
-               && operations.Count(op => !IsNegativeTemplate(op.Template)) < MaxPositives)
+        int positivesSoFar = operations.Count(op => !ChaosTemplates.IsNegative(op.Template));
+        while (spendable >= cheapestUnit && taken.Count < ChaosTemplates.PositiveTemplates.Count
+               && positivesSoFar < MaxPositives)
         {
-            string? template = PickAffordablePositive(random, spendable, rarity, costs, taken, uniqueOnly);
+            string? template = PickAffordablePositive(random, spendable, rarity, costs, taken);
             if (template is null)
             {
                 break; // nothing affordable left
@@ -178,64 +213,77 @@ public static class ChaosRelicGenerator
                 taken.Add(template);
                 continue;
             }
-            int cost = spec.Decaying
-                ? costs.CostPerPoint(template) * amount * (amount + 1) / 2
-                : costs.CostPerPoint(template) * amount;
-            operations.Add(new ChaosRelicOperation(template, amount, spec.Render(amount)));
+            int cost = ChaosTemplates.PriceOf(spec, costs, amount);
+            operations.Add(new ChaosRelicOperation(template, amount, RenderOperation(spec, amount)));
             taken.Add(template);
+            positivesSoFar++;
             spendable -= cost;
         }
     }
 
     /// <summary>
-    /// Spec resolution across BOTH pools (core + extra): the extra pool uses
-    /// the same TemplateSpec shape; its templates join the pick set only
-    /// when EnableExtraPool is on (and stance templates only when the
-    /// Watcher mod is loaded).
+    /// Text for one entry. Sloth is the one template whose rendered number is
+    /// not its own amount: the relic caps cards played per turn at 7 - N, and
+    /// the tooltip must show the cap, not N. The generator used to substitute
+    /// it here only, so the budget editor (which calls TemplateSpec.Render
+    /// directly) displayed the literal placeholder to the user.
+    /// </summary>
+    internal static string RenderOperation(ChaosRelicCatalog.TemplateSpec spec, int amount) =>
+        spec.Template == ChaosRelicCatalog.NegStartSloth
+            ? spec.TextPattern.Replace("{M}", Math.Max(1, 7 - amount).ToString())
+            : spec.Render(amount);
+
+    /// <summary>
+    /// Positive templates that may appear at most once per relic: repeatable
+    /// engines would stack degenerately (two "gain 1 energy each turn" entries
+    /// on one relic is a strictly better relic, not a more interesting one).
+    /// </summary>
+    internal static readonly IReadOnlySet<string> UniqueOnly =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            ChaosRelicCatalog.TurnStartEnergy,
+            ChaosRelicCatalog.PassiveMaxEnergy,
+            ChaosRelicCatalog.TurnStartDraw,
+        };
+
+    /// <summary>
+    /// Spec resolution across BOTH pools (core + extra) with the user Min/Max
+    /// bounds overlay. Delegates to <see cref="ChaosTemplates"/> so the
+    /// generator, the cost table and the budget editor cannot drift apart.
     /// </summary>
     internal static ChaosRelicCatalog.TemplateSpec SpecOf(string template) =>
-        AutoAnthonyRelicsConfig.ApplyUserBounds(
-            ChaosRelicExtraCatalog.HasTemplate(template)
-                ? ChaosRelicExtraCatalog.Spec(template)
-                : ChaosRelicCatalog.Spec(template));
+        ChaosTemplates.Effective(template);
 
-    /// <summary>Negative lookup across both pools.</summary>
-    internal static bool IsNegativeTemplate(string template) =>
-        ChaosRelicExtraCatalog.HasTemplate(template)
-            ? ChaosRelicExtraCatalog.IsNegative(template)
-            : ChaosRelicCatalog.IsNegative(template);
-
-    /// <summary>Effective positive pool: core + optional extra.</summary>
-    internal static IReadOnlyList<string> ActivePositiveTemplates =>
-        AutoAnthonyRelicsConfig.EnableExtraPool
-            ? ChaosRelicCatalog.PositiveTemplates.Concat(ChaosRelicExtraCatalog.PositiveTemplates).ToList()
-            : ChaosRelicCatalog.PositiveTemplates;
-
-    /// <summary>Effective negative pool: core + optional extra.</summary>
-    internal static IReadOnlyList<string> ActiveNegativeTemplates =>
-        AutoAnthonyRelicsConfig.EnableExtraPool
-            ? ChaosRelicCatalog.NegativeTemplates.Concat(ChaosRelicExtraCatalog.NegativeTemplates).ToList()
-            : ChaosRelicCatalog.NegativeTemplates;
-
-    /// <summary>Watcher-mod presence probe (assembly by name).</summary>
-    internal static bool WatcherModLoaded =>
-        System.AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "Watcher");
-
+    /// <summary>
+    /// Pick a positive template whose MINIMUM amount fits the remaining
+    /// budget. Uniform over the affordable set - the RNG draw count is
+    /// therefore a function of the affordable-set SIZE, which is deterministic
+    /// for a given (seed, config) pair on both MP ends.
+    ///
+    /// uniqueOnly templates (one-per-turn energy/draw, max-energy) are removed
+    /// from the candidate set here. They used to be excluded only by the
+    /// `taken` set, which is populated AFTER the amount roll - so a template
+    /// whose minimum did not fit was added to `taken` and retried, but a
+    /// template could still be picked twice in the same relic if the first
+    /// roll was skipped. Hard-excluding them keeps the "repeatable engines
+    /// would stack degenerately" rule true.
+    /// </summary>
     private static string? PickAffordablePositive(Random random, int spendable, RelicRarity rarity,
-        ChaosPointCosts costs, HashSet<string> taken, HashSet<string> uniqueOnly)
+        ChaosPointCosts costs, HashSet<string> taken)
     {
-        var affordable = ActivePositiveTemplates
-            .Where(t => !taken.Contains(t))
-            .Where(t => !ChaosRelicExtraCatalog.WatcherTemplates.Contains(t) || WatcherModLoaded)
-            .Where(t =>
+        var affordable = new List<string>();
+        foreach (var t in ChaosTemplates.PositiveTemplates)
+        {
+            if (taken.Contains(t) || UniqueOnly.Contains(t))
             {
-                var s = SpecOf(t);
-                int minCost = s.Decaying
-                    ? costs.CostPerPoint(t) * s.Min * (s.Min + 1) / 2
-                    : costs.CostPerPoint(t) * s.Min;
-                return minCost <= spendable;
-            })
-            .ToList();
+                continue;
+            }
+            var s = SpecOf(t);
+            if (ChaosTemplates.PriceOf(s, costs, s.Min) <= spendable)
+            {
+                affordable.Add(t);
+            }
+        }
         if (affordable.Count == 0)
         {
             return null;
@@ -245,7 +293,7 @@ public static class ChaosRelicGenerator
 
     private static string? PickNegative(Random random, ChaosPointCosts costs, HashSet<string> taken)
     {
-        var available = ActiveNegativeTemplates
+        var available = ChaosTemplates.NegativeTemplates
             .Where(t => !taken.Contains(t))
             .ToList();
         if (available.Count == 0)

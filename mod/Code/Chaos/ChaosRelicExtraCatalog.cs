@@ -28,7 +28,6 @@ public static class ChaosRelicExtraCatalog
 
     public const string HandRetain = "X_HAND_RETAIN";
     public const string HandSly = "X_HAND_SLY";
-    public const string HandEthereal = "X_HAND_ETHEREAL_NEG";
     public const string EnchantSharp = "X_ENCHANT_SHARP";
     public const string EnchantNimble = "X_ENCHANT_NIMBLE";
     public const string EnchantImbued = "X_ENCHANT_IMBUED";
@@ -40,6 +39,14 @@ public static class ChaosRelicExtraCatalog
 
     // ---------- Negatives ----------
 
+    /// <summary>
+    /// Hand ethereal. This is the extra pool's ONLY negative and it is a
+    /// REFUND template, so it is reached through
+    /// <see cref="ChaosPointCosts.RefundPerPoint"/>. It used to be declared
+    /// twice under two names (an unused "X_HAND_ETHEREAL_NEG" positive const
+    /// and this one), which is exactly the kind of trap that made the
+    /// core-only cost lookup fail on this template.
+    /// </summary>
     public const string NegHandEthereal = "X_HAND_ETHEREAL";
 
     /// <summary>See ChaosRelicCatalog.TemplateSpec for field semantics.</summary>

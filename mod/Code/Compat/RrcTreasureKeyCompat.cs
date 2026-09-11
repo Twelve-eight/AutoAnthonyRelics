@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
@@ -57,9 +56,12 @@ namespace AutoAnthonyRelics.Compat;
 /// SHIPPED TWICE on purpose (user order 2026-09-11): inside AutoAnthonyRelics
 /// (default-on for its users) and as the standalone workshop mod
 /// RelicRewardChoicesKeyFix for players who only run RRC + Act4Heart. Both
-/// builds compile this exact source; TryInstall's process-wide named mutex
-/// guarantees only the first installed instance patches, so double-installing
-/// both mods cannot double-grant the key.
+/// builds compile this exact source, so TryInstall must stay idempotent across
+/// two assemblies in one process. The per-assembly statics cannot do that:
+/// each package gets its own copy of _installed. The cross-package guard is
+/// Harmony's own patch registry - Harmony.GetPatchInfo(original) is shared
+/// process-wide (HarmonySharedState), so the second package sees the first
+/// package's postfix and declines. _installed is only the fast path.
 /// </summary>
 internal static class RrcTreasureKeyCompat
 {
@@ -67,8 +69,20 @@ internal static class RrcTreasureKeyCompat
     private const string Act4HeartModId = "Act4Heart";
     private const string SapphireKeyModelName = "Act4Heart.Keys.SapphireKey";
 
-    /// <summary>Named-mutex name shared by every build of this patch.</summary>
-    private const string InstallMutexName = @"Global\AutoAnthonyRelics.RrcTreasureKeyCompat.v1";
+    /// <summary>
+    /// Serializes the patch-info probe and the Patch() call inside one process,
+    /// so two threads (e.g. two mod initializers racing) cannot both observe an
+    /// unpatched target. Cross-assembly ownership is decided by Harmony's own
+    /// patch registry, not by this lock.
+    /// </summary>
+    private static readonly object InstallGate = new();
+
+    /// <summary>
+    /// Fast path for THIS assembly only: true once this package installed the
+    /// postfix. Never trusted as the cross-package guard - the twin package has
+    /// its own copy of this field.
+    /// </summary>
+    private static bool _installed;
 
     /// <summary>Logger line prefix: the standalone build overrides with its own mod id.</summary>
     internal static string LogPrefix = "[AutoAnthonyRelics] RRC key compat";
@@ -82,25 +96,24 @@ internal static class RrcTreasureKeyCompat
 
     /// <summary>
     /// Patch RelicRewardChoiceReward.OnSkipped if and only if both target mods
-    /// are loaded and no other instance of this compat patch already claimed
-    /// the job this session. Returns true when THIS call installed the patch.
+    /// are loaded and no instance of this compat patch - in this assembly or in
+    /// the twin package - already claimed the job this process. Returns true
+    /// when THIS call installed the patch.
     /// </summary>
     internal static bool TryInstall(Harmony harmony)
     {
         if (!ResolveTypes())
         {
+            LogInfo("dormant: RelicRewardChoices and/or Act4Heart not loaded");
             return false;
         }
 
-        // Process-wide double-install guard: first caller wins, others stay
-        // dormant (AutoAnthonyRelics and the standalone fix mod may coexist).
-        bool createdNew;
-        using var mutex = new Mutex(true, InstallMutexName, out createdNew);
-        try
+        lock (InstallGate)
         {
-            if (!createdNew)
+            if (_installed)
             {
-                // Another instance (this mod or the standalone twin) owns it.
+                // This assembly already installed it (repeat initializer call).
+                LogInfo("dormant: this package already installed the OnSkipped postfix");
                 return false;
             }
 
@@ -110,30 +123,60 @@ internal static class RrcTreasureKeyCompat
                 LogError("RelicRewardChoiceReward.OnSkipped not found; patch dormant");
                 return false;
             }
+
+            // Cross-package guard. Harmony keeps patch info in a process-wide
+            // registry (HarmonySharedState, keyed by the original MethodBase and
+            // serialized as module GUID + metadata token), so a postfix applied
+            // by the twin package - a separate assembly that also compiles this
+            // file - is visible here. Matching on DeclaringType rather than the
+            // MethodInfo identity is deliberate: each package has its own copy
+            // of RrcTreasureKeyCompat, so `ReferenceEquals(patch.PatchMethod,
+            // ourPostfix)` would miss the twin's patch.
+            var existing = Harmony.GetPatchInfo(original);
+            if (existing is not null && HasOurPostfix(existing))
+            {
+                // Twin package (or a stale call in this one) owns the patch.
+                LogInfo("dormant: OnSkipped already carries this compat postfix " +
+                        "(the other package installed it)");
+                return false;
+            }
+
             var postfix = typeof(RrcTreasureKeyCompat).GetMethod(nameof(OnSkippedPostfix),
                 BindingFlags.Static | BindingFlags.NonPublic);
+            if (postfix is null)
+            {
+                // Unreachable while the method exists; a rename would otherwise
+                // pass null to HarmonyMethod and throw instead of logging.
+                LogError("OnSkippedPostfix missing; patch dormant");
+                return false;
+            }
+
             harmony.Patch(original, postfix: new HarmonyMethod(postfix));
+            _installed = true;
             LogInfo("active: RelicRewardChoices + Act4Heart detected, OnSkipped patched");
             return true;
         }
-        finally
-        {
-            // The Mutex guards installation only; Harmony patches outlive it.
-            // Abandon ownership deliberately: the loser must NOT release the
-            // winner's hold, and the winner releasing on dispose is harmless
-            // because nothing re-checks after install.
-            try
-            {
-                if (createdNew)
-                {
-                    mutex.ReleaseMutex();
-                }
-            }
-            catch (ApplicationException)
-            {
-                // Not owned on this thread after AbandonMutex; ignore.
-            }
-        }
+    }
+
+    /// <summary>
+    /// True when any postfix on the target was contributed by this compat type.
+    ///
+    /// Matched by type FULL NAME, not by <c>== typeof(RrcTreasureKeyCompat)</c>:
+    /// the two packages are separate assemblies, so each owns its own Type
+    /// object for this class and a reference/identity comparison would never
+    /// see the twin's patch - exactly the double-install this guard exists to
+    /// stop. Harmony's registry hands back the patch MethodInfo resolved from
+    /// the *other* module, so FullName is the only stable cross-assembly key.
+    /// The method name is checked too, so an unrelated same-named type in a
+    /// future assembly cannot suppress this install.
+    /// </summary>
+    private static bool HasOurPostfix(HarmonyLib.Patches patchInfo)
+    {
+        string typeName = typeof(RrcTreasureKeyCompat).FullName!;
+        return patchInfo.Postfixes.Any(p =>
+            p.PatchMethod is { } method
+            && method.Name == nameof(OnSkippedPostfix)
+            && method.DeclaringType?.FullName == typeName);
     }
 
     private static void OnSkippedPostfix(object __instance)

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
@@ -58,7 +59,7 @@ internal static class RelicsSettingsScreenPatch
         content.AddChild(row, false, 0);
         content.MoveChild(row, insertionIndex);
         row.Visible = true;
-        SetLabel(row.GetNodeOrNull<Node>("Label"), TextOf("AUTOANTHONYRELICS-SETTINGS_GROUP"));
+        SetLabel(row.GetNodeOrNull<Node>("Label"), TextOf("SETTINGS_GROUP"));
 
         var button = row.GetNodeOrNull<NOpenModdingScreenButton>("ModdingButton");
         if (button is null)
@@ -69,7 +70,7 @@ internal static class RelicsSettingsScreenPatch
         button.Name = "AutoAnthonyRelicsSettingsGroupButton";
         ((NClickableControl)button).Enable();
         button.Connect(NButton.SignalName.Released, Callable.From<NButton>(_ => OpenDedicatedPage(row)), 0u);
-        SetLabel(button.GetNodeOrNull<Node>("Label"), TextOf("AUTOANTHONYRELICS-SETTINGS_OPEN"));
+        SetLabel(button.GetNodeOrNull<Node>("Label"), TextOf("SETTINGS_OPEN"));
     }
 
     /// <summary>Walk up to the settings screen's submenu stack and push our page.</summary>
@@ -111,17 +112,23 @@ internal static class RelicsSettingsScreenPatch
         }
     }
 
-    private static string TextOf(string key)
+    /// <summary>
+    /// Settings string lookup. BaseLib resolves config labels from the
+    /// <c>settings_ui</c> table under <c>{ModPrefix}{NAME}.title</c>; the first
+    /// version queried <c>gameplay_ui</c> with no suffix, so the row label and
+    /// button text always rendered as raw keys.
+    /// </summary>
+    private static string TextOf(string name)
     {
-        try
-        {
-            return new MegaCrit.Sts2.Core.Localization.LocString("gameplay_ui", key).GetRawText();
-        }
-        catch
-        {
-            return key;
-        }
+        string key = ModPrefix + name + ".title";
+        var loc = MegaCrit.Sts2.Core.Localization.LocString.GetIfExists("settings_ui", key);
+        return loc?.GetFormattedText() ?? key;
     }
+
+    private static string ModPrefix =>
+        typeof(AutoAnthonyRelicsConfig).Namespace is { } ns && ns.Length > 0
+            ? ns.Split('.')[0].ToUpperInvariant() + "-"
+            : "AUTOANTHONYRELICS-";
 }
 
 /// <summary>
