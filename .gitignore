@@ -4,3 +4,4 @@ mod/obj/
 mod/.godot/
 mod/publish/
 *.user
+.tmp/

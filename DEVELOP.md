@@ -3,13 +3,16 @@
 Design and contract document. User order 2026-09-07:
 "写一个使遗物也被东尼算法随机的mod,不过,每个遗物将获得以前3倍数量的词条.
 就叫东尼算法 - 遗物(AutoAnthony - Relics)吧"
+(The 3x entry count from that order is superseded - see Entry economics.)
 
 ## Goal
 
 Randomize RELICS the same way AutoAnthony randomizes cards: per-run
 seeded generation of a chaos relic pool where each generated relic
-carries a list of 词条 (entries). Entry count per relic = 3x what the
-card algorithm would roll for the same rarity.
+carries a list of 词条 (entries). Entry COUNT is no longer the card 3x
+rule: since v0.5 each relic gets a rarity-scaled POINT BUDGET, positive
+entries cost points and negative entries refund them (see Entry
+economics below).
 
 This is a STANDALONE mod (own manifest id AutoAnthonyRelics), no
 compile-time dependency on the AutoAnthony workshop mod. The
@@ -30,64 +33,53 @@ compile-time dependency on the AutoAnthony workshop mod. The
     sealed record ChaosRelicDefinition(int Slot, RelicRarity Rarity,
         string Name, IReadOnlyList<ChaosRelicOperation> Operations)
 
-### Entry count = banded (3 is the norm)
+### Entry economics (v0.5: point budget, not entry count)
 
-User order evolution: 2026-09-07 asked for "3x the entry count cards get"
-(clamp(3*(1+rank), 3, 15) -> 3/6/9/12/15); live playtest 2026-09-08 judged
-6/9 too bloated and 3 correct, so the band was reworked:
+History, kept short because both earlier rules are DEAD CODE paths:
+- 2026-09-07 order: "3x the entry count cards get"
+  (clamp(3*(1+rank), 3, 15) -> 3/6/9/12/15).
+- 2026-09-08 playtest: 6/9 entries too bloated -> banded count
+  (clamp(band-1+rank, 3, band+2) driven by ChaosRelicMultiplier).
+- 2026-09-11 (CURRENT): relics are ALWAYS active (unlike cards, which must
+  be drawn and played), so a free 1/3/5-entry relic is severely
+  overpowered. Replaced wholesale by a Monster-Hunter-Rise
+  qurious-crafting style POINT BUDGET. `ChaosRelicMultiplier` is retained
+  ONLY as an idle save-compat key - it no longer feeds generation.
 
-    entries = clamp(band - 1 + rank, MinEntries=3, band + 2)
-    band    = clamp(ChaosRelicMultiplier, 3, MaxEntries - 2 = 5)
-    rank    = weighted 0-4 roll on the card-baseline weights below
+Generation algorithm (ChaosRelicGenerator.GenerateOne / AssembleOperations),
+deterministic from the run seed plus the live cost table:
 
-Simulated distribution at default multiplier 3 (3000/rarity):
-Common 3@84%/4@12%/5@5%, Uncommon 3@62%/4@27%/5@10%,
-Rare 3@47%/4@36%/5@17%. Config multiplier >3 shifts the whole band up
-(multiplier 5 -> 4..7 entries).
+    budget = max(configured budget for rarity, cheapest positive floor)
+    floor  = min over the ACTIVE positive pool of PriceOf(spec, spec.Min)
 
-Card-baseline weights (AutoAnthony PickComponentCount, rank 0-4):
+1. Phase 1 - spend: while `spendable >= cheapest unit` and positives <
+   MaxPositives (6) and not every template taken, pick uniformly among
+   templates whose MINIMUM amount fits, roll the amount in-band, clamp it
+   down to what the budget affords, charge `PriceOf(spec, amount)`.
+2. Phase 2 - negative roll: with the rarity's configured probability
+   (defaults 35/55/75%), add exactly ONE negative entry, amount rolled
+   in-band. Refund = `RefundPerPoint x amount`.
+3. Phase 3 - refund spend: the refund buys more positives through the
+   same Phase-1 loop (the "red quality" feel).
+4. Guarantee: at least one positive entry always. Normally the budget
+   floor does it; a pathological cost table (every positive priced above
+   the budget) is caught by an explicit fallback that inserts the
+   cheapest minimum-amount positive, ordered by template id so both MP
+   ends pick identically.
 
-  Basic    [70,125,5,1,1]
-  Common   [110,100,30,8,2]
-  Uncommon [90,105,85,25,7]
-  Rare     [70,95,120,45,14]
-  Ancient  [55,85,130,65,24]
+Pricing shape (`TemplateSpec.Cost` / `ChaosTemplates.PriceOf`):
 
-Rarity mapping (StS2 RelicRarity): Common -> card Common weights,
-Uncommon -> card Uncommon weights, Rare -> card Rare weights.
-Shop relic rarity: roll as Rare.
+    linear:     cost(N) = CostPerPoint * N
+    decaying:   cost(N) = CostPerPoint * N * (N+1) / 2     (triangular)
 
-### Effect catalog (v1, 16 templates)
+Decaying templates are the powers whose stacks trigger for Amount, then
+Amount-1, .. (poison / regen / plating): the Nth stack is worth MORE than
+the first, so the price is triangular. See "Triangular decay pricing".
 
-Hook = BeforeCombatStart:
-- C_START_DAMAGE_ALL: deal Amount damage to all enemies
-- C_START_BLOCK: gain Amount block
-- C_START_STRENGTH: gain Amount Strength
-- C_START_DEXTERITY: gain Amount Dexterity
-- C_START_DRAW: draw Amount cards
-- C_START_ENERGY: gain Amount energy
-- C_START_VULN_ALL: apply Amount Vulnerable to all enemies
-- C_START_WEAK_ALL: apply Amount Weak to all enemies
-
-Hook = AfterSideTurnStartLate (player turn start):
-- T_START_BLOCK: gain Amount block
-- T_START_ENERGY: gain Amount energy
-- T_START_HEAL: heal Amount HP
-
-Hook = AfterCardPlayed:
-- PLAY_DAMAGE_RANDOM: deal Amount damage to 1 random enemy
-
-Hook = ModifyDamageAdditive (passive, player->enemy only):
-- PASSIVE_ATTACK_DAMAGE: + Amount to player attack damage
-
-Hook = AfterCombatVictory:
-- VICTORY_HEAL: heal Amount HP
-
-Hook = ModifyMaxEnergy (passive):
-- PASSIVE_MAX_ENERGY: + Amount max energy (Amount = 1 always)
-
-Amount ranges per template (balance bands, small for per-turn, larger
-for one-shot combat-start effects).
+Per-relic caps: MaxPositives = 6; one negative maximum; each template at
+most once per relic (energy-per-turn / draw-per-turn / max-energy are
+hard-excluded from repeat picks). Duplicate effect SETS across relics are
+re-rolled up to 4 times, then accepted.
 
 ### Seeding and run binding
 
