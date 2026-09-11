@@ -329,3 +329,18 @@ TEMPLATE-POINTS-LIST.md = user tuning deliverable.
   field STRIP decision before push (web manual edits policy).
 - Live verify: chest skip under RRC+A4H grants Sapphire Key; relic tooltips
   show pos+neg entries.
+
+
+## Session 40 (2026-09-11) - 设置菜单平齐 (commit 73eb2cd)
+- 专属设置页 RelicsSettingsSubmenu + RelicsSettingsScreenPatch: NSettingsScreen._Ready postfix 加组行 (Modding 行复制, 插在 AutoAnthony 本体组行后), NMainMenuSubmenuStack.GetSubmenuType prefix + ConditionalWeakTable registry 拦截, 页面内嵌 BaseLib SetupConfigUI (46 滑条原样复用).
+- 效果: 退出 BaseLib "Mod 设置" 列表, 入口只在原版设置屏常规页 (与本体行为一致).
+
+## Session 41 (2026-09-11) - 汉化对齐 + 重定价 + 预算编辑器 (commit 56ff101)
+- **pck 破解**: Godot 4.5 pck v3 目录在尾部 (flags=2 = REL_FILEBASE 非加密). 工具 pckv3.py 提取主 pck 全部 zhs loc (49 表) + 各 mod pck. 详见 HANDOFF-2026-09-11.md.
+- **locdump 命令**: 游戏内 dump powers/relics/keywords/cards/potions zhs 表 -> G:/omp works/.tmp/locdump/. 实测成功.
+- **术语对齐**: 护体->人工制品, 镀层(残余)->覆甲, 怠惰->懒惰; 附魔: 锋利/灵巧/注能 (旧文案机制错误已修); 姿态: 愤怒双倍/平静离开时2能量/神格三倍+3能量+自动退出; 虚无/保留/奇巧/消耗文案对齐原版 keywords.
+- **重定价**: 药水基准核实 (力量=2/敏捷=2/Common, 无人工制品药水; 核心电涌=1人工制品+11伤). StartArtifact 5->9 (catalog+config 同步), Min/Max 1,1->1,2.
+- **VanillaRelicMapping**: 19 原版遗物 -> 词条映射 (数值反编译核实), 负面+额外池待扩充.
+- **BudgetEditorPanel**: 每词条行 = 效果文本+悬停遗物chip+Min/Max滑条+每点计价 (live). 94 Min_/Max_ config 属性 + ApplyUserBounds. 构建 0/0, 已部署三处.
+- **待办**: 实机验证编辑器 UI; 双端滑条改造 (用户原意一条线段两端滑块, 现为两个独立滑条); 映射表扩充; 全面重定价复审; 工坊发布确认.
+- **交接**: 会话污染, 交接文档 HANDOFF-2026-09-11.md 已写.
