@@ -72,5 +72,16 @@
   "AUTOANTHONYRELICS-SETTINGS_PAGE_TITLE.title": "AutoAnthony - 遗物设置",
   "AUTOANTHONYRELICS-SETTINGS_GROUP.title": "东尼算法 - 遗物",
   "AUTOANTHONYRELICS-SETTINGS_OPEN.title": "打开设置",
-  "AUTOANTHONYRELICS-SETTINGS_PAGE_UNAVAILABLE.title": "设置页不可用 (BaseLib 未加载或版本不兼容)."
+  "AUTOANTHONYRELICS-SETTINGS_PAGE_UNAVAILABLE.title": "设置页不可用 (BaseLib 未加载或版本不兼容).",
+  "AUTOANTHONYRELICS-BUDGET_TITLE.title": "点数预算编辑器",
+  "AUTOANTHONYRELICS-BUDGET_HINT.title": "每行: [效果文本](含此效果的原版遗物, 悬停查看详情). 下限/上限滑条调整该词条数值范围; 每点点数显示当前计价. 悬停原版遗物名可看: 完整描述, 原版稀有度, 以及该遗物效果在我们的计价方式下所需点数.",
+  "AUTOANTHONYRELICS-BUDGET_SECTION_CORE.title": "核心正面词条",
+  "AUTOANTHONYRELICS-BUDGET_SECTION_NEGATIVE.title": "负面词条",
+  "AUTOANTHONYRELICS-BUDGET_SECTION_EXTRA.title": "额外效果池词条",
+  "AUTOANTHONYRELICS-BUDGET_MIN.title": "下限",
+  "AUTOANTHONYRELICS-BUDGET_MAX.title": "上限",
+  "AUTOANTHONYRELICS-BUDGET_PERPOINT.title": "每点 {P}",
+  "AUTOANTHONYRELICS-BUDGET_RARITY.title": "稀有度",
+  "AUTOANTHONYRELICS-BUDGET_OURCOST.title": "我们的点数计价: {P} 点",
+  "AUTOANTHONYRELICS-BUDGET_OURCOST_NA.title": "我们的点数计价: 不适用"
 }

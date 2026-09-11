@@ -46,31 +46,36 @@ public static class ChaosRelicExtraCatalog
     private static readonly Dictionary<string, ChaosRelicCatalog.TemplateSpec> Specs = new(StringComparer.Ordinal)
     {
         // Per-turn hand effects (repeat every turn while the relic is held).
-        [HandRetain] = new(HandRetain, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0,
-            "每回合开始时,你手牌中的至多{N}张牌获得保留."),
-        [HandSly] = new(HandSly, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0,
-            "每回合开始时,你手牌中的至多{N}张牌获得奇巧(回合结束时未被使用的奇巧牌返还)."),
-        [RetainEnergyDiscount] = new(RetainEnergyDiscount, false, 1, 1, CostPerPoint: 4, RefundPerPoint: 0,
-            "每当你保留一张牌时,该牌费用-{N}."),
-        [RetainAttackBuff] = new(RetainAttackBuff, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0,
-            "每当你保留一张牌时,本回合你的下一张攻击牌伤害+{N}."),
-        // Enchants: applied ONCE to random eligible hand cards at combat start.
-        [EnchantSharp] = new(EnchantSharp, false, 1, 2, CostPerPoint: 5, RefundPerPoint: 0,
-            "战斗开始时,为你手牌中的至多{N}张攻击牌附加锋锐附魔(伤害+2)."),
-        [EnchantNimble] = new(EnchantNimble, false, 1, 2, CostPerPoint: 5, RefundPerPoint: 0,
-            "战斗开始时,为你手牌中的至多{N}张牌附加轻盈附魔(费用-1)."),
-        [EnchantImbued] = new(EnchantImbued, false, 1, 2, CostPerPoint: 4, RefundPerPoint: 0,
-            "战斗开始时,为你手牌中的至多{N}张牌附加灌注附魔(升级该牌)."),
-        // Watcher stances (require the Watcher mod; skipped otherwise).
-        [StanceWrathStart] = new(StanceWrathStart, false, 1, 1, CostPerPoint: 4, RefundPerPoint: 0,
-            "每回合开始时,进入愤怒姿态(造成的伤害+50%,受到的伤害+50%)."),
-        [StanceCalmStart] = new(StanceCalmStart, false, 1, 1, CostPerPoint: 3, RefundPerPoint: 0,
-            "每回合开始时,进入平静姿态(若在回合结束时仍处于该姿态,获得2点能量)."),
-        [StanceDivinityStart] = new(StanceDivinityStart, false, 1, 1, CostPerPoint: 7, RefundPerPoint: 0,
-            "每回合开始时,进入神格姿态(造成的伤害翻倍,获得3点能量)."),
-        // Negatives.
-        [NegHandEthereal] = new(NegHandEthereal, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 4,
-            "每回合开始时,你手牌中的至多{N}张牌获得虚无(回合结束时消耗)."),
+[HandRetain] = new(HandRetain, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0,
+    "每回合开始时,你手牌中的至多{N}张牌获得保留."),
+[HandSly] = new(HandSly, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0,
+    "每回合开始时,你手牌中的至多{N}张牌获得奇巧(如果这张牌在你的回合结束前从你的手牌中被丢弃,则免费将其打出)."),
+[RetainEnergyDiscount] = new(RetainEnergyDiscount, false, 1, 1, CostPerPoint: 4, RefundPerPoint: 0,
+    "每当你保留一张牌时,该牌费用-{N}."),
+[RetainAttackBuff] = new(RetainAttackBuff, false, 1, 3, CostPerPoint: 3, RefundPerPoint: 0,
+    "每当你保留一张牌时,本回合你的下一张攻击牌伤害+{N}."),
+// Enchants: applied ONCE to random eligible hand cards at combat start.
+// Names/descriptions aligned to vanilla zhs enchantments loc (2026-09-11):
+// SHARP=锋利(伤害+1), NIMBLE=灵巧(格挡+1, 只能附魔获得格挡的牌), IMBUED=注能
+// (战斗开始时自动打出, 只能附魔技能牌) - code applies amount 1 (verified).
+[EnchantSharp] = new(EnchantSharp, false, 1, 2, CostPerPoint: 5, RefundPerPoint: 0,
+    "战斗开始时,为你手牌中的至多{N}张攻击牌附加锋利附魔(这张牌上的伤害值+1)."),
+[EnchantNimble] = new(EnchantNimble, false, 1, 2, CostPerPoint: 5, RefundPerPoint: 0,
+    "战斗开始时,为你手牌中的至多{N}张获得格挡的牌附加灵巧附魔(这张牌获得的格挡值+1)."),
+[EnchantImbued] = new(EnchantImbued, false, 1, 2, CostPerPoint: 4, RefundPerPoint: 0,
+    "战斗开始时,为你手牌中的至多{N}张技能牌附加注能附魔(这张牌在每场战斗开始时自动打出)."),
+// Watcher stances (require the Watcher mod; skipped otherwise).
+// Wording aligned to Watcher mod zhs loc: WRATH=愤怒(双倍), CALM=平静(离开时
+// 获得2能量), DIVINITY=神格(三倍+进入时3能量+下回合自动退出).
+[StanceWrathStart] = new(StanceWrathStart, false, 1, 1, CostPerPoint: 4, RefundPerPoint: 0,
+    "每回合开始时,进入愤怒姿态(你的攻击造成双倍伤害,你从攻击中受到双倍伤害)."),
+[StanceCalmStart] = new(StanceCalmStart, false, 1, 1, CostPerPoint: 3, RefundPerPoint: 0,
+    "每回合开始时,进入平静姿态(离开这一姿态时,获得2点能量)."),
+[StanceDivinityStart] = new(StanceDivinityStart, false, 1, 1, CostPerPoint: 7, RefundPerPoint: 0,
+    "每回合开始时,进入神格姿态(你的攻击造成三倍伤害,进入时获得3点能量,下回合开始时自动离开)."),
+// Negatives.
+[NegHandEthereal] = new(NegHandEthereal, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 4,
+    "每回合开始时,你手牌中的至多{N}张牌获得虚无(如果这张牌在这个回合结束时留在你的手牌中,则将其消耗)."),
     };
 
     public static IReadOnlyList<string> PositiveTemplates { get; } =

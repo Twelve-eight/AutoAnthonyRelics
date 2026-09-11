@@ -87,7 +87,7 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
         }
     }
 
-    /// <summary>Host BaseLib's config UI for our config class inside the page.</summary>
+    /// <summary>Host BaseLib's config UI + the visual budget editor.</summary>
     private void BuildOptions(VBoxContainer options)
     {
         try
@@ -96,15 +96,26 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
             // sliders, toggles) into a container; hand it ours directly.
             var config = new AutoAnthonyRelicsConfig();
             config.SetupConfigUI(options);
-            _initialFocus = options.GetChildOrNull<Control>(0);
+
+            // Visual budget editor (user order 2026-09-11): effect text +
+            // vanilla relic refs with hover popups + Min/Max sliders.
+            var editorHeader = new Godot.Label
+            {
+                Text = TextOf("AUTOANTHONYRELICS-BUDGET_TITLE"),
+            };
+            editorHeader.AddThemeFontSizeOverride("font_size", 24);
+            options.AddChild(editorHeader, false, 0);
+            var editor = new BudgetEditorPanel();
+            options.AddChild(editor, false, 0);
+            _initialFocus = options.GetChildOrNull<Godot.Control>(0);
         }
-        catch (Exception e)
+        catch (System.Exception e)
         {
             MainFile.Logger.Error($"[AutoAnthonyRelics] config UI build failed: {e}");
-            options.AddChild(new Label
+            options.AddChild(new Godot.Label
             {
                 Text = TextOf("AUTOANTHONYRELICS-SETTINGS_PAGE_UNAVAILABLE"),
-                HorizontalAlignment = HorizontalAlignment.Center,
+                HorizontalAlignment = Godot.HorizontalAlignment.Center,
             }, false, 0);
         }
     }

@@ -72,5 +72,16 @@
   "AUTOANTHONYRELICS-SETTINGS_PAGE_TITLE.title": "AutoAnthony - Relics Settings",
   "AUTOANTHONYRELICS-SETTINGS_GROUP.title": "AutoAnthony - Relics",
   "AUTOANTHONYRELICS-SETTINGS_OPEN.title": "Open Settings",
-  "AUTOANTHONYRELICS-SETTINGS_PAGE_UNAVAILABLE.title": "Settings page unavailable (BaseLib missing or incompatible)."
+  "AUTOANTHONYRELICS-SETTINGS_PAGE_UNAVAILABLE.title": "Settings page unavailable (BaseLib missing or incompatible).",
+  "AUTOANTHONYRELICS-BUDGET_TITLE.title": "Point Budget Editor",
+  "AUTOANTHONYRELICS-BUDGET_HINT.title": "Each row: [effect text](vanilla relics with this effect - hover for details). Min/Max sliders set the amount range; per-point cost shows current pricing. Hover a vanilla relic name to see: full description, its rarity, and its effect's cost under our pricing.",
+  "AUTOANTHONYRELICS-BUDGET_SECTION_CORE.title": "Core positive templates",
+  "AUTOANTHONYRELICS-BUDGET_SECTION_NEGATIVE.title": "Negative templates",
+  "AUTOANTHONYRELICS-BUDGET_SECTION_EXTRA.title": "Extra pool templates",
+  "AUTOANTHONYRELICS-BUDGET_MIN.title": "Min",
+  "AUTOANTHONYRELICS-BUDGET_MAX.title": "Max",
+  "AUTOANTHONYRELICS-BUDGET_PERPOINT.title": "{P} / pt",
+  "AUTOANTHONYRELICS-BUDGET_RARITY.title": "Rarity",
+  "AUTOANTHONYRELICS-BUDGET_OURCOST.title": "Our point cost: {P}",
+  "AUTOANTHONYRELICS-BUDGET_OURCOST_NA.title": "Our point cost: n/a"
 }

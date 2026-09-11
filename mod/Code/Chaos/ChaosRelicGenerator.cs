@@ -194,9 +194,10 @@ public static class ChaosRelicGenerator
     /// Watcher mod is loaded).
     /// </summary>
     internal static ChaosRelicCatalog.TemplateSpec SpecOf(string template) =>
-        ChaosRelicExtraCatalog.HasTemplate(template)
-            ? ChaosRelicExtraCatalog.Spec(template)
-            : ChaosRelicCatalog.Spec(template);
+        AutoAnthonyRelicsConfig.ApplyUserBounds(
+            ChaosRelicExtraCatalog.HasTemplate(template)
+                ? ChaosRelicExtraCatalog.Spec(template)
+                : ChaosRelicCatalog.Spec(template));
 
     /// <summary>Negative lookup across both pools.</summary>
     internal static bool IsNegativeTemplate(string template) =>
