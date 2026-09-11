@@ -486,3 +486,41 @@ slothEditorText          含 {M} -> 显示 2
 - chaosbridge: DEVELOP.md 文件布局漏 TransformBatchDedup.cs; DEVLOG 缺 2026-09-08 条目.
 - aftp: 好友包内的 AFTP dll 落后于 fork 构建(MD5 317ad034 vs 58310ad9).
 - sts2-spire1: v1.1.0 已构建但 DEVLOG 未记录; workshop VDF 描述仍是 v1.0.0 的 233 卡/28 遗物.
+
+## Session 43 补记 - 跨项目审查与修复
+
+### 已完成的其他项目修复
+- sts2-regentfxfastboot + sts2-boottimer: `mod/project.godot` 的 `config/name` 与
+  `project/assembly_name` 仍是脚手架残留 "Perfect", `GlobalUsings.cs` 注释指向
+  MpConfigSync. 已改名为各自 mod 名并重新构建通过(regentfx 0 错误, boottimer 0 错误).
+  regentfx 已提交推送 (afa6e60); boottimer 不是 git 仓库, 仅本地修改.
+- sts2-spire1: manifest 描述与 workshop VDF 描述/changenote 仍写 v1.0.0 的
+  233 卡/28 遗物/53 事件, 而版本字段已是 1.1.0. 已同步为 230 卡/22 遗物/6 独有事件
+  并更新 changenote (396806e, 已推送).
+- sts2-spire1/dist: 记录好友包重建待办 (dist/REBUILD-PENDING.md) - 包内 Spire1 是
+  0.9.2(现 1.1.0), AFTP fork dll MD5 317ad034 落后于当前 58310ad9(family-C/D 联机
+  极性修复), 已附重建步骤 (492f0e5, 已推送).
+- sts2-heartshake: DEVELOP.md 音频设计段落仍在讲 NDebugAudioManager 与未决的
+  [INFERENCE], 实际实现是 FileAccess 原始字节 + AudioStreamOggVorbis.LoadFromBuffer;
+  验证清单仍标"无法自动验证"而用户早已双确认; 配置注释把音量归因于调试音频管理器.
+  全部修正 (99dec48, 已推送).
+- sts2-mpconfigsync: DEVELOP.md 三处描述已被 772958af 取代的 Save() 设计(状态行、
+  应用步骤、联机冒烟观察点), 且未记录会话级改造丢掉了启动期键的落盘兜底. 已修正并
+  把该缺口写成明确待决项 (c5ef568, 已推送).
+- chaosbridge: DEVELOP.md 第 6 节工程结构漏了 src/TransformBatchDedup.cs (规则 D).
+  已补入 (9d9ad4a, 已推送).
+- sts2-perfect: DEVELOP.md 头部把 CombatScout 标为 pending(实际已交付), 开放问题未记
+  游戏内获取仍未验证. 已修正 (95cd793, 已推送).
+
+### 实机冒烟的关键发现
+autoslay 跑了两局(seed AARFIX1 / AARFIX2), 均推进到第二章宝箱房后在
+"Proceed button not enabled after picking relics" 处失败. 做了 A/B 对照: 把
+`EnableChaosRelics` 关掉用同一种子重跑, 仍在同一步失败, 且日志中奖励池替换次数为 0,
+宝箱全部由第三方 mod RelicRewardChoices 接管(候选是纯原版遗物).
+结论: 该失败属于 RelicRewardChoices 与引擎 TreasureRoomHandler 的交互, 与本模组无关.
+本模组自身在整局中零报错.
+
+### 仍未验证 (不声称通过)
+- 设置页 UI 的实际渲染与拖拽(autoslay 不进设置界面).
+- 额外效果池 (EnableExtraPool=true) 的实机行为.
+- 联机双端一致性(需要第二个客户端).

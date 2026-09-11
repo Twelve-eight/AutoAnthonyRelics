@@ -74,7 +74,7 @@
   "AUTOANTHONYRELICS-SETTINGS_OPEN.title": "打开设置",
   "AUTOANTHONYRELICS-SETTINGS_PAGE_UNAVAILABLE.title": "设置页不可用 (BaseLib 未加载或版本不兼容).",
   "AUTOANTHONYRELICS-BUDGET_TITLE.title": "点数预算编辑器",
-  "AUTOANTHONYRELICS-BUDGET_HINT.title": "每行: [效果文本](含此效果的原版遗物, 悬停查看详情). 下限/上限滑条调整该词条数值范围; 每点点数显示当前计价. 悬停原版遗物名可看: 完整描述, 原版稀有度, 以及该遗物效果在我们的计价方式下所需点数.",
+  "AUTOANTHONYRELICS-BUDGET_HINT.title": "每行: [效果文本](含此效果的原版遗物, 悬停查看详情). 一条线段的双手柄范围滑条调整该词条数值区间; 每点点数显示当前计价. 悬停原版遗物名可看: 完整描述, 原版稀有度, 以及该遗物效果在我们的计价方式下所需点数.",
   "AUTOANTHONYRELICS-BUDGET_SECTION_CORE.title": "核心正面词条",
   "AUTOANTHONYRELICS-BUDGET_SECTION_NEGATIVE.title": "负面词条",
   "AUTOANTHONYRELICS-BUDGET_SECTION_EXTRA.title": "额外效果池词条",

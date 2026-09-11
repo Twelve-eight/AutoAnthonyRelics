@@ -35,7 +35,7 @@ Left untouched:
 
 When chaos relics run out, the game falls back to native behavior.
 
-[h2]Effect templates (47: 26 + 10 core, 10 + 1 extra)[/h2]
+[h2]Effect templates (47: 26 + 10 core positives/negatives, 10 + 1 extra)[/h2]
 
 [list]
 [*][b]Combat start[/b]: damage to all enemies / block / Strength / Dexterity / draw / energy / Vulnerable to all / Weak to all / Regen / Thorns / Artifact / Poison to all / Plating

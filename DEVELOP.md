@@ -35,16 +35,19 @@ compile-time dependency on the AutoAnthony workshop mod. The
 
 ### Entry economics (v0.5: point budget, not entry count)
 
-History, kept short because both earlier rules are DEAD CODE paths:
+History, kept short because every earlier rule is a DEAD path:
 - 2026-09-07 order: "3x the entry count cards get"
   (clamp(3*(1+rank), 3, 15) -> 3/6/9/12/15).
-- 2026-09-08 playtest: 6/9 entries too bloated -> banded count
-  (clamp(band-1+rank, 3, band+2) driven by ChaosRelicMultiplier).
+- 2026-09-08 playtest: 6/9 entries too bloated -> first a banded count
+  (clamp(band-1+rank, 3, band+2) driven by ChaosRelicMultiplier), then
+  the literal 1/3/5 tier (rank 0 -> 1, 1 -> 3, 2+ -> 5). The 1/3/5 rule
+  is what the old workshop text advertised.
 - 2026-09-11 (CURRENT): relics are ALWAYS active (unlike cards, which must
   be drawn and played), so a free 1/3/5-entry relic is severely
-  overpowered. Replaced wholesale by a Monster-Hunter-Rise
-  qurious-crafting style POINT BUDGET. `ChaosRelicMultiplier` is retained
-  ONLY as an idle save-compat key - it no longer feeds generation.
+  overpowered. Both count rules were replaced wholesale by a
+  Monster-Hunter-Rise qurious-crafting style POINT BUDGET.
+  `ChaosRelicMultiplier` is retained ONLY as an idle save-compat key - it
+  no longer feeds generation.
 
 Generation algorithm (ChaosRelicGenerator.GenerateOne / AssembleOperations),
 deterministic from the run seed plus the live cost table:
@@ -77,9 +80,10 @@ Amount-1, .. (poison / regen / plating): the Nth stack is worth MORE than
 the first, so the price is triangular. See "Triangular decay pricing".
 
 Per-relic caps: MaxPositives = 6; one negative maximum; each template at
-most once per relic (energy-per-turn / draw-per-turn / max-energy are
-hard-excluded from repeat picks). Duplicate effect SETS across relics are
-re-rolled up to 4 times, then accepted.
+most once per relic. `ChaosRelicGenerator.UniqueOnly` (T_START_ENERGY /
+T_START_DRAW / PASSIVE_MAX_ENERGY) is removed from the candidate set
+ENTIRELY - repeatable engines would stack degenerately. Duplicate effect
+SETS across relics are re-rolled up to 4 times, then accepted.
 
 ### Seeding and run binding
 
@@ -232,8 +236,8 @@ BaseLib's own settings page and by the dedicated page (see Settings UI).
    budget editor rows show effect text + range slider, edits persist to
    mod_configs/AutoAnthonyRelics.cfg.
 6. Isolated probe (G:/omp works/.tmp/aar-assessment-20260912): 45 seeds
-   x 60 relics - determinism, budget spend &lt;= budget + refund, &lt;= 1
-   negative, &lt;= 6 positives, 20/20/20 rarity, unique names, in-band
+   x 60 relics - determinism, budget spend <= budget + refund, <= 1
+   negative, <= 6 positives, 20/20/20 rarity, unique names, in-band
    amounts. Results in assessment-2026-09-12-results.txt.
 7. MP: full two-end session still unverified; the deterministic-by-(seed,
    config) contract is documented and both ends must carry identical
