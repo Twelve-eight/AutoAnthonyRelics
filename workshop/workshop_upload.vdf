@@ -105,6 +105,6 @@
 
 局内按 ` 打开开发者控制台,输入:
 [code]relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005[/code]"
-	"changenote"		"v0.5.1: point-budget entry system (qurious-crafting style) - rarity-scaled budgets, 47 effect templates (26 core positives + 10 core negatives, plus an optional extra pool of 10 positives + 1 negative), negative entries refund points for extra positives; built-in RelicRewardChoices + Act4Heart Sapphire Key fix; all budgets/chances/costs/amount-ranges configurable in-game."
+	"changenote"		"v0.5.2: robustness fixes from the 2026-09-12 review - (1) config migration now verifies the legacy cfg actually belongs to Qurious before moving it (a same-named cfg from the new AutoAnthonyRelics relic mod is left untouched; existing backups are never overwritten); (2) generation inputs (budgets, chances, per-template costs/bounds) are frozen at run start, so editing settings mid-run no longer changes the meaning of already-obtained relics; (3) pool replacement keeps every BaseLib custom relic, so coexisting with other relic mods (e.g. Anthony Algorithm - Relics) is order-independent."
 	"publishedfileid"		"3798163198"
 }
