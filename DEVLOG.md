@@ -929,3 +929,35 @@ filename = 根命名空间(去特殊字符) + ".cfg".
   去占位符改为代码拼接。
 - 教训: GetMethod 按名取重载必须断言唯一性; loc 文案禁止裸 {占位符}
   (SmartFormat 语义), 需要变量走 GetFormattedText(variables) 或代码拼接。
+
+## 2026-09-13 全量代码审查 (主会话, 修正 4 项)
+
+审查范围: 本会话全部构建代码, 按风险排序 (游戏内行为 > 数据/工具)。
+三探针复跑全绿 (遗物 27/27 / 迁移 11/11 / 同步 19/19), staging 逐字节一致。
+
+### 修正的缺陷 (审查发现)
+
+1. **减益合并袋跨战斗泄漏** (Qurious): 合并袋只在第一回合开始时冲刷,
+   若战斗在玩家第 1 回合前结束 (死亡/特殊结束), 残留量泄漏进下一场战斗。
+   修复: AfterCombatEnd 清空合并袋。
+2. **combat_end 触发完全失效** (东尼遗物): 钩子清单漏了 AfterCombatEnd ——
+   ChosenCheese 词条 ("每场战斗结束时+1生命上限") 生成的遗物永远不触发。
+   修复: 补 AfterCombatEnd 分发 + 顺带清空合并袋。
+3. **Qurious 池替换谓词破坏共存** (Qurious): IsChaosRelic 只保留自家模型,
+   东尼遗物的遗物 (以及一切其他 BaseLib 遗物) 会被剥除 —— 与共存设计和
+   发布描述直接矛盾, 且顺序依赖。修复: 谓词改为保留一切 BaseLib
+   CustomRelicModel (Qurious/东尼遗物/其他 BaseLib 遗物模组)。
+4. **合并冲刷被单遗物条件门挡住** (东尼遗物): 冲刷点位于 turn_start 触发
+   的条件判断之后 —— 若某遗物条件在第一回合不成立, 全局冲刷被跳过。
+   修复: 冲刷移到条件门之前 (合并袋跨遗物, 冲刷不得依赖单个遗物的条件)。
+
+### 审查通过 (无缺陷) 的要点摘录
+
+- 东尼遗物: 12 触发钩子与片段池 12 种触发一一对应 (含新补的 combat_end);
+  生成器/文本/账本链路; 设置页行注入的去重与兜底; 拾起附魔的 UpFront 通道;
+  ExecuteEffectAsync 重构后括号平衡。
+- Qurious: 快照冻结的读路径 (Effective/PositiveTemplates/NegativeTemplates/
+  WatcherModLoaded 全部快照感知); 迁移归属判据; 独立设置页与 GetSubmenuType。
+- MpConfigSync: 鉴权短路顺序 (CurrentService 非空不触 RunManager);
+  事务先验证后提交; cfg 冻结/还原对称。
+- 其余小修复 (Spire1/Perfect/HeartShake/ChaosBridge/RegentFXFastBoot) 复查无新问题。

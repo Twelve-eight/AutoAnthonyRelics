@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MigrationProbe")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+35dcceefa96f9305ffe55af42369bf2ddb981a0b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1cc2d2d848883fa3013d5ee7c4f6d0b90d7e99c3")]
 [assembly: System.Reflection.AssemblyProductAttribute("MigrationProbe")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MigrationProbe")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

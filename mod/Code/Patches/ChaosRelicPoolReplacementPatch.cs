@@ -70,8 +70,15 @@ internal static class ChaosRelicPoolReplacement
         }
     }
 
-    private static bool IsChaosRelic(MegaCrit.Sts2.Core.Models.RelicModel relic) =>
-        relic is Models.ChaosRelicModel;
+    private static bool IsChaosRelic(MegaCrit.Sts2.Core.Models.RelicModel relic)
+    {
+        // COEXISTENCE (user order: both relic mods playable side by side):
+        // keep EVERY BaseLib custom relic - our own, the AutoAnthonyRelics
+        // generator's, and any other BaseLib relic mod. The old predicate
+        // kept only this mod's models, which stripped the other mod's relics
+        // from the bag whenever both were installed (order-dependent).
+        return relic is BaseLib.Abstracts.CustomRelicModel;
+    }
 }
 
 /// <summary>Postfix for Populate(Player, Rng) - the shared-bag path used by new runs.</summary>

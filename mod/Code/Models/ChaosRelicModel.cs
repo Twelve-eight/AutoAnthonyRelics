@@ -391,6 +391,13 @@ public abstract class ChaosRelicModel : CustomRelicModel
         // value of 4 still attached to the relic instance.
         _retainAttackBuff = 0;
         _startEnergyPending = 0;
+        // The enemy-debuff merge bag must also not leak across combats: a
+        // combat that ends before the owner's first turn start (death /
+        // special endings) never reaches the flush point.
+        lock (DebuffGate)
+        {
+            PendingEnemyDebuffs.Clear();
+        }
         return Task.CompletedTask;
     }
 
