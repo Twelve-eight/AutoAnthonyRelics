@@ -4,7 +4,7 @@
 	"contentfolder"		"G:\\omp works\\AutoAnthonyRelics\\workshop\\content"
 	"previewfile"		"G:\\omp works\\AutoAnthonyRelics\\workshop\\preview.png"
 	"visibility"		"0"
-	"title"		"Qurious Crafting - Relics (Chaos Relic Generator / Dongni Algorithm - Relics)"
+	"title"		"Qurious Crafting - Relics (怪异炼化 - 遗物)"
 	"description"		"[h1]Qurious Crafting - Relics(怪异炼化 - 遗物)[/h1]
 
 每局游戏,用东尼算法从本局种子确定性地生成 60 件混沌遗物,并替换本局全部的遗物掉落.

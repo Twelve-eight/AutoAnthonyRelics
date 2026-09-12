@@ -845,3 +845,43 @@ filename = 根命名空间(去特殊字符) + ".cfg".
 
 已部署实机 `mods/QuriousCraftingRelics/` (游戏未运行)。与 AutoAnthonyRelics
 遗物 mod 双装的池共存由双方补丁谓词保证 (都保留 CustomRelicModel)。
+
+---
+
+## 2026-09-13 用户反馈轮 1: 设置页/姿态调度/附魔叠级 (主会话单线)
+
+### E. 东尼遗物独立设置页 (与原版东尼算法同级)
+
+- 用户实测: 页面落在了 BaseLib 共享 "Mod Configuration" 二级页里, 要求与原版
+  东尼算法入口同级 (Qurious 2026-09-11 已做过同样的事)。
+- 移植 Qurious 已验证的独立页模式: `AnthonyRelicsSettingsScreenPatch`
+  (General 面板组行, 插在 Qurious/AutoAnthony 行之后) +
+  `AnthonyRelicsSettingsSubmenu` (NSubmenu 专页, BaseLib SetupConfigUI +
+  Changed()→5s 防抖→Save + OnSubmenuHidden/_ExitTree 冲刷) +
+  `GetSubmenuType` prefix 注册。双语 loc 键补齐。配置仍注册在 ModConfigRegistry
+  (MpConfigSync 同步需要), 与 Qurious 同策略。
+
+### H. 额外池附魔预算上下限
+
+- 排查: `mod_settings` 层面链路本来就通 (Min_X_*/Max_X_* 属性 v0.6.0 起存在,
+  [ConfigHideInUI] 只隐藏 BaseLib 通用页; SpecOf=Effective 应用边界; Persist 落属性)。
+  用户看到"不可编辑"最可能是: (a) 在 BaseLib 通用页找 (被隐藏), 或 (b) 预算编辑器
+  的额外池分区只在 EnableExtraPool 开启时渲染。
+- 结论: 属性/持久化无需改动; 待用户确认查找位置后决定是否把额外池分区改为常显。
+
+### G. 附魔词条 + 姿态调度 (第一部分, 机制层)
+
+- 引擎调查: `CardCmd.Enchant` 的 stack 分支原生支持同类型附魔
+  `Enchantment.Amount += amount`; 但 `CanEnchant` 对非 IsStackable 附魔拒绝同类型
+  重复 → 原版"同附魔不可叠级"的规则点就在这一判。
+- 实现: `CanTakeEnchant` (同型→允许叠级; 空位/异型→原版 CanEnchant, 即一牌一附魔)
+  + `EnchantWithStacking` (同型 `Amount += N` + FinalizeUpgradeInternal, 复刻引擎
+  stack 分支; 异型已被过滤器排除)。Sharp/Nimble 的效果随 Amount 缩放 (引擎源码
+  证实); Imbued 等级无机制效果, 文案如实"保持不变"。
+- 三条附魔文案更新 (叠级语义); 姿态三条改为回合调度: 平静=第1回合, 愤怒=第2回合,
+  神格=第3回合 (原实现每回合开始都重新进入姿态, 会覆盖玩家选择的姿态)。
+
+### 待用户拍板的产品分叉 (AskUserQuestion)
+
+1. 附魔词条形态: 维持"战斗开始, 手牌 N 张, 每张+1级" vs 改为"拾起时, 牌组随机一张, +N级"。
+2. 愤怒/神格姿态: 已实现回合自动进入; 是否再加"第2/3回合选一张手牌变为0费进姿态消耗技"的选牌形态。

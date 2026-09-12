@@ -77,20 +77,20 @@ public static class ChaosRelicExtraCatalog
         // SHARP=锋利(伤害+1), NIMBLE=灵巧(格挡+1, 只能附魔获得格挡的牌), IMBUED=注能
         // (战斗开始时自动打出, 只能附魔技能牌) - code applies amount 1 (verified).
         new(EnchantSharp, false, 1, 2, CostPerPoint: 5, RefundPerPoint: 0,
-    "战斗开始时,为你手牌中的至多{N}张攻击牌附加锋利附魔(这张牌上的伤害值+1)."),
+    "战斗开始时,为你手牌中的至多{N}张攻击牌附加锋利附魔(伤害值+1);已附有锋利的牌改为锋利等级+1(伤害值随之提高)."),
         new(EnchantNimble, false, 1, 2, CostPerPoint: 5, RefundPerPoint: 0,
-    "战斗开始时,为你手牌中的至多{N}张获得格挡的牌附加灵巧附魔(这张牌获得的格挡值+1)."),
+    "战斗开始时,为你手牌中的至多{N}张获得格挡的牌附加灵巧附魔(格挡值+1);已附有灵巧的牌改为灵巧等级+1(格挡值随之提高)."),
         new(EnchantImbued, false, 1, 2, CostPerPoint: 4, RefundPerPoint: 0,
-    "战斗开始时,为你手牌中的至多{N}张技能牌附加注能附魔(这张牌在每场战斗开始时自动打出)."),
+    "战斗开始时,为你手牌中的至多{N}张技能牌附加注能附魔(这张牌在每场战斗开始时自动打出);已附有注能的牌保持不变."),
         // Watcher stances (require the Watcher mod; skipped otherwise).
         // Wording aligned to Watcher mod zhs loc: WRATH=愤怒(双倍), CALM=平静(离开时
         // 获得2能量), DIVINITY=神格(三倍+进入时3能量+下回合自动退出).
         new(StanceWrathStart, false, 1, 1, CostPerPoint: 4, RefundPerPoint: 0,
-    "每回合开始时,进入愤怒姿态(你的攻击造成双倍伤害,你从攻击中受到双倍伤害)."),
+    "第2回合开始时,进入愤怒姿态(你的攻击造成双倍伤害,你从攻击中受到双倍伤害)."),
         new(StanceCalmStart, false, 1, 1, CostPerPoint: 3, RefundPerPoint: 0,
-    "每回合开始时,进入平静姿态(离开这一姿态时,获得2点能量)."),
+    "第1回合开始时,进入平静姿态(离开这一姿态时,获得2点能量)."),
         new(StanceDivinityStart, false, 1, 1, CostPerPoint: 7, RefundPerPoint: 0,
-    "每回合开始时,进入神格姿态(你的攻击造成三倍伤害,进入时获得3点能量,下回合开始时自动离开)."),
+    "第3回合开始时,进入神格姿态(你的攻击造成三倍伤害,进入时获得3点能量,下回合开始时自动离开)."),
         // Negatives.
         new(NegHandEthereal, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 4,
     "每回合开始时,你手牌中的至多{N}张牌获得虚无(如果这张牌在这个回合结束时留在你的手牌中,则将其消耗)."),

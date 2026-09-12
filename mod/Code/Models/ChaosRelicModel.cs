@@ -652,11 +652,52 @@ public abstract class ChaosRelicModel : CustomRelicModel
     private void ApplyEnchant<T>(Player owner, int count) where T : EnchantmentModel
     {
         var canonical = ModelDb.Enchantment<T>();
-        foreach (var card in TakeEligible(owner, count, canonical.CanEnchant))
+        foreach (var card in TakeEligible(owner, count, c => CanTakeEnchant<T>(c)))
         {
             Flash();
-            CardCmd.Enchant<T>(card, 1);
+            EnchantWithStacking<T>(card, 1);
         }
+    }
+
+    /// <summary>
+    /// Eligibility for the stacking enchant entry (user rule 2026-09-13): a
+    /// card with a DIFFERENT enchantment is NOT eligible (one enchantment slot
+    /// per card), a card with the SAME enchantment or none is.
+    /// EnchantmentModel.CanEnchant alone would reject same-type re-runs on
+    /// non-stackable enchantments, so the type check is done here.
+    /// </summary>
+    private static bool CanTakeEnchant<T>(CardModel card) where T : EnchantmentModel
+    {
+        // Same-type re-run: level up (bypasses vanilla's non-stackable
+        // rejection, which lives inside CanEnchant's last branch).
+        if (card.Enchantment is T)
+        {
+            return true;
+        }
+        // Empty slot or different type: vanilla checks (card-type
+        // restrictions, unplayable deck cards, one-enchant-per-card).
+        return ModelDb.Enchantment<T>().CanEnchant(card);
+    }
+
+    /// <summary>
+    /// Enchant with SAME-TYPE LEVEL STACKING (user order 2026-09-13: "每张牌
+    /// 只能附魔一次且相同附魔可以提升等级"). The engine's own
+    /// CardCmd.Enchant already implements the stack branch
+    /// (card.Enchantment.Amount += amount) but its CanEnchant gate rejects
+    /// same-type re-runs unless the enchantment is IsStackable, so the
+    /// same-type path is executed directly: Amount += N on the card's live
+    /// enchantment instance, mirroring CardCmd.Enchant's stack branch.
+    /// Different-type: unreachable here (filtered by CanTakeEnchant).
+    /// </summary>
+    private void EnchantWithStacking<T>(CardModel card, int amount) where T : EnchantmentModel
+    {
+        if (card.Enchantment is T existing)
+        {
+            existing.Amount += amount;
+            card.FinalizeUpgradeInternal();
+            return;
+        }
+        CardCmd.Enchant<T>(card, amount);
     }
 
     /// <summary>Per-turn: hand keywords + stance entry (re-applied each turn).</summary>
@@ -690,9 +731,23 @@ public abstract class ChaosRelicModel : CustomRelicModel
                 card.AddKeyword(CardKeyword.Ethereal);
             }
         }
-        await RunStanceEntry(player, ChaosRelicExtraCatalog.StanceWrathStart, "EnterWrath");
-        await RunStanceEntry(player, ChaosRelicExtraCatalog.StanceCalmStart, "EnterCalm");
-        await RunStanceEntry(player, ChaosRelicExtraCatalog.StanceDivinityStart, "EnterDivinity");
+        // Stance entries are TURN-SCHEDULED, not every-turn (user order
+        // 2026-09-13): calm at the player's FIRST turn start, wrath at turn 2,
+        // divinity at turn 3. The old code re-entered each stance on EVERY
+        // turn start, which overwrote the player's chosen stance every turn.
+        int turn = player.PlayerCombatState?.TurnNumber ?? 0;
+        if (turn == 2)
+        {
+            await RunStanceEntry(player, ChaosRelicExtraCatalog.StanceWrathStart, "EnterWrath");
+        }
+        if (turn == 1)
+        {
+            await RunStanceEntry(player, ChaosRelicExtraCatalog.StanceCalmStart, "EnterCalm");
+        }
+        if (turn == 3)
+        {
+            await RunStanceEntry(player, ChaosRelicExtraCatalog.StanceDivinityStart, "EnterDivinity");
+        }
     }
 
     /// <summary>Watcher-mod stance entry via reflection (skipped when absent).</summary>
