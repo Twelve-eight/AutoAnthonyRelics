@@ -34,6 +34,9 @@ public static class ChaosRelicExtraCatalog
     public const string RetainEnergyDiscount = "X_RETAIN_ENERGY_DISCOUNT";
     public const string RetainAttackBuff = "X_RETAIN_ATTACK_BUFF";
     public const string StanceWrathStart = "X_STANCE_WRATH";
+    public const string PickupEnchantSharp = "X_PICKUP_SHARP";
+    public const string PickupEnchantNimble = "X_PICKUP_NIMBLE";
+    public const string PickupEnchantImbued = "X_PICKUP_IMBUED";
     public const string StanceCalmStart = "X_STANCE_CALM";
     public const string StanceDivinityStart = "X_STANCE_DIVINITY";
 
@@ -91,6 +94,17 @@ public static class ChaosRelicExtraCatalog
     "第1回合开始时,进入平静姿态(离开这一姿态时,获得2点能量)."),
         new(StanceDivinityStart, false, 1, 1, CostPerPoint: 7, RefundPerPoint: 0,
     "第3回合开始时,进入神格姿态(你的攻击造成三倍伤害,进入时获得3点能量,下回合开始时自动离开)."),
+        // Pickup enchants (user order 2026-09-13, form B): one random eligible
+        // DECK card gets the enchant at {N} LEVELS when the relic is obtained;
+        // same-type re-application raises the level (EnchantWithStacking),
+        // different-type is skipped (one enchantment slot per card). The
+        // budget bounds therefore mean the LEVEL increment, not a card count.
+        new(PickupEnchantSharp, false, 1, 2, CostPerPoint: 6, RefundPerPoint: 0,
+    "拾起时,为你牌组中随机一张攻击牌附加{N}级锋利附魔(伤害值+{N});若其已附有锋利,改为锋利等级+{N}."),
+        new(PickupEnchantNimble, false, 1, 2, CostPerPoint: 6, RefundPerPoint: 0,
+    "拾起时,为你牌组中随机一张获得格挡的牌附加{N}级灵巧附魔(格挡值+{N});若其已附有灵巧,改为灵巧等级+{N}."),
+        new(PickupEnchantImbued, false, 1, 2, CostPerPoint: 5, RefundPerPoint: 0,
+    "拾起时,为你牌组中随机一张技能牌附加{N}级注能附魔(这张牌在每场战斗开始时自动打出);若其已附有注能,则保持不变(注能等级无额外效果)."),
         // Negatives.
         new(NegHandEthereal, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 4,
     "每回合开始时,你手牌中的至多{N}张牌获得虚无(如果这张牌在这个回合结束时留在你的手牌中,则将其消耗)."),

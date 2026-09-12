@@ -565,6 +565,25 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return;
         }
+        // Pickup enchants (extra pool, form B, user order 2026-09-13): one
+        // random eligible DECK card per entry, at {N} levels, same-type
+        // stacking via EnchantWithStacking.
+        int pickupSharp = AmountOf(ChaosRelicExtraCatalog.PickupEnchantSharp);
+        if (pickupSharp > 0)
+        {
+            await ApplyPickupEnchant<Sharp>(owner, pickupSharp);
+        }
+        int pickupNimble = AmountOf(ChaosRelicExtraCatalog.PickupEnchantNimble);
+        if (pickupNimble > 0)
+        {
+            await ApplyPickupEnchant<Nimble>(owner, pickupNimble);
+        }
+        int pickupImbued = AmountOf(ChaosRelicExtraCatalog.PickupEnchantImbued);
+        if (pickupImbued > 0)
+        {
+            await ApplyPickupEnchant<Imbued>(owner, pickupImbued);
+        }
+
         int maxHpDown = AmountOf(ChaosRelicCatalog.NegMaxHpDown);
         if (maxHpDown > 0)
         {
@@ -698,6 +717,32 @@ public abstract class ChaosRelicModel : CustomRelicModel
             return;
         }
         CardCmd.Enchant<T>(card, amount);
+    }
+
+    /// <summary>
+    /// Pickup enchant (form B): one random eligible card in the owner's MASTER
+    /// DECK gets <paramref name="levels"/> levels of T. RNG channel UpFront
+    /// (run-level, deterministic for the seed); the enchant command itself
+    /// syncs through the normal card-command pipeline in multiplayer.
+    /// </summary>
+    private async Task ApplyPickupEnchant<T>(Player owner, int levels) where T : EnchantmentModel
+    {
+        var deck = PileType.Deck.GetPile(owner).Cards;
+        if (deck.Count == 0)
+        {
+            return;
+        }
+        var canonical = ModelDb.Enchantment<T>();
+        var eligible = deck.Where(c => CanTakeEnchant<T>(c) && canonical.CanEnchantCardType(c.Type)).ToList();
+        if (eligible.Count == 0)
+        {
+            MainFile.Logger.Info($"[QuriousCraftingRelics] pickup enchant {typeof(T).Name}: no eligible deck card");
+            return;
+        }
+        Flash();
+        var card = owner.RunState.Rng.UpFront.NextItem(eligible);
+        EnchantWithStacking<T>(card, levels);
+        await Task.CompletedTask;
     }
 
     /// <summary>Per-turn: hand keywords + stance entry (re-applied each turn).</summary>

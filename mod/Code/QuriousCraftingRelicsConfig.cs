@@ -374,6 +374,22 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigHideInUI]
     public static int Max_X_Stance_Divinity { get; set; } = 1;
     [ConfigHideInUI]
+    public static int Cost_X_Pickup_Sharp { get; set; } = 6;
+    public static int Cost_X_Pickup_Nimble { get; set; } = 6;
+    public static int Cost_X_Pickup_Imbued { get; set; } = 5;
+    [ConfigHideInUI]
+    public static int Min_X_Pickup_Sharp { get; set; } = 1;
+    [ConfigHideInUI]
+    public static int Max_X_Pickup_Sharp { get; set; } = 2;
+    [ConfigHideInUI]
+    public static int Min_X_Pickup_Nimble { get; set; } = 1;
+    [ConfigHideInUI]
+    public static int Max_X_Pickup_Nimble { get; set; } = 2;
+    [ConfigHideInUI]
+    public static int Min_X_Pickup_Imbued { get; set; } = 1;
+    [ConfigHideInUI]
+    public static int Max_X_Pickup_Imbued { get; set; } = 2;
+    [ConfigHideInUI]
     public static int Min_X_Hand_Ethereal { get; set; } = 1;
     [ConfigHideInUI]
     public static int Max_X_Hand_Ethereal { get; set; } = 3;
