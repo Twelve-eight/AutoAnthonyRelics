@@ -896,3 +896,20 @@ filename = 根命名空间(去特殊字符) + ".cfg".
   附魔命令本身走卡牌命令管线同步 (与战斗开始附魔同模式)。
 - 与形态 A (战斗开始-手牌 N 张) 并存: 用户拍板"两种不同的增益同时放进游戏"。
 - 注能拾起词条文案如实注明等级无额外机制效果。
+
+## 2026-09-13 用户反馈轮 2 (续)
+
+- 每回合格挡 (T_START_BLOCK) 改为玩家回合结束时施加 (BeforeSideTurnEnd,
+  CloakClasp 模式, owner-participant 门控); 文案同步。
+- 敌方减益合并: StartVulnAll/StartWeakAll/StartPoisonAll 在 BeforeCombatStart
+  不再各自立即施加, 而是累积进静态合并袋 (按 PowerModel 类型聚合),
+  玩家第一回合开始时统一各施加一次 —— 多遗物低层数叠加不再每段消耗一个
+  人工制品充能。Apply 经反射闭合泛型 (IEnumerable<Creature> 重载)。
+- 悬停浮窗: 遗物 ExtraHoverTips 为其携带的每种增益/减益追加 HoverTipFactory.
+  FromPower 提示 (原版 Akabeko 模式), 覆盖 力量/敏捷/再生/荆棘/人工制品/
+  中毒/覆甲/易伤/虚弱 九类。
+- 预算编辑器: 额外池分区**常显** (开关关闭时标注), 行内每点价格随 ConfigChanged
+  实时刷新 (RefreshCosts); 设置页 ConfigChanged 同时触发编辑器刷新。
+- X_HAND_ETHEREAL 转正: is_negative=false, 计价 Cost 4/Refund 0,
+  配置键 Refund_X_Hand_Ethereal → Cost_X_Hand_Ethereal。
+- 设置页标题 loc 修复: zhs 曾为 "AutoAnthony - 遗物设置" → "怪异炼化 - 遗物 设置"。

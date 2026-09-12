@@ -126,8 +126,8 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
 
             if (_config is not null)
             {
-                var editor = new BudgetEditorPanel(_config, ScheduleSave);
-                options.AddChild(editor, false, 0);
+                _budgetEditor = new BudgetEditorPanel(_config, ScheduleSave);
+                options.AddChild(_budgetEditor, false, 0);
             }
 
             _initialFocus = options.GetChildOrNull<Control>(0);
@@ -143,7 +143,13 @@ internal sealed partial class RelicsSettingsSubmenu : NSubmenu
         }
     }
 
-    private void OnConfigChanged(object? sender, EventArgs e) => ScheduleSave();
+    private BudgetEditorPanel? _budgetEditor;
+
+    private void OnConfigChanged(object? sender, EventArgs e)
+    {
+        ScheduleSave();
+        _budgetEditor?.RefreshCosts();
+    }
 
     private void ScheduleSave() => _saveTimer = AutosaveDelay;
 

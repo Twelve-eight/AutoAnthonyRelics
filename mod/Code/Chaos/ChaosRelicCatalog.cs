@@ -126,7 +126,7 @@ public static class ChaosRelicCatalog
         new(StartPoisonAll, false, 2, 6, CostPerPoint: 1, RefundPerPoint: 0, "战斗开始时,对所有敌人施加{N}层中毒.", Decaying: true), // 三角定价: N=6 -> 21点 (全体敌人,已含群体溢价)
         new(StartPlating, false, 1, 4, CostPerPoint: 2, RefundPerPoint: 0, "战斗开始时,获得{N}层覆甲.", Decaying: true), // 覆甲=PlatingPower; 三角定价 N=4 -> 20点; 机制详情悬停可见 (原版描述: 回合结束时获得格挡, 回合开始时层数-1)
         // Per-turn effects: small bands, high cost (they repeat every turn).
-        new(TurnStartBlock, false, 2, 5, CostPerPoint: 4, RefundPerPoint: 0, "每回合开始时,获得{N}点格挡."),
+        new(TurnStartBlock, false, 2, 5, CostPerPoint: 4, RefundPerPoint: 0, "你的回合结束时,获得{N}点格挡."),
         new(TurnStartEnergy, false, 1, 1, CostPerPoint: 10, RefundPerPoint: 0, "每回合开始时,获得{N}点能量."),
         new(TurnStartHeal, false, 1, 3, CostPerPoint: 7, RefundPerPoint: 0, "每回合开始时,回复{N}点生命."),
         new(TurnStartDraw, false, 1, 1, CostPerPoint: 9, RefundPerPoint: 0, "每回合开始时,抽{N}张牌."),

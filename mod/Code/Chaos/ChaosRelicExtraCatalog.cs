@@ -106,7 +106,7 @@ public static class ChaosRelicExtraCatalog
         new(PickupEnchantImbued, false, 1, 2, CostPerPoint: 5, RefundPerPoint: 0,
     "拾起时,为你牌组中随机一张技能牌附加{N}级注能附魔(这张牌在每场战斗开始时自动打出);若其已附有注能,则保持不变(注能等级无额外效果)."),
         // Negatives.
-        new(NegHandEthereal, true, 1, 3, CostPerPoint: 0, RefundPerPoint: 4,
+        new(NegHandEthereal, false, 1, 3, CostPerPoint: 4, RefundPerPoint: 0,
     "每回合开始时,你手牌中的至多{N}张牌获得虚无(如果这张牌在这个回合结束时留在你的手牌中,则将其消耗)."),
     };
 

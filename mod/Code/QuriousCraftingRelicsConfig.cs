@@ -184,7 +184,7 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigSlider(1, 20, 1)]
     public static int Cost_X_Stance_Divinity { get; set; } = 7;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_X_Hand_Ethereal { get; set; } = 4;
+    public static int Cost_X_Hand_Ethereal { get; set; } = 4;
 
 
     // ---------- Template bounds (budget editor storage; defaults = catalog) ----------

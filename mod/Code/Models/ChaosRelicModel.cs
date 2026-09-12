@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Linq;
 using System.Threading.Tasks;
 using QuriousCraftingRelics.Chaos;
@@ -14,6 +15,7 @@ using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Enchantments;
@@ -109,6 +111,51 @@ public abstract class ChaosRelicModel : CustomRelicModel
         }
     }
 
+    /// <summary>
+    /// Hover the RELIC -> also show tooltips for every power it grants
+    /// (vanilla Akabeko pattern, user request 2026-09-13): players should not
+    /// have to guess what Vigor/Thorns/Artifact do from the entry text alone.
+    /// Only powers the definition actually carries get a tip.
+    /// </summary>
+    protected override IEnumerable<IHoverTip> ExtraHoverTips
+    {
+        get
+        {
+            var definition = Definition;
+            if (definition is null)
+            {
+                yield break;
+            }
+            foreach (var (template, powerType) in PowerTipMap)
+            {
+                if (definition.Sum(template) > 0)
+                {
+                    var tip = typeof(HoverTipFactory)
+                        .GetMethod(nameof(HoverTipFactory.FromPower))
+                        ?.MakeGenericMethod(powerType)
+                        .Invoke(null, null) as IHoverTip;
+                    if (tip is not null)
+                    {
+                        yield return tip;
+                    }
+                }
+            }
+        }
+    }
+
+    private static readonly (string Template, Type PowerType)[] PowerTipMap =
+    {
+        (ChaosRelicCatalog.StartStrength, typeof(StrengthPower)),
+        (ChaosRelicCatalog.StartDexterity, typeof(DexterityPower)),
+        (ChaosRelicCatalog.StartRegen, typeof(RegenPower)),
+        (ChaosRelicCatalog.StartThorns, typeof(ThornsPower)),
+        (ChaosRelicCatalog.StartArtifact, typeof(ArtifactPower)),
+        (ChaosRelicCatalog.StartPoisonAll, typeof(PoisonPower)),
+        (ChaosRelicCatalog.StartPlating, typeof(PlatingPower)),
+        (ChaosRelicCatalog.StartVulnAll, typeof(VulnerablePower)),
+        (ChaosRelicCatalog.StartWeakAll, typeof(WeakPower)),
+    };
+
     // ---------- Counter (entry count) ----------
 
     /// <summary>
@@ -146,6 +193,62 @@ public abstract class ChaosRelicModel : CustomRelicModel
 
     /// <summary>Combat-start one-shots that must NOT be granted from BeforeCombatStart.</summary>
     private int _startEnergyPending;
+
+    // ---------- Enemy-debuff merge (one Apply per power per combat) ----------
+    // Static because the merge spans MULTIPLE relic instances: each instance
+    // accumulates its amounts during BeforeCombatStart, and the first
+    // owner-side turn start flushes them as single applications. Otherwise
+    // separate low-count applications each burn one enemy Artifact charge
+    // (user order 2026-09-13). Cleared on flush and on combat end.
+    private static readonly object DebuffGate = new();
+    private static readonly Dictionary<Type, int> PendingEnemyDebuffs = new();
+
+    private void AccumulateEnemyDebuff<T>(int amount) where T : PowerModel
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+        lock (DebuffGate)
+        {
+            PendingEnemyDebuffs[typeof(T)] = PendingEnemyDebuffs.GetValueOrDefault(typeof(T)) + amount;
+        }
+    }
+
+    private static async Task FlushEnemyDebuffs(Player owner, PlayerChoiceContext context)
+    {
+        KeyValuePair<Type, int>[] pending;
+        lock (DebuffGate)
+        {
+            if (PendingEnemyDebuffs.Count == 0)
+            {
+                return;
+            }
+            pending = PendingEnemyDebuffs.ToArray();
+            PendingEnemyDebuffs.Clear();
+        }
+        var enemies = owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>();
+        if (enemies.Count == 0)
+        {
+            return;
+        }
+        foreach (var entry in pending)
+        {
+            // PowerCmd.Apply is generic over the power type; the type is only
+            // known at runtime here, so close it via reflection (the overload
+            // with IEnumerable<Creature> targets).
+            var closed = s_applyTargets.MakeGenericMethod(entry.Key);
+            var task = (Task)closed.Invoke(null,
+                new object?[] { context, enemies, (decimal)entry.Value, owner.Creature, null, false })!;
+            await task;
+        }
+    }
+
+    private static readonly MethodInfo s_applyTargets =
+        typeof(PowerCmd).GetMethods()
+            .Single(m => m.Name == nameof(PowerCmd.Apply)
+                && m.IsGenericMethod
+                && m.GetParameters()[1].ParameterType == typeof(IEnumerable<Creature>));
 
     // ---------- Combat-start hooks ----------
 
@@ -189,22 +292,8 @@ public abstract class ChaosRelicModel : CustomRelicModel
             Flash();
             await PowerCmd.Apply<DexterityPower>(context, owner.Creature, dexterity, owner.Creature, null);
         }
-        int vulnerable = AmountOf(ChaosRelicCatalog.StartVulnAll);
-        if (vulnerable > 0)
-        {
-            Flash();
-            await PowerCmd.Apply<VulnerablePower>(context,
-                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>(),
-                vulnerable, owner.Creature, null);
-        }
-        int weak = AmountOf(ChaosRelicCatalog.StartWeakAll);
-        if (weak > 0)
-        {
-            Flash();
-            await PowerCmd.Apply<WeakPower>(context,
-                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>(),
-                weak, owner.Creature, null);
-        }
+        AccumulateEnemyDebuff<VulnerablePower>(AmountOf(ChaosRelicCatalog.StartVulnAll));
+        AccumulateEnemyDebuff<WeakPower>(AmountOf(ChaosRelicCatalog.StartWeakAll));
         int regen = AmountOf(ChaosRelicCatalog.StartRegen);
         if (regen > 0)
         {
@@ -223,14 +312,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
             Flash();
             await PowerCmd.Apply<ArtifactPower>(context, owner.Creature, artifact, owner.Creature, null);
         }
-        int poison = AmountOf(ChaosRelicCatalog.StartPoisonAll);
-        if (poison > 0)
-        {
-            Flash();
-            await PowerCmd.Apply<PoisonPower>(context,
-                owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>(),
-                poison, owner.Creature, null);
-        }
+        AccumulateEnemyDebuff<PoisonPower>(AmountOf(ChaosRelicCatalog.StartPoisonAll));
         int plating = AmountOf(ChaosRelicCatalog.StartPlating);
         if (plating > 0)
         {
@@ -320,6 +402,10 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return;
         }
+        if (owner.PlayerCombatState?.TurnNumber <= 1)
+        {
+            await FlushEnemyDebuffs(owner, new ThrowingPlayerChoiceContext());
+        }
         int pending = _startEnergyPending;
         if (pending > 0 && owner.PlayerCombatState?.TurnNumber <= 1)
         {
@@ -349,12 +435,6 @@ public abstract class ChaosRelicModel : CustomRelicModel
             RunExtraCombatStartEnchants(player);
         }
 
-        int block = AmountOf(ChaosRelicCatalog.TurnStartBlock);
-        if (block > 0)
-        {
-            Flash();
-            await CreatureCmd.GainBlock(player.Creature, block, ValueProp.Unpowered, null);
-        }
         int energy = AmountOf(ChaosRelicCatalog.TurnStartEnergy);
         if (energy > 0)
         {
@@ -391,6 +471,29 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             await RunExtraTurnStart(player);
         }
+    }
+
+    /// <summary>
+    /// Per-turn BLOCK is granted at the player's TURN END (user order
+    /// 2026-09-13; was turn start). Vanilla CloakClasp pattern: BeforeSideTurnEnd
+    /// with the owner-participant gate; block persists through the enemy turn.
+    /// </summary>
+    public override Task BeforeSideTurnEnd(PlayerChoiceContext choiceContext, CombatSide side,
+        IEnumerable<Creature> participants)
+    {
+        var owner = Owner;
+        if (owner is null || !QuriousCraftingRelicsConfig.EnableChaosRelics
+            || !participants.Contains(owner.Creature))
+        {
+            return Task.CompletedTask;
+        }
+        int block = AmountOf(ChaosRelicCatalog.TurnStartBlock);
+        if (block > 0)
+        {
+            Flash();
+            return CreatureCmd.GainBlock(owner.Creature, block, ValueProp.Unpowered, null);
+        }
+        return Task.CompletedTask;
     }
 
     // ---------- Card-play hooks ----------

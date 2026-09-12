@@ -43,6 +43,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     }
 
     private readonly List<TemplateRow> _rows = new();
+    private readonly List<Action> _rowRefresh = new();
     private readonly ModConfig _config;
     private readonly Action _scheduleSave;
 
@@ -84,12 +85,12 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         AddRows(ChaosRelicCatalog.PositiveTemplates);
         AddSection(Loc("BUDGET_SECTION_NEGATIVE"));
         AddRows(ChaosRelicCatalog.NegativeTemplates);
-        if (QuriousCraftingRelicsConfig.EnableExtraPool)
-        {
-            AddSection(Loc("BUDGET_SECTION_EXTRA"));
-            AddRows(ChaosRelicExtraCatalog.PositiveTemplates
-                .Concat(ChaosRelicExtraCatalog.NegativeTemplates));
-        }
+        // ALWAYS render the extra-pool section (user feedback 2026-09-13: the
+        // bounds are config reference even while the pool switch is off).
+        AddSection(Loc("BUDGET_SECTION_EXTRA")
+            + (QuriousCraftingRelicsConfig.EnableExtraPool ? "" : Loc("BUDGET_SECTION_EXTRA_OFF")));
+        AddRows(ChaosRelicExtraCatalog.PositiveTemplates
+            .Concat(ChaosRelicExtraCatalog.NegativeTemplates));
     }
 
     private void AddSection(string header)
@@ -162,6 +163,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
             CostLabel = costLabel,
         };
         _rows.Add(rw);
+        _rowRefresh.Add(Refresh);
 
         // Band: wide enough for the catalog range plus headroom, floored at 8
         // so a small template can still be widened by hand.
@@ -196,6 +198,20 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     /// </summary>
     private static string EffectText(ChaosRelicCatalog.TemplateSpec spec) =>
         ChaosRelicGenerator.RenderEditorText(spec);
+
+    /// <summary>
+    /// Re-read the LIVE per-point prices into every row's cost label. Called
+    /// when the config changes so Cost_ edits made anywhere (BaseLib sliders,
+    /// cfg file) are reflected without reopening the page (user request
+    /// 2026-09-13).
+    /// </summary>
+    internal void RefreshCosts()
+    {
+        foreach (var refresh in _rowRefresh)
+        {
+            refresh();
+        }
+    }
 
     private void Persist(string template, int low, int high)
     {
