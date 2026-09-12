@@ -913,3 +913,19 @@ filename = 根命名空间(去特殊字符) + ".cfg".
 - X_HAND_ETHEREAL 转正: is_negative=false, 计价 Cost 4/Refund 0,
   配置键 Refund_X_Hand_Ethereal → Cost_X_Hand_Ethereal。
 - 设置页标题 loc 修复: zhs 曾为 "AutoAnthony - 遗物设置" → "怪异炼化 - 遗物 设置"。
+
+## 2026-09-13 紧急修复: 遗物详情浮窗无法关闭 (真机故障)
+
+- **根因**: 悬停提示的 ExtraHoverTips 反射用 GetMethod(name) 取
+  HoverTipFactory.FromPower, 该名下有两个重载 (泛型 + PowerModel) →
+  运行时 AmbiguousMatchException → OnFocus 的 NHoverTipSet.CreateAndShow
+  在枚举中途被斩断 → 浮窗容器已显示但关闭注册未完成 → OnUnfocus 的
+  Remove 清不掉 → 点击遗物后的详情浮窗永久滞留。
+- **修复**: 显式选取泛型重载 (Single(IsGenericMethod)) 存静态字段;
+  Qurious 与东尼遗物同修。
+- **连带发现** (同一批日志): BUDGET_PERPOINT 文案 "每点 {P}" 被 SmartFormat
+  当选择器拒绝, 异常斩断预算编辑器构建 (此前"编辑器缺行/两章"的真实根因);
+  Loc() 加防御 (格式失败回退键名并记日志), BUDGET_PERPOINT/BUDGET_OURCOST
+  去占位符改为代码拼接。
+- 教训: GetMethod 按名取重载必须断言唯一性; loc 文案禁止裸 {占位符}
+  (SmartFormat 语义), 需要变量走 GetFormattedText(variables) 或代码拼接。

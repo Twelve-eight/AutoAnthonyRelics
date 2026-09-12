@@ -130,10 +130,9 @@ public abstract class ChaosRelicModel : CustomRelicModel
             {
                 if (definition.Sum(template) > 0)
                 {
-                    var tip = typeof(HoverTipFactory)
-                        .GetMethod(nameof(HoverTipFactory.FromPower))
-                        ?.MakeGenericMethod(powerType)
-                        .Invoke(null, null) as IHoverTip;
+                    var tip = s_fromPowerGeneric.Value
+                        .MakeGenericMethod(powerType)
+                        .Invoke(null, new object?[] { null }) as IHoverTip;
                     if (tip is not null)
                     {
                         yield return tip;
@@ -142,6 +141,14 @@ public abstract class ChaosRelicModel : CustomRelicModel
             }
         }
     }
+
+    /// <summary>FromPower has TWO overloads (generic + PowerModel); pick the
+    /// generic one explicitly - GetMethod(name) throws AmbiguousMatchException
+    /// at runtime, which killed the hover-tip enumeration mid-flight and left
+    /// the relic detail popup unable to close.</summary>
+    private static readonly Lazy<MethodInfo> s_fromPowerGeneric = new(() =>
+        typeof(HoverTipFactory).GetMethods().Single(mi =>
+            mi.Name == nameof(HoverTipFactory.FromPower) && mi.IsGenericMethod));
 
     private static readonly (string Template, Type PowerType)[] PowerTipMap =
     {

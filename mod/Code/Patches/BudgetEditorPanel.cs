@@ -177,7 +177,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
             int per = spec.IsNegative
                 ? QuriousCraftingRelicsConfig.PointCosts.RefundPerPoint(template)
                 : QuriousCraftingRelicsConfig.PointCosts.CostPerPoint(template);
-            costLabel.SetTextAutoSize(Loc("BUDGET_PERPOINT").Replace("{P}", per.ToString()));
+            costLabel.SetTextAutoSize(Loc("BUDGET_PERPOINT") + " " + per);
         }
 
         slider.RangeChanged += (low, high) =>
@@ -265,7 +265,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     private static HoverTip BuildRelicTip(VanillaRelicMapping.VanillaRef vref)
     {
         string our = VanillaRelicMapping.OurPointsFor(vref) is int pts
-            ? Loc("BUDGET_OURCOST").Replace("{P}", pts.ToString())
+            ? Loc("BUDGET_OURCOST") + " " + pts
             : Loc("BUDGET_OURCOST_NA");
         string desc =
             $"[b]{vref.DisplayName}[/b]\n{vref.Description}\n" +
@@ -292,6 +292,17 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     private static string Loc(string name)
     {
         var loc = LocString.GetIfExists("settings_ui", LocKey(name) + ".title");
-        return loc?.GetFormattedText() ?? LocKey(name);
+        try
+        {
+            // GetFormattedText parses {braces} as selectors and THROWS on keys
+            // like "每点 {P}" when no variable is bound - the exception aborted
+            // the editor build mid-way. Keep this path format-free.
+            return loc.GetFormattedText();
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Error($"[QuriousCraftingRelics] loc format failed for {name}: {e.Message}");
+            return LocKey(name);
+        }
     }
 }
