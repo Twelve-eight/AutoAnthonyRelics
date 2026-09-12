@@ -28,7 +28,16 @@ namespace QuriousCraftingRelics;
 /// is synchronous, so the ordering is deterministic rather than lucky.
 ///
 /// Safety properties:
-/// - the old file is never deleted, only renamed to a .bak beside itself;
+/// - OWNERSHIP CHECK (astra-advice 2026-09-12 item 1): the legacy FILENAME is
+///   no longer sufficient. The new AutoAnthonyRelics relic mod now owns a cfg
+///   with exactly this name (BaseLib derives it from ITS root namespace), and
+///   this migration used to steal it: rename + merge stranger keys into
+///   QuriousCraftingRelics.cfg. A file now only migrates when its KEY SET
+///   identifies it as Qurious's own: at least one template-scoped key
+///   (Cost_/Refund_/Min_/Max_) or one of the known legacy scalar keys. Anything
+///   else is left untouched for its owner.
+/// - the old file is never deleted, only renamed to a .bak beside itself, and
+///   an existing backup is never overwritten (a fresh unique suffix is chosen);
 /// - a value already present in the new-format file is never overwritten
 ///   (merge by absence), so a half-migrated profile converges instead of
 ///   losing edits;
@@ -42,6 +51,19 @@ internal static class ConfigMigration
     private const string LegacyFileName = "AutoAnthonyRelics.cfg";
     private const string CurrentFileName = "QuriousCraftingRelics.cfg";
     private const string BackupSuffix = ".v0.5.1.bak";
+
+    /// <summary>
+    /// Qurious's pre-rename scalar keys (template-scoped keys are recognized by
+    /// prefix). The new AutoAnthonyRelics relic mod's cfg keys ("Enabled",
+    /// "ReplaceVanillaRelics", "KeepModdedRelics") match none of these, which
+    /// is exactly the discrimination the ownership check needs.
+    /// </summary>
+    private static readonly string[] KnownLegacyScalarKeys =
+    {
+        "EnableChaosRelics", "EnableExtraPool", "ChaosRelicMultiplier",
+        "ChaosRelicBudgetCommon", "ChaosRelicBudgetUncommon", "ChaosRelicBudgetRare",
+        "ChaosRelicNegativeChanceCommon", "ChaosRelicNegativeChanceUncommon", "ChaosRelicNegativeChanceRare",
+    };
 
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
@@ -79,6 +101,14 @@ internal static class ConfigMigration
                 return ConfigMigrationReport.None();
             }
 
+            // Ownership check: only a file whose keys identify it as Qurious's
+            // own gets migrated. A same-named cfg belonging to another product
+            // (the new AutoAnthonyRelics relic mod) is left untouched.
+            if (!LooksLikeQuriousLegacy(legacy.Keys))
+            {
+                return ConfigMigrationReport.SkipNotOurs();
+            }
+
             var renamed = new Dictionary<string, string>(legacy.Count, StringComparer.Ordinal);
             foreach (KeyValuePair<string, string> pair in legacy)
             {
@@ -111,9 +141,10 @@ internal static class ConfigMigration
 
             Directory.CreateDirectory(dir);
             File.WriteAllText(currentPath, JsonSerializer.Serialize(merged, WriteOptions));
-            File.Move(legacyPath, legacyPath + BackupSuffix, overwrite: true);
+            string backupPath = UniqueBackupPath(legacyPath);
+            File.Move(legacyPath, backupPath, overwrite: false);
 
-            return ConfigMigrationReport.Success(renamed.Count, carried, LegacyFileName + BackupSuffix);
+            return ConfigMigrationReport.Success(renamed.Count, carried, Path.GetFileName(backupPath));
         }
         catch (Exception e)
         {
@@ -122,12 +153,44 @@ internal static class ConfigMigration
             return ConfigMigrationReport.Failure(e);
         }
     }
+
+    private static bool LooksLikeQuriousLegacy(IEnumerable<string> keys)
+    {
+        foreach (string key in keys)
+        {
+            if (ConfigKeyNaming.IsTemplateScopedKey(key)
+                || Array.IndexOf(KnownLegacyScalarKeys, key) >= 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// A backup that already exists is never overwritten (astra-advice item 1:
+    /// the old migration clobbered the previous .bak). Pick the first free
+    /// numbered suffix instead. Called after the target file was written, so a
+    /// crash between the two leaves the legacy cfg in place and the next boot
+    /// converges.
+    /// </summary>
+    private static string UniqueBackupPath(string legacyPath)
+    {
+        string candidate = legacyPath + BackupSuffix;
+        int suffix = 2;
+        while (File.Exists(candidate))
+        {
+            candidate = $"{legacyPath}{BackupSuffix}.{suffix}";
+            suffix++;
+        }
+        return candidate;
+    }
 }
 
 /// <summary>Outcome of one <see cref="ConfigMigration.MigrateLegacyConfig"/> call.</summary>
 internal readonly record struct ConfigMigrationReport(
     bool LegacyFileFound, bool Succeeded, int LegacyKeyCount, int CarriedOver,
-    string BackupName, Exception? Error)
+    string BackupName, Exception? Error, bool SkippedNotOurs = false)
 {
     internal static ConfigMigrationReport None() =>
         new(false, true, 0, 0, string.Empty, null);
@@ -137,6 +200,13 @@ internal readonly record struct ConfigMigrationReport(
 
     internal static ConfigMigrationReport Failure(Exception error) =>
         new(true, false, 0, 0, string.Empty, error);
+
+    /// <summary>
+    /// The legacy-named file exists but its keys belong to another product
+    /// (the new AutoAnthonyRelics relic mod): untouched, nothing migrated.
+    /// </summary>
+    internal static ConfigMigrationReport SkipNotOurs() =>
+        new(true, true, 0, 0, string.Empty, null, SkippedNotOurs: true);
 
     /// <summary>One-line summary for the mod log, or null when nothing happened.</summary>
     internal string? Describe()
@@ -148,6 +218,11 @@ internal readonly record struct ConfigMigrationReport(
         if (!LegacyFileFound)
         {
             return null;
+        }
+        if (SkippedNotOurs)
+        {
+            return $"cfg migration skipped: AutoAnthonyRelics.cfg does not match the Qurious legacy schema; " +
+                   "left untouched for its owner (AutoAnthonyRelics relic mod)";
         }
         return $"cfg migrated: {LegacyKeyCount} legacy keys, {CarriedOver} carried over " +
                $"({LegacyKeyCount - CarriedOver} already present); old file kept as {BackupName}";

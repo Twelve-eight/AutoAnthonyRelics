@@ -38,9 +38,24 @@ internal static class ChaosTemplates
             ? ChaosRelicExtraCatalog.Spec(template)
             : ChaosRelicCatalog.Spec(template);
 
-    /// <summary>Raw spec with the user's Min/Max bounds overlay applied.</summary>
-    internal static ChaosRelicCatalog.TemplateSpec Effective(string template) =>
-        QuriousCraftingRelicsConfig.ApplyUserBounds(Spec(template));
+    /// <summary>
+    /// Raw spec with the run-frozen (inside a run) or live-user (menus) Min/Max
+    /// bounds overlay applied. Inside a run the bounds were frozen at seed
+    /// capture (astra-advice 2026-09-12 item 5): mid-run preference edits must
+    /// not change template bands, or already-held relics change meaning.
+    /// </summary>
+    internal static ChaosRelicCatalog.TemplateSpec Effective(string template)
+    {
+        var spec = Spec(template);
+        var frozen = ChaosRelicRunRegistry.CurrentSnapshot?.BoundsFor(template);
+        if (frozen is { } bounds)
+        {
+            return (bounds.Min == spec.Min && bounds.Max == spec.Max)
+                ? spec
+                : spec with { Min = bounds.Min, Max = bounds.Max };
+        }
+        return QuriousCraftingRelicsConfig.ApplyUserBounds(spec);
+    }
 
     /// <summary>Negative lookup across both pools.</summary>
     internal static bool IsNegative(string template) =>
@@ -48,9 +63,20 @@ internal static class ChaosTemplates
             ? ChaosRelicExtraCatalog.IsNegative(template)
             : ChaosRelicCatalog.IsNegative(template);
 
-    /// <summary>Watcher-mod presence probe (assembly by name).</summary>
-    internal static bool WatcherModLoaded =>
+    /// <summary>Raw assembly probe, no snapshot. Use <see cref="WatcherModLoaded"/> for generation.</summary>
+    internal static bool WatcherModLoadedProbe =>
         AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "Watcher");
+
+    /// <summary>
+    /// Extra-pool gate, run-frozen when a run is active (the active template
+    /// lists must not reshuffle mid-run), live config otherwise (menus).
+    /// </summary>
+    private static bool ExtraPoolActive =>
+        ChaosRelicRunRegistry.CurrentSnapshot?.EnableExtraPool ?? QuriousCraftingRelicsConfig.EnableExtraPool;
+
+    /// <summary>Watcher-mod presence, run-frozen inside a run.</summary>
+    internal static bool WatcherModLoaded =>
+        ChaosRelicRunRegistry.CurrentSnapshot?.WatcherModLoaded ?? WatcherModLoadedProbe;
 
     /// <summary>
     /// Active positive pool: core always, extra only while the extra pool is
@@ -59,7 +85,7 @@ internal static class ChaosTemplates
     /// the generator indexes this list with the seeded RNG.
     /// </summary>
     internal static IReadOnlyList<string> PositiveTemplates =>
-        (QuriousCraftingRelicsConfig.EnableExtraPool
+        (ExtraPoolActive
             ? ChaosRelicCatalog.PositiveTemplates.Concat(ChaosRelicExtraCatalog.PositiveTemplates)
             : ChaosRelicCatalog.PositiveTemplates)
         .Where(t => !ChaosRelicExtraCatalog.WatcherTemplates.Contains(t) || WatcherModLoaded)
@@ -67,7 +93,7 @@ internal static class ChaosTemplates
 
     /// <summary>Active negative pool: core always, extra only while enabled.</summary>
     internal static IReadOnlyList<string> NegativeTemplates =>
-        QuriousCraftingRelicsConfig.EnableExtraPool
+        ExtraPoolActive
             ? ChaosRelicCatalog.NegativeTemplates.Concat(ChaosRelicExtraCatalog.NegativeTemplates).ToList()
             : ChaosRelicCatalog.NegativeTemplates;
 

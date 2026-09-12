@@ -402,7 +402,7 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
             .GroupBy(p => p.Name, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
-    private static int? LookUpInt(string name) =>
+    internal static int? LookUpInt(string name) =>
         IntPropsByName.TryGetValue(name, out var prop) ? (int?)prop.GetValue(null) : null;
 
     private static int? LookUpCost(string template) =>

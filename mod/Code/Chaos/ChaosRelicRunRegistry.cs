@@ -24,6 +24,15 @@ namespace QuriousCraftingRelics.Chaos;
 ///
 /// The fingerprint is a stable string hash over the generation inputs, so the
 /// key is (seed, inputs) rather than (seed, first-writer-wins).
+///
+/// RUN-EFFECTIVE FREEZE (astra-advice 2026-09-12 item 5): inside a run every
+/// generation input comes from <see cref="CurrentSnapshot"/>, frozen once at
+/// seed capture - NOT from live config. Editing a budget mid-run therefore
+/// leaves the (seed, inputs) key and the generated pool unchanged; the
+/// already-obtained relics keep their identity for the whole run. Live config
+/// is only consulted outside runs (menus/previews). The MP divergence above
+/// still needs config sync to deliver host values before run start; the
+/// freeze only guarantees THIS process cannot change its mind mid-run.
 /// </summary>
 public static class ChaosRelicRunRegistry
 {
@@ -32,17 +41,24 @@ public static class ChaosRelicRunRegistry
     private static readonly Dictionary<string, IReadOnlyList<ChaosRelicDefinition>> Cache = new(StringComparer.Ordinal);
     private static readonly Queue<string> Order = new();
 
+    /// <summary>
+    /// Generation inputs frozen at run-seed capture; null outside runs.
+    /// Set by the seed-tracking patches alongside <see cref="CurrentRunSeed"/>.
+    /// </summary>
+    public static QuriousGenerationSnapshot? CurrentSnapshot { get; internal set; }
+
     /// <summary>Generation config fingerprint for the current process state.</summary>
     private static string ConfigFingerprint()
     {
+        var snapshot = CurrentSnapshot;
         var sb = new StringBuilder(256);
-        sb.Append(QuriousCraftingRelicsConfig.ChaosRelicBudgetCommon).Append('/')
-          .Append(QuriousCraftingRelicsConfig.ChaosRelicBudgetUncommon).Append('/')
-          .Append(QuriousCraftingRelicsConfig.ChaosRelicBudgetRare).Append('/')
-          .Append(QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceCommon).Append('/')
-          .Append(QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceUncommon).Append('/')
-          .Append(QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceRare).Append('/')
-          .Append(QuriousCraftingRelicsConfig.EnableExtraPool ? '1' : '0').Append('/')
+        sb.Append(snapshot?.BudgetCommon ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetCommon).Append('/')
+          .Append(snapshot?.BudgetUncommon ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetUncommon).Append('/')
+          .Append(snapshot?.BudgetRare ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetRare).Append('/')
+          .Append(snapshot?.NegativeChanceCommon ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceCommon).Append('/')
+          .Append(snapshot?.NegativeChanceUncommon ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceUncommon).Append('/')
+          .Append(snapshot?.NegativeChanceRare ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceRare).Append('/')
+          .Append(snapshot?.EnableExtraPool ?? QuriousCraftingRelicsConfig.EnableExtraPool ? '1' : '0').Append('/')
           .Append(ChaosTemplates.WatcherModLoaded ? '1' : '0');
         // Per-template economics and bounds. Ordered by template id so the
         // fingerprint does not depend on collection iteration order.
@@ -53,13 +69,17 @@ public static class ChaosRelicRunRegistry
         {
             var spec = ChaosTemplates.Effective(template);
             sb.Append('|').Append(template)
-              .Append(':').Append(QuriousCraftingRelicsConfig.PointCosts.CostPerPoint(template))
-              .Append(':').Append(QuriousCraftingRelicsConfig.PointCosts.RefundPerPoint(template))
+              .Append(':').Append(Costs().CostPerPoint(template))
+              .Append(':').Append(Costs().RefundPerPoint(template))
               .Append(':').Append(spec.Min)
               .Append(':').Append(spec.Max);
         }
         return sb.ToString();
     }
+
+    /// <summary>Frozen per-point table inside a run, live table otherwise.</summary>
+    private static ChaosPointCosts Costs() =>
+        CurrentSnapshot?.FrozenCosts ?? QuriousCraftingRelicsConfig.PointCosts;
 
     public static IReadOnlyList<ChaosRelicDefinition> ForSeed(string seed, int multiplier)
     {
@@ -70,14 +90,15 @@ public static class ChaosRelicRunRegistry
             {
                 return cached;
             }
+            var snapshot = CurrentSnapshot;
             var generated = ChaosRelicGenerator.Generate(seed,
-                QuriousCraftingRelicsConfig.ChaosRelicBudgetCommon,
-                QuriousCraftingRelicsConfig.ChaosRelicBudgetUncommon,
-                QuriousCraftingRelicsConfig.ChaosRelicBudgetRare,
-                QuriousCraftingRelicsConfig.PointCosts,
-                QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceCommon,
-                QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceUncommon,
-                QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceRare);
+                snapshot?.BudgetCommon ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetCommon,
+                snapshot?.BudgetUncommon ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetUncommon,
+                snapshot?.BudgetRare ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetRare,
+                Costs(),
+                snapshot?.NegativeChanceCommon ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceCommon,
+                snapshot?.NegativeChanceUncommon ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceUncommon,
+                snapshot?.NegativeChanceRare ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceRare);
             Cache[key] = generated;
             Order.Enqueue(key);
             while (Order.Count > CacheLimit)

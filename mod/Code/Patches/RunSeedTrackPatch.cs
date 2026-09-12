@@ -55,8 +55,12 @@ internal static class RunSeedEarlyTrackPatch
             if (!string.IsNullOrEmpty(seed))
             {
                 Chaos.ChaosRelicRunRegistry.CurrentRunSeed = seed;
+                // Freeze the run-effective generation config alongside the seed
+                // (astra-advice item 5): definitions must not change meaning
+                // when a preference is edited mid-run.
+                Chaos.ChaosRelicRunRegistry.CurrentSnapshot = Chaos.QuriousGenerationSnapshot.Capture();
                 ChaosRelicLocUpdater.OnSeedCaptured(seed);
-                MainFile.Logger.Info($"[QuriousCraftingRelics] run seed early-captured: {seed}");
+                MainFile.Logger.Info($"[QuriousCraftingRelics] run seed early-captured: {seed} (generation config frozen)");
             }
         }
         catch (Exception e)
@@ -74,11 +78,15 @@ internal static class RunSeedTrackPatch
         {
             var seed = __result?.Rng?.StringSeed;
             Chaos.ChaosRelicRunRegistry.CurrentRunSeed = seed;
+            // Same seed as the early capture -> same frozen config (Capture
+            // reads live config, which cannot change between the two points
+            // within one launch). Covers load-without-setup.
+            Chaos.ChaosRelicRunRegistry.CurrentSnapshot = Chaos.QuriousGenerationSnapshot.Capture();
             // Save-load funnel: Launch fires after both new runs and loads; the
             // early-capture path already updated the loc table for the same seed
             // (OnSeedCaptured is idempotent per seed), this covers load-without-setup.
             ChaosRelicLocUpdater.OnSeedCaptured(seed);
-            MainFile.Logger.Info($"[QuriousCraftingRelics] run seed captured: {Chaos.ChaosRelicRunRegistry.CurrentRunSeed ?? "(null)"}");
+            MainFile.Logger.Info($"[QuriousCraftingRelics] run seed captured: {Chaos.ChaosRelicRunRegistry.CurrentRunSeed ?? "(null)"} (generation config frozen)");
         }
         catch (Exception e)
         {

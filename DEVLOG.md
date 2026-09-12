@@ -804,3 +804,44 @@ filename = 根命名空间(去特殊字符) + ".cfg".
 - 构建: `0 个警告 / 0 个错误` + `PCK packed`.
 - 过程细节、引擎行号表与新记录的已知限制 (重连对端拿不到快照, 未决) 见
   `G:/omp works/sts2-mpconfigsync/DEVLOG.md` Session 3.
+
+---
+
+## 2026-09-12 (夜) astra-advice 项 1 + 项 5 修复 (主会话单线)
+
+### 项 1: cfg 迁移归属判断 (`ConfigMigration.cs`)
+
+- **缺陷**: 迁移只认文件名 `AutoAnthonyRelics.cfg`。新的 AutoAnthonyRelics 遗物 mod
+  (BaseLib 按根命名空间命名 cfg) 现在拥有同名文件, 旧迁移器每次启动都会把它整个
+  搬走: 键并入 QuriousCraftingRelics.cfg, 原文件改名为 .bak 且**覆盖旧备份**。
+- **修复**:
+  - 归属判据 = 键集合: 至少一个模板作用域键 (`Cost_/Refund_/Min_/Max_` 前缀)
+    或一个已知 Qurious 标量键 (EnableChaosRelics 等 9 个)。不匹配 → `SkipNotOurs`,
+    文件一个字节都不动。
+  - 备份不再覆盖: `UniqueBackupPath` 取第一个空闲的 `.bak.N` 后缀。
+  - 日志口径如实: skip 有专门一行说明留给谁。
+- **验证**: `tools/migration-probe` **11/11 PASS** (隔离, 无 Godot):
+  真遗留 cfg 正常迁移 (含 Title_Snake 重命名 + 固定点); 遗物 mod cfg 与无关 cfg
+  被完整跳过 (无备份/无合并目标); 二轮迁移不覆盖首个备份。
+  注意: probe 断言 `.bak*` 前缀计数, 不是 `*.bak` 通配 (后者匹配不到 `.bak.2`)。
+
+### 项 5: 本局有效配置冻结 (`QuriousGenerationSnapshot.cs` + 注册表 + 种子补丁)
+
+- **缺陷**: 定义查找键 = (seed, live 配置指纹)。局内改预算 → 指纹变 → 同 seed
+  重新生成不同池 → 已持有遗物/文案/一次性效果全部变义 (审查原话: 60 个槽位全部变义)。
+- **修复**: 种子捕获点 (SetUpNew* prefix + Launch postfix) 同步调用
+  `QuriousGenerationSnapshot.Capture()`: 冻结 预算×3 / 负面概率×3 / ExtraPool 开关 /
+  Watcher 存在性 / 每模板 Cost+Refund+Min/Max (两目录并集, 修正值回退 spec 默认)。
+  `ChaosRelicRunRegistry.CurrentSnapshot` 驱动 `ConfigFingerprint`/`ForSeed`
+  的全部生成输入; `ChaosTemplates.Effective/PositiveTemplates/NegativeTemplates/
+  WatcherModLoaded` 在局内一律读快照, 局外 (菜单) 回退 live 配置。
+  生成器签名未动 —— 输入由注册表按"快照优先"注入。
+- **语义边界 (如实)**: 冻结只保证本进程局内不自变; MP 两端一致仍依赖配置同步在
+  开局前送达主机值 (MpConfigSync 的契约)。快照冻结的是"捕获时刻本机所见"。
+- **验证**: 隔离构建 `0 警告 / 0 错误`; 迁移探针覆盖项 1。冻结行为的局内复验
+  (开局 → 改预算 → 已持有遗物不变) 需要实机, 标记为未验边界。
+
+### 状态
+
+已部署实机 `mods/QuriousCraftingRelics/` (游戏未运行)。与 AutoAnthonyRelics
+遗物 mod 双装的池共存由双方补丁谓词保证 (都保留 CustomRelicModel)。
