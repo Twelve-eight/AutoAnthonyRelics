@@ -105,6 +105,6 @@
 
 局内按 ` 打开开发者控制台,输入:
 [code]relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005[/code]"
-	"changenote"		"v0.5.2: robustness fixes from the 2026-09-12 review - (1) config migration now verifies the legacy cfg actually belongs to Qurious before moving it (a same-named cfg from the new AutoAnthonyRelics relic mod is left untouched; existing backups are never overwritten); (2) generation inputs (budgets, chances, per-template costs/bounds) are frozen at run start, so editing settings mid-run no longer changes the meaning of already-obtained relics; (3) pool replacement keeps every BaseLib custom relic, so coexisting with other relic mods (e.g. Anthony Algorithm - Relics) is order-independent."
+	"changenote"		"v0.5.3: community-feedback round - user-tuned point allocation as new defaults; per-turn block now applies at the player's turn end; same-enchant LEVEL stacking (engine stack branch) for the enchant entries plus new pickup-time deck enchant entries (one random eligible card at +N levels); enemy debuffs (vulnerable/weak/poison) from multiple relics merge into ONE application per power so enemy Artifact charges are not wasted; relic hover now shows tooltips for every power the relic grants; hand-ethereal entry moved to positive pricing; budget editor always shows the extra-pool section and refreshes per-point costs live; settings page title fixed (was showing a leftover AutoAnthony name)."
 	"publishedfileid"		"3798163198"
 }

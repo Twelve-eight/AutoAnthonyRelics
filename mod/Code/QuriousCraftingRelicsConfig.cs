@@ -47,18 +47,18 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     public static int ChaosRelicBudgetCommon { get; set; } = 10;
 
     [ConfigSlider(1, 80, 1)]
-    public static int ChaosRelicBudgetUncommon { get; set; } = 16;
+    public static int ChaosRelicBudgetUncommon { get; set; } = 14;
 
     [ConfigSlider(1, 120, 1)]
-    public static int ChaosRelicBudgetRare { get; set; } = 24;
+    public static int ChaosRelicBudgetRare { get; set; } = 23;
 
     // ---------- Negative-entry chances (percent) by rarity ----------
 
     [ConfigSlider(0, 100, 5)]
-    public static int ChaosRelicNegativeChanceCommon { get; set; } = 35;
+    public static int ChaosRelicNegativeChanceCommon { get; set; } = 5;
 
     [ConfigSlider(0, 100, 5)]
-    public static int ChaosRelicNegativeChanceUncommon { get; set; } = 55;
+    public static int ChaosRelicNegativeChanceUncommon { get; set; } = 20;
 
     [ConfigSlider(0, 100, 5)]
     public static int ChaosRelicNegativeChanceRare { get; set; } = 75;
@@ -88,47 +88,47 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigSlider(1, 20, 1)]
     public static int Cost_C_Start_Block { get; set; } = 2;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Strength { get; set; } = 5;
+    public static int Cost_C_Start_Strength { get; set; } = 9;
     [ConfigSlider(1, 20, 1)]
     public static int Cost_C_Start_Dexterity { get; set; } = 4;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Draw { get; set; } = 3;
+    public static int Cost_C_Start_Draw { get; set; } = 4;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Energy { get; set; } = 6;
+    public static int Cost_C_Start_Energy { get; set; } = 4;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Vuln_All { get; set; } = 3;
+    public static int Cost_C_Start_Vuln_All { get; set; } = 9;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Weak_All { get; set; } = 3;
+    public static int Cost_C_Start_Weak_All { get; set; } = 9;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Regen { get; set; } = 2; // 衰减: 三角计价 2*N(N+1)/2
+    public static int Cost_C_Start_Regen { get; set; } = 3; // 衰减: 三角计价 2*N(N+1)/2
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Thorns { get; set; } = 4;
+    public static int Cost_C_Start_Thorns { get; set; } = 3;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Artifact { get; set; } = 9;
+    public static int Cost_C_Start_Artifact { get; set; } = 12;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Poison_All { get; set; } = 1; // 衰减: 三角计价 1*N(N+1)/2
+    public static int Cost_C_Start_Poison_All { get; set; } = 2; // 衰减: 三角计价 1*N(N+1)/2
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Plating { get; set; } = 2; // 衰减: 三角计价 2*N(N+1)/2
+    public static int Cost_C_Start_Plating { get; set; } = 3; // 衰减: 三角计价 2*N(N+1)/2
     [ConfigSlider(1, 20, 1)]
     public static int Cost_T_Start_Block { get; set; } = 4;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_T_Start_Energy { get; set; } = 10;
+    public static int Cost_T_Start_Energy { get; set; } = 12;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_T_Start_Heal { get; set; } = 7;
+    public static int Cost_T_Start_Heal { get; set; } = 12;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_T_Start_Draw { get; set; } = 9;
+    public static int Cost_T_Start_Draw { get; set; } = 12;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_Play_Damage_Random { get; set; } = 2;
+    public static int Cost_Play_Damage_Random { get; set; } = 3;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_Play_Block { get; set; } = 4;
+    public static int Cost_Play_Block { get; set; } = 3;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_Passive_Attack_Damage { get; set; } = 7;
+    public static int Cost_Passive_Attack_Damage { get; set; } = 8;
     [ConfigSlider(1, 20, 1)]
     public static int Cost_Passive_Max_Energy { get; set; } = 8;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_Passive_Block_Add { get; set; } = 6;
+    public static int Cost_Passive_Block_Add { get; set; } = 7;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_Victory_Heal { get; set; } = 3;
+    public static int Cost_Victory_Heal { get; set; } = 4;
     [ConfigSlider(1, 20, 1)]
     public static int Cost_Victory_Gold { get; set; } = 1;
     [ConfigSlider(1, 20, 1)]
@@ -140,37 +140,37 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
 
     [ConfigSection("Refund_Negative_Section")]
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Start_Frail_Self { get; set; } = 4;
+    public static int Refund_N_Start_Frail_Self { get; set; } = 6;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Turn_Lose_Hp { get; set; } = 3;
+    public static int Refund_N_Turn_Lose_Hp { get; set; } = 11;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Turn_Energy_Down { get; set; } = 6;
+    public static int Refund_N_Turn_Energy_Down { get; set; } = 12;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Turn_Draw_Down { get; set; } = 6;
+    public static int Refund_N_Turn_Draw_Down { get; set; } = 12;
     [ConfigSlider(1, 40, 1)]
     public static int Refund_N_Gold_Down { get; set; } = 2;
     [ConfigSlider(1, 40, 1)]
     public static int Refund_N_Potion_Block { get; set; } = 30;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Start_Sloth_Self { get; set; } = 6; // 每点返还 6N; 上限=7-N 张牌
+    public static int Refund_N_Start_Sloth_Self { get; set; } = 13; // 每点返还 6N; 上限=7-N 张牌
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Rest_Heal_Down { get; set; } = 2;
+    public static int Refund_N_Rest_Heal_Down { get; set; } = 1;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Attack_Damage_Down { get; set; } = 3;
+    public static int Refund_N_Attack_Damage_Down { get; set; } = 7;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Max_Hp_Down { get; set; } = 4;
+    public static int Refund_N_Max_Hp_Down { get; set; } = 6;
 
     // ---------- Section: extra pool (costs AND refunds) ----------
 
     [ConfigSection("Cost_Extra_Section")]
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_X_Hand_Retain { get; set; } = 3;
+    public static int Cost_X_Hand_Retain { get; set; } = 5;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_X_Hand_Sly { get; set; } = 3;
+    public static int Cost_X_Hand_Sly { get; set; } = 5;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_X_Retain_Energy_Discount { get; set; } = 4;
+    public static int Cost_X_Retain_Energy_Discount { get; set; } = 5;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_X_Retain_Attack_Buff { get; set; } = 3;
+    public static int Cost_X_Retain_Attack_Buff { get; set; } = 5;
     [ConfigSlider(1, 20, 1)]
     public static int Cost_X_Enchant_Sharp { get; set; } = 5;
     [ConfigSlider(1, 20, 1)]
@@ -178,11 +178,11 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigSlider(1, 20, 1)]
     public static int Cost_X_Enchant_Imbued { get; set; } = 4;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_X_Stance_Wrath { get; set; } = 4;
+    public static int Cost_X_Stance_Wrath { get; set; } = 7;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_X_Stance_Calm { get; set; } = 3;
+    public static int Cost_X_Stance_Calm { get; set; } = 7;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_X_Stance_Divinity { get; set; } = 7;
+    public static int Cost_X_Stance_Divinity { get; set; } = 15;
     [ConfigSlider(1, 40, 1)]
     public static int Cost_X_Hand_Ethereal { get; set; } = 4;
 
@@ -234,7 +234,7 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigHideInUI]
     public static int Max_C_Start_Artifact { get; set; } = 2;
     [ConfigHideInUI]
-    public static int Min_C_Start_Poison_All { get; set; } = 2;
+    public static int Min_C_Start_Poison_All { get; set; } = 3;
     [ConfigHideInUI]
     public static int Max_C_Start_Poison_All { get; set; } = 6;
     [ConfigHideInUI]
@@ -320,7 +320,7 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigHideInUI]
     public static int Min_N_Start_Sloth_Self { get; set; } = 1;
     [ConfigHideInUI]
-    public static int Max_N_Start_Sloth_Self { get; set; } = 5;
+    public static int Max_N_Start_Sloth_Self { get; set; } = 2;
     [ConfigHideInUI]
     public static int Min_N_Rest_Heal_Down { get; set; } = 1;
     [ConfigHideInUI]
@@ -380,7 +380,7 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigHideInUI]
     public static int Min_X_Pickup_Sharp { get; set; } = 1;
     [ConfigHideInUI]
-    public static int Max_X_Pickup_Sharp { get; set; } = 2;
+    public static int Max_X_Pickup_Sharp { get; set; } = 16;
     [ConfigHideInUI]
     public static int Min_X_Pickup_Nimble { get; set; } = 1;
     [ConfigHideInUI]
