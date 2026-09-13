@@ -445,5 +445,9 @@
   "QURIOUSCRAFTINGRELICS-Min_X_Pickup_Imbued.hover.desc": "Extra: pickup imbued (+N levels) min",
   "QURIOUSCRAFTINGRELICS-Max_X_Pickup_Imbued.hover.desc": "Extra: pickup imbued (+N levels) max",
   "QURIOUSCRAFTINGRELICS-Min_X_Hand_Ethereal.hover.desc": "Extra: hand ethereal min",
-  "QURIOUSCRAFTINGRELICS-Max_X_Hand_Ethereal.hover.desc": "Extra: hand ethereal max"
+  "QURIOUSCRAFTINGRELICS-Max_X_Hand_Ethereal.hover.desc": "Extra: hand ethereal max",
+  "QURIOUSCRAFTINGRELICS-SELECT_RETAIN.title": "Choose up to {Amount} card(s) to Retain this turn",
+  "QURIOUSCRAFTINGRELICS-SELECT_SLY.title": "Choose up to {Amount} card(s) to gain Sly this turn",
+  "QURIOUSCRAFTINGRELICS-SELECT_ETHEREAL.title": "Choose up to {Amount} card(s) to gain Ethereal",
+  "QURIOUSCRAFTINGRELICS-SELECT_ENCHANT.title": "Choose up to {Amount} card(s) to enchant"
 }

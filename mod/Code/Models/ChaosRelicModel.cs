@@ -8,6 +8,7 @@ using QuriousCraftingRelics.Extensions;
 using BaseLib.Abstracts;
 using BaseLib.Extensions;
 using BaseLib.Utils;
+using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -446,7 +447,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         // and every enchant loop iterated zero cards.
         if (ExtraPoolActive && player.PlayerCombatState?.TurnNumber <= 1)
         {
-            RunExtraCombatStartEnchants(player);
+            await RunExtraCombatStartEnchants(player);
         }
 
         int energy = AmountOf(ChaosRelicCatalog.TurnStartEnergy);
@@ -749,6 +750,40 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// fewer than 2 while non-attack cards ahead of them in hand order are
     /// counted against the quota.
     /// </summary>
+    /// <summary>
+    /// PLAYER SELECTION for hand-target effects (user report 2026-09-13: the
+    /// auto-pick took the first N hand cards with no say from the player).
+    /// Opens the engine's native hand-selection screen (CardSelectCmd.FromHand)
+    /// for up to <paramref name="count"/> cards matching <paramref name="filter"/>
+    /// and applies <paramref name="apply"/> to each picked card. MP-synced by
+    /// the engine's own selection pipeline.
+    /// </summary>
+    private async Task SelectHandCardsAsync(Player player, int count, string promptKey,
+        Func<CardModel, bool> filter, Action<CardModel> apply)
+    {
+        var hand = player.PlayerCombatState?.Hand.Cards;
+        if (hand is null || hand.Count == 0 || count <= 0)
+        {
+            return;
+        }
+        if (!hand.Any(filter))
+        {
+            return;
+        }
+        var prompt = MegaCrit.Sts2.Core.Localization.LocString
+            .GetIfExists("settings_ui", $"{MainFile.ModId.ToUpperInvariant()}-{promptKey}.title")
+            ?? new MegaCrit.Sts2.Core.Localization.LocString("settings_ui", $"{MainFile.ModId.ToUpperInvariant()}-{promptKey}.title");
+        prompt.Add("Amount", count);
+        var prefs = new CardSelectorPrefs(prompt, 0, count);
+        var context = new ThrowingPlayerChoiceContext();
+        var picked = await CardSelectCmd.FromHand(context, player, prefs, filter, this);
+        foreach (var card in picked)
+        {
+            Flash();
+            apply(card);
+        }
+    }
+
     private static IEnumerable<CardModel> TakeEligible(Player owner, int n, Func<CardModel, bool> eligible)
     {
         var hand = owner.PlayerCombatState?.Hand.Cards;
@@ -766,33 +801,33 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// InvalidOperationException on an ineligible card (Nimble requires
     /// GainsBlock, Imbued requires a Skill) rather than returning null.
     /// </summary>
-    private void RunExtraCombatStartEnchants(Player owner)
+    private async Task RunExtraCombatStartEnchants(Player owner)
     {
         int sharp = AmountOf(ChaosRelicExtraCatalog.EnchantSharp);
         if (sharp > 0)
         {
-            ApplyEnchant<Sharp>(owner, sharp);
+            await ApplyEnchant<Sharp>(owner, sharp);
         }
         int nimble = AmountOf(ChaosRelicExtraCatalog.EnchantNimble);
         if (nimble > 0)
         {
-            ApplyEnchant<Nimble>(owner, nimble);
+            await ApplyEnchant<Nimble>(owner, nimble);
         }
         int imbued = AmountOf(ChaosRelicExtraCatalog.EnchantImbued);
         if (imbued > 0)
         {
-            ApplyEnchant<Imbued>(owner, imbued);
+            await ApplyEnchant<Imbued>(owner, imbued);
         }
     }
 
-    private void ApplyEnchant<T>(Player owner, int count) where T : EnchantmentModel
+    private async Task ApplyEnchant<T>(Player owner, int count) where T : EnchantmentModel
     {
+        // Player-selected targets (same report as the hand keywords): the old
+        // auto-pick enchanted the first N eligible cards.
         var canonical = ModelDb.Enchantment<T>();
-        foreach (var card in TakeEligible(owner, count, c => CanTakeEnchant<T>(c)))
-        {
-            Flash();
-            EnchantWithStacking<T>(card, 1);
-        }
+        await SelectHandCardsAsync(owner, count, "SELECT_ENCHANT",
+            c => CanTakeEnchant<T>(c) && canonical.CanEnchantCardType(c.Type),
+            card => EnchantWithStacking<T>(card, 1));
     }
 
     /// <summary>
@@ -865,33 +900,32 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// <summary>Per-turn: hand keywords + stance entry (re-applied each turn).</summary>
     private async Task RunExtraTurnStart(Player player)
     {
+        // Hand-keyword effects are PLAYER-CHOSEN (user report 2026-09-13: the
+        // old TakeEligible auto-picked the first N hand cards). The engine's
+        // CardSelectCmd.FromHand provides the native selection UI (MP-synced).
         int retain = AmountOf(ChaosRelicExtraCatalog.HandRetain);
         if (retain > 0)
         {
-            foreach (var card in TakeEligible(player, retain, static _ => true))
-            {
-                Flash();
-                card.GiveSingleTurnRetain();
-            }
+            Flash();
+            await SelectHandCardsAsync(player, retain, "SELECT_RETAIN",
+                static _ => true,
+                static card => card.GiveSingleTurnRetain());
         }
         int sly = AmountOf(ChaosRelicExtraCatalog.HandSly);
         if (sly > 0)
         {
-            foreach (var card in TakeEligible(player, sly, static _ => true))
-            {
-                Flash();
-                card.GiveSingleTurnSly();
-            }
+            Flash();
+            await SelectHandCardsAsync(player, sly, "SELECT_SLY",
+                static _ => true,
+                static card => card.GiveSingleTurnSly());
         }
         int ethereal = AmountOf(ChaosRelicExtraCatalog.NegHandEthereal);
         if (ethereal > 0)
         {
-            foreach (var card in TakeEligible(player, ethereal,
-                static c => !c.Keywords.Contains(CardKeyword.Ethereal)))
-            {
-                Flash();
-                card.AddKeyword(CardKeyword.Ethereal);
-            }
+            Flash();
+            await SelectHandCardsAsync(player, ethereal, "SELECT_ETHEREAL",
+                static c => !c.Keywords.Contains(CardKeyword.Ethereal),
+                static card => card.AddKeyword(CardKeyword.Ethereal));
         }
         // Stance entries are TURN-SCHEDULED, not every-turn (user order
         // 2026-09-13): calm at the player's FIRST turn start, wrath at turn 2,

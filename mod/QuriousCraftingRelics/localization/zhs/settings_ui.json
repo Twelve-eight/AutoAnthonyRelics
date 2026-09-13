@@ -445,5 +445,9 @@
   "QURIOUSCRAFTINGRELICS-Min_X_Pickup_Imbued.hover.desc": "额外:拾起注能(等级+N) 下限",
   "QURIOUSCRAFTINGRELICS-Max_X_Pickup_Imbued.hover.desc": "额外:拾起注能(等级+N) 上限",
   "QURIOUSCRAFTINGRELICS-Min_X_Hand_Ethereal.hover.desc": "额外:手牌虚无 下限",
-  "QURIOUSCRAFTINGRELICS-Max_X_Hand_Ethereal.hover.desc": "额外:手牌虚无 上限"
+  "QURIOUSCRAFTINGRELICS-Max_X_Hand_Ethereal.hover.desc": "额外:手牌虚无 上限",
+  "QURIOUSCRAFTINGRELICS-SELECT_RETAIN.title": "选择至多{Amount}张牌，本回合获得保留",
+  "QURIOUSCRAFTINGRELICS-SELECT_SLY.title": "选择至多{Amount}张牌，本回合获得奇巧",
+  "QURIOUSCRAFTINGRELICS-SELECT_ETHEREAL.title": "选择至多{Amount}张牌，获得虚无",
+  "QURIOUSCRAFTINGRELICS-SELECT_ENCHANT.title": "选择至多{Amount}张牌，附加附魔"
 }
