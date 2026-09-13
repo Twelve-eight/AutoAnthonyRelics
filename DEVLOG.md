@@ -980,3 +980,22 @@ filename = 根命名空间(去特殊字符) + ".cfg".
 10. 全量审查 → 池谓词改保留全部 BaseLib CustomRelicModel (共存修复) (5eaf4e1)。
 教训要点: L1 真机冒烟独立层 / L3 日志是契约 / L6 loc 是 SmartFormat 模板 / L7 静态状态生命周期 /
 L8 共存谓词按家族划界。详见 docs/session-log-2026-09-12-13.md 第二节。
+
+## 2026-09-13 紧急: 60 个无效果占位遗物可获取 (真机报告)
+
+- **现象**: 用户只开启怪异炼化, 却获得 60 个无效果占位遗物; 池中"不只有怪异炼化"。
+- **日志实证**: 东尼遗物 `enabled=False` + 怪异炼化 `enabled=True` + 池替换
+  "removed 236 vanilla (120 chaos relics remain)" —— 120 = 怪异炼化 60 + **东尼遗物 60**。
+- **双根因**:
+  1. 东尼遗物 `Enabled=false` 只门控了钩子, 自身 60 个已注册遗物仍在袋中
+     (其池补丁 early-return 不剥离自家), 效果全关 → 无效果占位;
+  2. 怪异炼化的共存谓词无条件保留一切 BaseLib 自定义遗物, 不尊重其他 mod
+     自身的开关 → 把东尼遗物的 60 个也留下了。
+- **修复 (两 mod 统一保留契约)**:
+  - 自家遗物: 保留 iff 自身开关开启;
+  - 他家自定义遗物: 保留 iff `IsAllowed(runState)` (尊重其自带门控);
+  - 原版: 保留 iff (自身开启 且 替换开启);
+  - 剥离后追加调用引擎原生 `RemoveDisallowedRelicsFromDeques(runState)`。
+  两 mod 的池补丁改为**常驻运行** (不再因开关 early-return)。
+- 东尼遗物 IsAllowed 增加 fragment-pool 空守卫 (生成失败时槽位不得作为
+  无效果占位掉落)。

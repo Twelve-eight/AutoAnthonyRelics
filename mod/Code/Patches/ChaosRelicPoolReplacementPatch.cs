@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.Runs;
 
@@ -36,33 +37,60 @@ internal static class ChaosRelicPoolReplacement
 {
     public const string BagTypeName = "MegaCrit.Sts2.Core.Runs." + "\u0052\u0065\u006C\u0069\u0063\u0047\u0072\u0061\u0062\u0042\u0061\u0067";
 
-    internal static void Apply(object bag)
+    internal static void Apply(object bag, MegaCrit.Sts2.Core.Entities.Players.Player? player)
     {
         try
         {
-            if (!QuriousCraftingRelicsConfig.EnableChaosRelics)
-            {
-                return;
-            }
+            // Runs whenever the mod is loaded - NOT gated on EnableChaosRelics:
+            // with the switch OFF our own registered relics must be REMOVED from
+            // the bag (they are effect-less when disabled), and vanilla restored.
+            // (User report 2026-09-13: 60 effect-less placeholders obtainable with
+            // Qurious enabled - they were the OTHER generator's disabled slots,
+            // kept by the old unconditional keep-all-custom predicate.)
             var bagType = bag.GetType();
             var dequesField = AccessTools.Field(bagType, "_deques");
             var originalsField = AccessTools.Field(bagType, "_originalRelics");
-            if (dequesField?.GetValue(bag) is not Dictionary<RelicRarity, List<MegaCrit.Sts2.Core.Models.RelicModel>> deques)
+            if (dequesField?.GetValue(bag) is not Dictionary<RelicRarity, List<RelicModel>> deques)
             {
                 MainFile.Logger.Error("[QuriousCraftingRelics] pool replacement: _deques field not found");
                 return;
             }
+            IRunState? runState = player?.RunState
+                ?? RunManager.Instance?.DebugOnlyGetState();
+
+            bool Keep(RelicModel r)
+            {
+                if (r is Models.ChaosRelicModel)
+                {
+                    return QuriousCraftingRelicsConfig.EnableChaosRelics; // own: only when on
+                }
+                if (r is BaseLib.Abstracts.CustomRelicModel)
+                {
+                    // Other mods' customs: respect THEIR gates (an effect-less
+                    // disabled generator's relics must not be obtainable).
+                    return runState != null && r.IsAllowed(runState);
+                }
+                return QuriousCraftingRelicsConfig.EnableChaosRelics; // vanilla: only when replacing
+            }
+
             int removed = 0;
             foreach (var list in deques.Values)
             {
-                removed += list.RemoveAll(r => !IsChaosRelic(r));
+                removed += list.RemoveAll(r => !Keep(r));
             }
-            if (originalsField?.GetValue(bag) is List<MegaCrit.Sts2.Core.Models.RelicModel> originals)
+            if (originalsField?.GetValue(bag) is List<RelicModel> originals)
             {
-                removed += originals.RemoveAll(r => !IsChaosRelic(r));
+                removed += originals.RemoveAll(r => !Keep(r));
             }
-            MainFile.Logger.Info($"[QuriousCraftingRelics] pool replacement: removed {removed} vanilla relics from the run grab bag " +
-                                 $"({deques.Values.Sum(l => l.Count)} chaos relics remain)");
+            // Engine-native IsAllowed enforcement on top of ours (covers other
+            // mods' gates with the same rule the engine itself uses).
+            if (runState != null)
+            {
+                AccessTools.Method(bagType, "RemoveDisallowedRelicsFromDeques")
+                    ?.Invoke(bag, new object?[] { runState });
+            }
+            MainFile.Logger.Info($"[QuriousCraftingRelics] pool replacement: removed {removed} relics from the run grab bag " +
+                                 $"({deques.Values.Sum(l => l.Count)} remain, EnableChaosRelics={QuriousCraftingRelicsConfig.EnableChaosRelics})");
         }
         catch (Exception e)
         {
@@ -70,15 +98,7 @@ internal static class ChaosRelicPoolReplacement
         }
     }
 
-    private static bool IsChaosRelic(MegaCrit.Sts2.Core.Models.RelicModel relic)
-    {
-        // COEXISTENCE (user order: both relic mods playable side by side):
-        // keep EVERY BaseLib custom relic - our own, the AutoAnthonyRelics
-        // generator's, and any other BaseLib relic mod. The old predicate
-        // kept only this mod's models, which stripped the other mod's relics
-        // from the bag whenever both were installed (order-dependent).
-        return relic is BaseLib.Abstracts.CustomRelicModel;
-    }
+
 }
 
 /// <summary>Postfix for Populate(Player, Rng) - the shared-bag path used by new runs.</summary>
@@ -91,9 +111,9 @@ internal static class ChaosRelicPoolReplacementPlayerPatch
         return bagType?.GetMethod("Populate", new[] { typeof(MegaCrit.Sts2.Core.Entities.Players.Player), typeof(MegaCrit.Sts2.Core.Random.Rng) });
     }
 
-    private static void Postfix(object __instance)
+    private static void Postfix(object __instance, MegaCrit.Sts2.Core.Entities.Players.Player player)
     {
-        ChaosRelicPoolReplacement.Apply(__instance);
+        ChaosRelicPoolReplacement.Apply(__instance, player);
     }
 }
 
@@ -112,6 +132,6 @@ internal static class ChaosRelicPoolReplacementEnumerablePatch
 
     private static void Postfix(object __instance)
     {
-        ChaosRelicPoolReplacement.Apply(__instance);
+        ChaosRelicPoolReplacement.Apply(__instance, null);
     }
 }
