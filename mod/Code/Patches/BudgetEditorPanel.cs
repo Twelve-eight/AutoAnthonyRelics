@@ -39,7 +39,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     {
         internal required string Template;
         internal required RangeSlider Slider;
-        internal required MegaLabel CostLabel;
+        internal required Label CostLabel;
     }
 
     private readonly List<TemplateRow> _rows = new();
@@ -68,7 +68,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
 
     private void Build()
     {
-        var title = new MegaLabel { Text = Loc("BUDGET_TITLE") };
+        var title = new Label { Text = Loc("BUDGET_TITLE") };
         title.AddThemeFontSizeOverride("font_size", 26);
         AddChild(title);
 
@@ -123,10 +123,11 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
 
         // ---- Line 1: effect text with vanilla-relic refs inline ----
         var textLine = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        var effect = new MegaLabel
+        var effect = new Label
         {
             Text = EffectText(spec),
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
         };
         textLine.AddChild(effect);
 
@@ -134,25 +135,25 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
         var refs = VanillaRelicMapping.For(template);
         if (refs.Count > 0)
         {
-            textLine.AddChild(new MegaLabel { Text = " (" });
+            textLine.AddChild(new Label { Text = " (" });
             for (int i = 0; i < refs.Count; i++)
             {
                 if (i > 0)
                 {
-                    textLine.AddChild(new MegaLabel { Text = "," });
+                    textLine.AddChild(new Label { Text = "," });
                 }
                 textLine.AddChild(MakeRelicChip(refs[i]));
             }
-            textLine.AddChild(new MegaLabel { Text = ")" });
+            textLine.AddChild(new Label { Text = ")" });
         }
         row.AddChild(textLine);
 
         // ---- Line 2: range slider + per-point cost ----
         var sliderLine = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        sliderLine.AddChild(new MegaLabel { Text = Loc("BUDGET_RANGE") });
+        sliderLine.AddChild(new Label { Text = Loc("BUDGET_RANGE") });
         var slider = new RangeSlider();
         sliderLine.AddChild(slider);
-        var costLabel = new MegaLabel();
+        var costLabel = new Label();
         sliderLine.AddChild(costLabel);
         row.AddChild(sliderLine);
 
@@ -177,7 +178,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
             int per = spec.IsNegative
                 ? QuriousCraftingRelicsConfig.PointCosts.RefundPerPoint(template)
                 : QuriousCraftingRelicsConfig.PointCosts.CostPerPoint(template);
-            costLabel.SetTextAutoSize(Loc("BUDGET_PERPOINT") + " " + per);
+            costLabel.Text = Loc("BUDGET_PERPOINT") + " " + per;
         }
 
         slider.RangeChanged += (low, high) =>
@@ -233,7 +234,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     /// <summary>Hoverable vanilla-relic name chip: hover = full desc + rarity + our cost.</summary>
     private static Control MakeRelicChip(VanillaRelicMapping.VanillaRef vref)
     {
-        var chip = new MegaLabel
+        var chip = new Label
         {
             Text = vref.DisplayName,
             MouseFilter = MouseFilterEnum.Stop,
