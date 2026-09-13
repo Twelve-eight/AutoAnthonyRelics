@@ -201,6 +201,11 @@ public abstract class ChaosRelicModel : CustomRelicModel
 
     /// <summary>Combat-start one-shots that must NOT be granted from BeforeCombatStart.</summary>
     private int _startEnergyPending;
+    // Per-turn idempotence for AfterPlayerTurnStartLate: the engine awaits it
+    // once per turn, but hook-refiring mods (AutoAnthonyWatcher's post-setup
+    // continuation) can invoke it again within the same turn.
+    private object? _turnStartCombatState;
+    private int _turnStartAppliedTurn = -1;
 
     // ---------- Enemy-debuff merge (one Apply per power per combat) ----------
     // Static because the merge spans MULTIPLE relic instances: each instance
@@ -408,6 +413,10 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// Vanilla Lantern pattern: the player's turn start is the only point at
     /// which granted energy survives (ResetEnergy already ran).
     /// </summary>
+    // Catch-all rule for every hook the engine's turn loop AWAITS: a relic
+    // effect that throws there marks the combat permanently stuck ("the
+    // combat is stuck until the room is restarted"). Log and swallow instead
+    // of propagating; the logged stack is the evidence for the defect.
     public override async Task AfterSideTurnStart(CombatSide side, IReadOnlyList<Creature> participants,
         ICombatState combatState)
     {
@@ -417,16 +426,23 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return;
         }
-        if (owner.PlayerCombatState?.TurnNumber <= 1)
+        try
         {
-            await FlushEnemyDebuffs(owner, new ThrowingPlayerChoiceContext());
+            if (owner.PlayerCombatState?.TurnNumber <= 1)
+            {
+                await FlushEnemyDebuffs(owner, new ThrowingPlayerChoiceContext());
+            }
+            int pending = _startEnergyPending;
+            if (pending > 0 && owner.PlayerCombatState?.TurnNumber <= 1)
+            {
+                _startEnergyPending = 0;
+                Flash();
+                await PlayerCmd.GainEnergy(pending, owner);
+            }
         }
-        int pending = _startEnergyPending;
-        if (pending > 0 && owner.PlayerCombatState?.TurnNumber <= 1)
+        catch (Exception e)
         {
-            _startEnergyPending = 0;
-            Flash();
-            await PlayerCmd.GainEnergy(pending, owner);
+            MainFile.Logger.Error($"[QuriousCraftingRelics] side turn-start effect suppressed to keep the combat alive: {e}");
         }
     }
 
@@ -441,50 +457,73 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return;
         }
+        // Non-interactive invocation (hook-refiring mods re-invoke this hook
+        // with the engine's "no choices below this point" context): nothing
+        // that pauses for the player may run, and this pass must not apply
+        // the turn's effects - the interactive invocation owns them.
+        if (choiceContext is ThrowingPlayerChoiceContext)
+        {
+            return;
+        }
+        var combatState = player.PlayerCombatState;
+        int turn = combatState?.TurnNumber ?? 0;
+        if (ReferenceEquals(_turnStartCombatState, combatState) && _turnStartAppliedTurn == turn)
+        {
+            return; // duplicate invocation for the same combat turn
+        }
+        _turnStartCombatState = combatState;
+        _turnStartAppliedTurn = turn;
 
-        // Extra pool: combat-start enchants run HERE, not in BeforeCombatStart.
-        // BeforeCombatStart fires before the opening draw, so the hand is empty
-        // and every enchant loop iterated zero cards.
-        if (ExtraPoolActive && player.PlayerCombatState?.TurnNumber <= 1)
+        try
         {
-            await RunExtraCombatStartEnchants(player);
-        }
+            // Extra pool: combat-start enchants run HERE, not in BeforeCombatStart.
+            // BeforeCombatStart fires before the opening draw, so the hand is empty
+            // and every enchant loop iterated zero cards.
+            if (ExtraPoolActive && turn <= 1)
+            {
+                await RunExtraCombatStartEnchants(choiceContext, player);
+            }
 
-        int energy = AmountOf(ChaosRelicCatalog.TurnStartEnergy);
-        if (energy > 0)
-        {
-            Flash();
-            await PlayerCmd.GainEnergy(energy, player);
-        }
-        int heal = AmountOf(ChaosRelicCatalog.TurnStartHeal);
-        if (heal > 0)
-        {
-            Flash();
-            await CreatureCmd.Heal(player.Creature, heal);
-        }
-        int draw = AmountOf(ChaosRelicCatalog.TurnStartDraw);
-        if (draw > 0)
-        {
-            Flash();
-            await CardPileCmd.Draw(choiceContext, draw, player);
-        }
-        int loseHp = AmountOf(ChaosRelicCatalog.NegTurnLoseHp);
-        if (loseHp > 0)
-        {
-            Flash();
-            // Unblockable, mirroring the engine's own "HP loss like Poison"
-            // convention (CreatureCmd self-damage uses Unblockable |
-            // Unpowered). With Unpowered alone the loss was fully absorbed by
-            // block (probe: blocked=3, hpLost=0) - a negative entry that did
-            // nothing whenever the player held block.
-            await CreatureCmd.Damage(new ThrowingPlayerChoiceContext(), player.Creature,
-                loseHp, ValueProp.Unblockable | ValueProp.Unpowered, player.Creature, null, null);
-        }
+            int energy = AmountOf(ChaosRelicCatalog.TurnStartEnergy);
+            if (energy > 0)
+            {
+                Flash();
+                await PlayerCmd.GainEnergy(energy, player);
+            }
+            int heal = AmountOf(ChaosRelicCatalog.TurnStartHeal);
+            if (heal > 0)
+            {
+                Flash();
+                await CreatureCmd.Heal(player.Creature, heal);
+            }
+            int draw = AmountOf(ChaosRelicCatalog.TurnStartDraw);
+            if (draw > 0)
+            {
+                Flash();
+                await CardPileCmd.Draw(choiceContext, draw, player);
+            }
+            int loseHp = AmountOf(ChaosRelicCatalog.NegTurnLoseHp);
+            if (loseHp > 0)
+            {
+                Flash();
+                // Unblockable, mirroring the engine's own "HP loss like Poison"
+                // convention (CreatureCmd self-damage uses Unblockable |
+                // Unpowered). With Unpowered alone the loss was fully absorbed by
+                // block (probe: blocked=3, hpLost=0) - a negative entry that did
+                // nothing whenever the player held block.
+                await CreatureCmd.Damage(new ThrowingPlayerChoiceContext(), player.Creature,
+                    loseHp, ValueProp.Unblockable | ValueProp.Unpowered, player.Creature, null, null);
+            }
 
-        // Extra pool: per-turn hand keywords + stance entry (opt-in pool).
-        if (ExtraPoolActive)
+            // Extra pool: per-turn hand keywords + stance entry (opt-in pool).
+            if (ExtraPoolActive)
+            {
+                await RunExtraTurnStart(choiceContext, player);
+            }
+        }
+        catch (Exception e)
         {
-            await RunExtraTurnStart(player);
+            MainFile.Logger.Error($"[QuriousCraftingRelics] player turn-start effect suppressed to keep the combat alive: {e}");
         }
     }
 
@@ -493,22 +532,28 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// 2026-09-13; was turn start). Vanilla CloakClasp pattern: BeforeSideTurnEnd
     /// with the owner-participant gate; block persists through the enemy turn.
     /// </summary>
-    public override Task BeforeSideTurnEnd(PlayerChoiceContext choiceContext, CombatSide side,
+    public override async Task BeforeSideTurnEnd(PlayerChoiceContext choiceContext, CombatSide side,
         IEnumerable<Creature> participants)
     {
         var owner = Owner;
         if (owner is null || !QuriousCraftingRelicsConfig.EnableChaosRelics
             || !participants.Contains(owner.Creature))
         {
-            return Task.CompletedTask;
+            return;
         }
-        int block = AmountOf(ChaosRelicCatalog.TurnStartBlock);
-        if (block > 0)
+        try
         {
-            Flash();
-            return CreatureCmd.GainBlock(owner.Creature, block, ValueProp.Unpowered, null);
+            int block = AmountOf(ChaosRelicCatalog.TurnStartBlock);
+            if (block > 0)
+            {
+                Flash();
+                await CreatureCmd.GainBlock(owner.Creature, block, ValueProp.Unpowered, null);
+            }
         }
-        return Task.CompletedTask;
+        catch (Exception e)
+        {
+            MainFile.Logger.Error($"[QuriousCraftingRelics] turn-end effect suppressed to keep the combat alive: {e}");
+        }
     }
 
     // ---------- Card-play hooks ----------
@@ -758,9 +803,19 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// and applies <paramref name="apply"/> to each picked card. MP-synced by
     /// the engine's own selection pipeline.
     /// </summary>
-    private async Task SelectHandCardsAsync(Player player, int count, string promptKey,
+    private async Task SelectHandCardsAsync(PlayerChoiceContext context, Player player, int count, string promptKey,
         Func<CardModel, bool> filter, Action<CardModel> apply)
     {
+        // The context MUST be the live pipeline context handed down by the
+        // engine hook. CardSelectCmd.FromHand always calls
+        // SignalPlayerChoiceBegun, and ThrowingPlayerChoiceContext - the
+        // engine's "no player choice can ever happen below this point"
+        // context - implements that call as a hard throw, so passing it here
+        // would kill the engine's turn loop and brick the combat.
+        if (context is ThrowingPlayerChoiceContext)
+        {
+            return;
+        }
         var hand = player.PlayerCombatState?.Hand.Cards;
         if (hand is null || hand.Count == 0 || count <= 0)
         {
@@ -775,23 +830,12 @@ public abstract class ChaosRelicModel : CustomRelicModel
             ?? new MegaCrit.Sts2.Core.Localization.LocString("settings_ui", $"{MainFile.ModId.ToUpperInvariant()}-{promptKey}.title");
         prompt.Add("Amount", count);
         var prefs = new CardSelectorPrefs(prompt, 0, count);
-        var context = new ThrowingPlayerChoiceContext();
         var picked = await CardSelectCmd.FromHand(context, player, prefs, filter, this);
         foreach (var card in picked)
         {
             Flash();
             apply(card);
         }
-    }
-
-    private static IEnumerable<CardModel> TakeEligible(Player owner, int n, Func<CardModel, bool> eligible)
-    {
-        var hand = owner.PlayerCombatState?.Hand.Cards;
-        if (hand is null || hand.Count == 0 || n <= 0)
-        {
-            return Array.Empty<CardModel>();
-        }
-        return hand.Where(eligible).Take(n);
     }
 
     /// <summary>
@@ -801,31 +845,31 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// InvalidOperationException on an ineligible card (Nimble requires
     /// GainsBlock, Imbued requires a Skill) rather than returning null.
     /// </summary>
-    private async Task RunExtraCombatStartEnchants(Player owner)
+    private async Task RunExtraCombatStartEnchants(PlayerChoiceContext context, Player owner)
     {
         int sharp = AmountOf(ChaosRelicExtraCatalog.EnchantSharp);
         if (sharp > 0)
         {
-            await ApplyEnchant<Sharp>(owner, sharp);
+            await ApplyEnchant<Sharp>(context, owner, sharp);
         }
         int nimble = AmountOf(ChaosRelicExtraCatalog.EnchantNimble);
         if (nimble > 0)
         {
-            await ApplyEnchant<Nimble>(owner, nimble);
+            await ApplyEnchant<Nimble>(context, owner, nimble);
         }
         int imbued = AmountOf(ChaosRelicExtraCatalog.EnchantImbued);
         if (imbued > 0)
         {
-            await ApplyEnchant<Imbued>(owner, imbued);
+            await ApplyEnchant<Imbued>(context, owner, imbued);
         }
     }
 
-    private async Task ApplyEnchant<T>(Player owner, int count) where T : EnchantmentModel
+    private async Task ApplyEnchant<T>(PlayerChoiceContext context, Player owner, int count) where T : EnchantmentModel
     {
         // Player-selected targets (same report as the hand keywords): the old
         // auto-pick enchanted the first N eligible cards.
         var canonical = ModelDb.Enchantment<T>();
-        await SelectHandCardsAsync(owner, count, "SELECT_ENCHANT",
+        await SelectHandCardsAsync(context, owner, count, "SELECT_ENCHANT",
             c => CanTakeEnchant<T>(c) && canonical.CanEnchantCardType(c.Type),
             card => EnchantWithStacking<T>(card, 1));
     }
@@ -898,7 +942,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
     }
 
     /// <summary>Per-turn: hand keywords + stance entry (re-applied each turn).</summary>
-    private async Task RunExtraTurnStart(Player player)
+    private async Task RunExtraTurnStart(PlayerChoiceContext context, Player player)
     {
         // Hand-keyword effects are PLAYER-CHOSEN (user report 2026-09-13: the
         // old TakeEligible auto-picked the first N hand cards). The engine's
@@ -907,7 +951,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         if (retain > 0)
         {
             Flash();
-            await SelectHandCardsAsync(player, retain, "SELECT_RETAIN",
+            await SelectHandCardsAsync(context, player, retain, "SELECT_RETAIN",
                 static _ => true,
                 static card => card.GiveSingleTurnRetain());
         }
@@ -915,7 +959,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         if (sly > 0)
         {
             Flash();
-            await SelectHandCardsAsync(player, sly, "SELECT_SLY",
+            await SelectHandCardsAsync(context, player, sly, "SELECT_SLY",
                 static _ => true,
                 static card => card.GiveSingleTurnSly());
         }
@@ -923,7 +967,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         if (ethereal > 0)
         {
             Flash();
-            await SelectHandCardsAsync(player, ethereal, "SELECT_ETHEREAL",
+            await SelectHandCardsAsync(context, player, ethereal, "SELECT_ETHEREAL",
                 static c => !c.Keywords.Contains(CardKeyword.Ethereal),
                 static card => card.AddKeyword(CardKeyword.Ethereal));
         }

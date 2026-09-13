@@ -1023,3 +1023,70 @@ L8 共存谓词按家族划界。详见 docs/session-log-2026-09-12-13.md 第二
   CardSelectorPrefs(0, N) 实现"至多"语义; 选牌引擎原生 MP 同步;
   提示文案双语带 {Amount} 变量。战斗开始附魔链路改 async 等待选牌完成。
 - 影响: 保留/奇巧/虚无/附魔的手牌目标由玩家自选, 不再固定手牌顺序前 N 张。
+
+## 2026-09-13 深夜 - 致命缺陷 B1: 手牌选牌 UI 用错上下文炸毁引擎回合循环 (v0.5.4)
+
+### 症状 (用户报告, 原话: "现在正在运行的这一局, 血墙无法打出")
+- 铁甲战士单人局 (seed 69D8LQJU86HB, asc10), 4 层宝箱取得 CHAOS_RELIC023 (Uncommon)。
+- 6 层 NIBBITS 战斗 (Combat #3) 第一回合开始时卡死: 点任何牌无响应, 用户归因为
+  "血墙 (BloodWall, 原版铁甲卡) 无法打出"。用 Rewind 重开该房间 (Combat #4) 再次卡死。
+- 我最初的归因错误: 把血墙当成东尼算法生成卡 (被 AutoAnthony.Data.native_reference_cards.json
+  文件名误导; 该文件是 AutoAnthony 对原版卡的参照编目, CatalogId=native/*, ReferenceOnly=true)。
+  用户纠正: 血墙是原版卡, 该局未开东尼算法。血墙本身无任何缺陷——是战斗被冻结后什么都打不出。
+
+### 证据链 (godot.log, Combat #3 与 #4 各两段相同堆栈 = 回合开始钩子被双发)
+```
+Combat #N turn loop died ... combat is stuck until the room is restarted:
+System.NotImplementedException
+  at ThrowingPlayerChoiceContext.SignalPlayerChoiceBegun(...)
+  at CardSelectCmd.FromHand(...)
+  at ChaosRelicModel.SelectHandCardsAsync ... :line 779   <- 旧行号
+  at ChaosRelicModel.RunExtraTurnStart ... :line 910       <- SELECT_RETAIN 分支
+  at ChaosRelicModel.AfterPlayerTurnStartLate ... :line 487
+  at Hook.AfterPlayerTurnStart(...)
+  at AutoAnthonyWatcher.Runtime.WatcherChaosAfterCardRetainedPatch.Continue(...)  (重放者, 非根因)
+  at STS2RitsuLib HarmonyAsyncTaskBridge.After(...)
+  at CombatManager.<SetupPlayerTurn>d__102.MoveNext_Patch1(...)
+```
+
+### 根因 (我们自己的代码, 与血墙/东尼算法开关/AutoAnthonyWatcher 均无关)
+- SelectHandCardsAsync 里 `new ThrowingPlayerChoiceContext()` 传给 CardSelectCmd.FromHand。
+- 引擎 ThrowingPlayerChoiceContext 类文档明示: 仅用于"确定调用栈深处绝不会发生玩家选择"的
+  场景 (事件/测试/Sleight of Flesh), 其 SignalPlayerChoiceBegun/Ended 是硬 throw。
+- FromHand 必然调用 SignalPlayerChoiceBegun 开选择界面 → 每次 choose 必抛 → 异常穿透到
+  CombatManager 回合循环 → 战斗永久冻结。携带任一手牌选择词条 (保留/奇巧/虚无/附魔) 的
+  遗物, 从获得后的第一场战斗第一回合开始必触发。正规上下文本应是钩子收到的
+  choiceContext (CombatManager:926 `Hook.AfterPlayerTurnStart(state, playerChoiceContext, player)`,
+  原版所有 FromHand 调用点均如此)。
+- 堆栈中 AutoAnthonyWatcher.Continue = RitsuLib 任务桥对 SetupPlayerTurn 的续接, 会把
+  AfterPlayerTurnStart 钩子以非交互上下文重发一遍 (每场战斗两段相同 ERROR 即两个发射源)。
+
+### 修复 (ChaosRelicModel.cs, 构建 0 错误)
+1. **上下文穿透**: SelectHandCardsAsync/RunExtraTurnStart/RunExtraCombatStartEnchants/ApplyEnchant
+   增加 PlayerChoiceContext 形参, FromHand 用钩子传入的真实管道上下文; 不再自造 throwing 上下文。
+2. **非交互守卫**: choiceContext is ThrowingPlayerChoiceContext → 本次调用整体跳过 (无 UI 可开,
+   效果归交互发射源所有), FromHand 内另有同名守卫兜底。
+3. **回合幂等**: (PlayerCombatState 引用, TurnNumber) 已应用则跳过 — 防钩子重发模块在交互
+   上下文重发时造成的能量/抽牌/姿态双发; 战斗状态换新 (重开房间/Rewind) 自然失效, 不误伤。
+4. **try/catch 护网**: 引擎回合循环 await 的四个钩子 (BeforeCombatStart 类/AfterSideTurnStart/
+   AfterPlayerTurnStartLate/BeforeSideTurnEnd) 体内异常一律记 ERROR 后吞掉 — 遗物效果永不
+   传播进回合循环, 同类缺陷从"战斗冻结"降级为"单次效果缺失+日志证据"。
+5. 删除死代码 TakeEligible (自选改造后已无调用)。
+6. 保留其余 4 处 `new ThrowingPlayerChoiceContext()` (FlushEnemyDebuffs/自伤/LoseMaxHp) —
+   均为非交互命令, 与引擎 Sleight of Flesh 用法同构, 正确。
+
+### 部署与版本
+- v0.5.4; 构建 0 错误; dll (md5 d7c1ef8b0e5ed2a6ce56427444a45de2) 四处一致:
+  mods/, mods_disabled/, workshop/content/, 构建输出; json 0.5.4 同步。
+- 游戏当时未在运行 (报告后退出), 直接部署, 无需延迟。
+- **验证状态: 实机未验证** — 需用户重启游戏继续该局: 6 层战斗应正常开局, 手牌选择 UI 应弹出;
+  若 023 有保留词条, 每回合开始应出现"选择至多 N 张牌"提示。真机通过前不视为修复完成。
+
+### 教训
+- L19: 引擎上下文对象不是占位符。PlayerChoiceContext 的子类各有契约
+  (Throwing=禁止选择/硬抛, Hook/Blocking=可暂停等待玩家), 把"能 new 出来"当成"能用"是这次
+  战斗冻结的全部原因。任何传给 Cmd 管道的 context 必须原样下传钩子收到的那个。
+- L20: 卡牌误判教训 — 引用第三方数据转储 (native_reference_cards.json) 时先看 CatalogId/
+  SourceKind/ReferenceOnly 字段, 文件名/所在目录不代表内容归属。
+- L21: 回合循环 await 的钩子必须设异常护网 (日志+吞), 这是"单点效果缺陷"与"整场战斗报废"
+  之间的保险丝; 已在两个遗物 mod 的转环钩子落实 (AAR 侧无 UI 路径, 风险低, 暂不加)。
