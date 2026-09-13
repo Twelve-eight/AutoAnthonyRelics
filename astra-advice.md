@@ -1,3 +1,19 @@
+## 第二轮复审 (2026-09-13)
+
+当前 `tools/migration-probe` 通过: 真旧 Qurious cfg 迁移, 重跑不覆盖第一备份, 新 `AutoAnthonyRelics.cfg` 原位保留. 当前 Qurious 隔离构建 exit 0, 2 warning/0 error. 这些结果只覆盖迁移 seam, 不覆盖中断写入,真实用户目录重启和旧存档.
+
+### P1 新确认: 设置页 MegaLabel 运行时异常
+
+当前 `mod/Code/Patches/BudgetEditorPanel.cs:126-157` 创建多处 `MegaLabel` 却没有显式 `AddThemeFontOverride`. 当前 live `godot.log:3507-3523` 在 `Build` 添加 title 时抛 `MegaLabel .. has no theme font override`; 同类错误再次出现在 `:6814-6829` 的 row label. `:3495-3504` 同时有新 hover key 缺失警告. 这不是主菜单无异常就可忽略的日志: Qurious settings page 的标题/行/hover 交互未证明可用. 修复后必须实际打开页面,滚动全部行,拖动范围,悬停 vanilla reference, 再检查无同类错误.
+
+### P2 本局快照仍缺生命周期证明
+
+`QuriousGenerationSnapshot` 现在捕获 budgets, negative chances, extra-pool, Watcher presence, cost/refund 和 bounds, 且 `ChaosTemplates` 的 active lists/Effective 读取 snapshot. 预算隔离 probe 证实 snapshot 存在时 live budget edit 不改变已有对象, 重新 capture 才改变生成结果. 但当前未发现 `RunManager.CleanUp` 清空 `ChaosRelicRunRegistry.CurrentRunSeed`/`CurrentSnapshot`; 当前文档中的 null-outside-run invariant 尚未成立. 另外 `VanillaRelicMapping.OurPointsFor` 和 budget editor 仍读 live pricing, 只能用于菜单/编辑器; 不得作为运行中已冻结定义的来源. 验收要覆盖单机新局 -> CleanUp -> 菜单/下一局, 读档和中断.
+
+### 仍需真实验证
+
+没有运行 Qurious settings UI,预算拖动,实战,存读档或双端. `probe-results.json` 的 `registry-config-change` 只证明手工设置 snapshot 后的预算路径, 不能证明 extra-pool/Watcher/bounds/cost/refund 的所有读取和清理.
+
 # Astra advice - Qurious Crafting - Relics
 
 日期: 2026-09-12. 目录仍叫 AutoAnthonyRelics, 但当前产品 id/命名空间是 QuriousCraftingRelics. 不要与兄弟目录 sts2-autoanthony-relics 混淆.

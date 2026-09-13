@@ -1,3 +1,7 @@
+## 第二轮复审 (2026-09-13)
+
+当前独立包隔离构建 exit 0, 0 warning/0 error. 本轮未运行宝箱,跳过奖励,双端或存读档; 因而不升级为实际兼容验收. Qurious migration probe 的跨产品 cfg 保护已通过, 但这不证明本包与主包在所有加载顺序下的 key patch 生命周期一致.
+
 # Astra advice - RrcA4hKeyFix 独立包
 
 日期: 2026-09-12. 本包与 Qurious 主包共用 `../../mod/Code/Compat/RrcTreasureKeyCompat.cs`, 不维护第二份复制源码.
