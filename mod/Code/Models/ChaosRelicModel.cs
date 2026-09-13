@@ -830,7 +830,23 @@ public abstract class ChaosRelicModel : CustomRelicModel
             ?? new MegaCrit.Sts2.Core.Localization.LocString("settings_ui", $"{MainFile.ModId.ToUpperInvariant()}-{promptKey}.title");
         prompt.Add("Amount", count);
         var prefs = new CardSelectorPrefs(prompt, 0, count);
-        var picked = await CardSelectCmd.FromHand(context, player, prefs, filter, this);
+        IEnumerable<CardModel> picked;
+        try
+        {
+            picked = await CardSelectCmd.FromHand(context, player, prefs, filter, this);
+        }
+        catch (Exception e)
+        {
+            // LoadRun / room-transition reload windows re-run the turn-start
+            // chain while the engine's choice pipeline is still rebuilding:
+            // PlayerChoiceSynchronizer.GetChoiceId threw
+            // ArgumentOutOfRangeException because the player slot was not
+            // registered yet. A selection opened there cannot complete
+            // reliably - skip the effect this turn instead of surfacing the
+            // fault into the turn loop.
+            MainFile.Logger.Error($"[QuriousCraftingRelics] hand selection skipped, choice pipeline unavailable: {e.Message}");
+            return;
+        }
         foreach (var card in picked)
         {
             Flash();

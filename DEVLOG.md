@@ -1090,3 +1090,45 @@ System.NotImplementedException
   SourceKind/ReferenceOnly 字段, 文件名/所在目录不代表内容归属。
 - L21: 回合循环 await 的钩子必须设异常护网 (日志+吞), 这是"单点效果缺陷"与"整场战斗报废"
   之间的保险丝; 已在两个遗物 mod 的转环钩子落实 (AAR 侧无 UI 路径, 风险低, 暂不加)。
+
+## 2026-09-13 深夜 II - "第一回合 +2 能量"排查 + LoadRun 窗口选牌崩溃修复 (v0.5.5)
+
+### 用户报告
+「新的一局。为什么我第一回合有2点额外能量？目前的遗物效果没有写第一回合额外能量。」
+
+### 排查链 (全部证据)
+1. 存档 current_run.save: 本局 (seed E39VJ85JZRBN) 遗物 = 燃烧之血 / 失落保险箱(LOST_COFFER,
+   Neow 给的, 附带卡牌+药水奖励, 反编译证实无能量) / 符文金字塔 / 混沌遗物 013/034/036/052/054,
+   无东尼算法遗物。
+2. 开局第一场战斗 (2层毛绒伏地虫) 每回合用能 ≤3, 且当时尚无任何混沌遗物 → "+2"发生在拿到
+   混沌遗物之后的某场战斗 T1。
+3. 本 mod 唯一能产生 T1 能量的词条 = C_START_ENERGY ("战斗开始时,获得{N}点能量",
+   C_Start_Energy 配置项)。战斗开始与玩家第一回合之间引擎会 ResetEnergy, 所以该词条
+   延迟到 T1 结算 (BeforeCombatStart 存 _startEnergyPending → AfterSideTurnStart T1 发放)。
+   **+2 = 某个混沌遗物的"战斗开始时,获得2点能量", 不是缺陷, 文本有写, 措辞是"战斗开始时"
+   而非"第一回合"。**
+4. 确定性重放 (tools/gen-probe, 引用 Release dll): 编译默认 (10/14/23) → 052=C_START_ENERGY×2;
+   实机 cfg (12/18/25, 用户 22:46 修改) → 034=C_START_ENERGY×3。两者都不是运行时冻结态 →
+   用户在开局后改过设置, 而生成在开局时冻结 (astra item 5, 防止已持有遗物中途变义) — 设计如此。
+   冻结态无法离线复算 (cfg 无历史), 但机制唯一, 结论不受影响。
+
+### 附带发现与修复 (v0.5.5)
+- **冻结配置与当前 cfg 不一致本身是设计行为**, 但值得用户知道: 中途改设置不影响本局已生成的
+  遗物, 新的一局才生效。
+- **当前 cfg 里 EnableChaosRelics="False" (mtime 22:46)**: 若用户本意没关, 需在设置页重新打开,
+  否则混沌遗物全部效果休眠、下一局抓取袋不再替换。
+- **LoadRun 窗口选牌崩溃** (护网拦到一次): 换房/续档重载窗口内回合开始链重跑, 选牌 UI 在引擎
+  choice 管线重建完成前打开 → PlayerChoiceSynchronizer.GetChoiceId 因玩家槽位未注册
+  (GetPlayerSlotIndex=-1 → _choiceIds[-1]) 抛 ArgumentOutOfRangeException。日志佐证:
+  异常前后是 NGame.LoadRun / SetCurrentScene / NPlayerHand._ExitTree 的悬空 UI 帧。
+  该次虚无 (SELECT_ETHEREAL, ChaosRelicModel.cs:970) 选择被外层护网吞掉, 战斗存活。
+  **修复**: SelectHandCardsAsync 内对 FromHand 做局部 try/catch — 选牌管线不可用时记日志
+  并跳过本次效果, 不再依赖外层护网 (v0.5.5)。
+- 部署: 游戏运行中 (pid 18760), 以 -p:CopyToModsFolderOnBuild=false 构建, tools/
+  deferred-deploy-055.ps1 后台守护, 进程退出后自动补发三处并校验哈希+版本。
+
+### 教训
+- L22: "效果发生了但文本没写"类报告, 先比对 [生成时冻结配置] 与 [当前 cfg] 与 [编译默认]
+  三个状态 — 本 mod 生成在开局冻结, 三个状态可以三个样。gen-probe 现已可加载任意 cfg 重放。
+- L23: LoadRun/换房重载窗口会重跑回合开始钩子, 一切"等玩家输入"的调用在该窗口都不可靠,
+  必须局部兜底 (外层护网是最后防线, 不是正常路径)。
