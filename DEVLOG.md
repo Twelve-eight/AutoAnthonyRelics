@@ -1132,3 +1132,43 @@ System.NotImplementedException
   三个状态 — 本 mod 生成在开局冻结, 三个状态可以三个样。gen-probe 现已可加载任意 cfg 重放。
 - L23: LoadRun/换房重载窗口会重跑回合开始钩子, 一切"等玩家输入"的调用在该窗口都不可靠,
   必须局部兜底 (外层护网是最后防线, 不是正常路径)。
+
+## 2026-09-13 深夜 III - 效果与描述偏差根因修复 + 重平衡默认写入 (v0.5.6)
+
+### 用户报告
+「我也没有拿平静遗物，但是进入了平静；愤怒也同样。遗物的实际效果和描述有偏差？再写入一次
+默认配置，我刚才重平衡点数了。」
+
+### 根因 (证据闭环)
+三个状态叠加造成"效果与描述偏差":
+1. **Launch 在每次换房存档重载都会触发**，而 RunSeedEarlyTrackPatch.Capture 与 Launch postfix
+   都**无条件** `CurrentSnapshot = Capture()` — 即每次重载都用当时的活配置重新冻结。
+2. 用户 22:46 在局内重平衡了点数 → 下一次换房重载时同一 seed 重新生成（缓存键 seed+指纹，
+   指纹随配置变化）→ **已持有遗物的效果在中途变了**（出现了平静/愤怒/能量等新词条的效果）。
+3. ChaosRelicLocUpdater 的去重键**只有 seed** → seed 未变就跳过刷新 → 浮窗停留在旧文本。
+   → 用户看到的效果（平静/愤怒/战斗开始能量）在浮窗里都不存在。
+
+### 修复 (v0.5.6)
+- **快照一局只冻结一次**: CaptureSeed(seed) 共享实现 — 同 seed 且已有快照 → 保留原快照，
+  只刷 loc；seed 变化（新一局）→ 重新冻结；seed 为空（回主菜单）→ 清 seed 保快照
+  （同进程续档恢复原生成）。
+- **loc 去重键改为 seed+ConfigFingerprint**（registry 暴露 internal CurrentCacheKey）——
+  定义任何时候变化，浮窗文本跟着刷新。
+- 已知限制: 游戏重启后续档，快照会按当前 cfg 再冻结一次（跨进程持久化冻结配置需写存档,
+  列为后续候选）；用户本局会在重启后一次性切到 22:46 重平衡的定义，此后整局稳定。
+
+### 重平衡默认写入 (用户指令)
+从 mod_configs/QuriousCraftingRelics.cfg (22:46) 写入编译默认 13 项: 预算 12/18/25、
+Uncommon 负面 25%、Cost_C_Start_Block 1、Cost_T_Start_Heal 9、Refund_N_Turn_Lose_Hp 9、
+Refund_N_Turn_Energy/Draw_Down 19、Cost_X_Stance_Calm 6、Cost_X_Stance_Divinity 16、
+Max_N_Turn_Draw_Down 2、ChaosRelicMultiplier 0（死键，存档兼容保留）。布尔跳过。
+注意: cfg 里 EnableChaosRelics="False" 是用户的开关状态（已两次提醒，非默认）。
+
+构建 0 错误; tools/deferred-deploy-combined.ps1 双 mod 合并延迟部署守护（游戏退出后
+Qurious 0.5.6 → mods/mods_disabled/staging，AAR 0.1.1 → mods/staging，哈希+版本校验）。
+
+### 教训
+- L24: "每局冻结一次"的语义必须由**首次捕获独占**实现；把冻结写在"每次 seed 捕获"里，
+  等于没有冻结 —— Launch 是存档漏斗，频率远高于"一局一次"。
+- L25: 缓存/去重键必须覆盖**全部**影响输出的输入（seed+指纹），缺一项就会出现
+  "A 随输入漂移、B 钉在旧值"的偏差类报告。

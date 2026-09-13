@@ -25,18 +25,28 @@ internal static class ChaosRelicLocUpdater
     private static readonly FieldInfo? LocDictionaryField =
         AccessTools.Field(typeof(LocTable), "_translations");
 
-    private static string? _lastSeed;
+    private static string? _lastKey;
 
     /// <summary>Seed just captured (may be null when leaving a run).</summary>
     internal static void OnSeedCaptured(string? seed)
     {
         try
         {
-            if (seed is null || seed == _lastSeed)
+            if (seed is null)
+            {
+                _lastKey = null;
+                return;
+            }
+            // Dedupe on seed + config fingerprint, not the seed alone: the
+            // definitions can change without the seed changing, and a
+            // seed-only skip left tooltips stale while effects drifted
+            // (mid-run rebalance + reload re-freeze, 2026-09-13 report).
+            string cacheKey = ChaosRelicRunRegistry.CurrentCacheKey;
+            if (cacheKey == _lastKey)
             {
                 return;
             }
-            _lastSeed = seed;
+            _lastKey = cacheKey;
             var definitions = ChaosRelicRunRegistry.ForSeed(seed, QuriousCraftingRelicsConfig.ChaosRelicMultiplier);
             if (LocManager.Instance is null || LocDictionaryField?.GetValue(LocManager.Instance.GetTable("relics"))
                     is not Dictionary<string, string> dict)

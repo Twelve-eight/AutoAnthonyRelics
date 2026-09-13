@@ -38,19 +38,19 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     /// Legacy entry-count key. v0.5 budget system ignores it (kept for save
     /// compat and registry call-shape stability).
     /// </summary>
-    public static int ChaosRelicMultiplier { get; set; } = 3;
+    public static int ChaosRelicMultiplier { get; set; } = 0;
 
     // ---------- Point budgets by rarity ----------
 
     [ConfigSection("Budget_Section")]
     [ConfigSlider(1, 60, 1)]
-    public static int ChaosRelicBudgetCommon { get; set; } = 10;
+    public static int ChaosRelicBudgetCommon { get; set; } = 12;
 
     [ConfigSlider(1, 80, 1)]
-    public static int ChaosRelicBudgetUncommon { get; set; } = 14;
+    public static int ChaosRelicBudgetUncommon { get; set; } = 18;
 
     [ConfigSlider(1, 120, 1)]
-    public static int ChaosRelicBudgetRare { get; set; } = 23;
+    public static int ChaosRelicBudgetRare { get; set; } = 25;
 
     // ---------- Negative-entry chances (percent) by rarity ----------
 
@@ -58,7 +58,7 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     public static int ChaosRelicNegativeChanceCommon { get; set; } = 5;
 
     [ConfigSlider(0, 100, 5)]
-    public static int ChaosRelicNegativeChanceUncommon { get; set; } = 20;
+    public static int ChaosRelicNegativeChanceUncommon { get; set; } = 25;
 
     [ConfigSlider(0, 100, 5)]
     public static int ChaosRelicNegativeChanceRare { get; set; } = 75;
@@ -86,7 +86,7 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigSlider(1, 20, 1)]
     public static int Cost_C_Start_Damage_All { get; set; } = 2;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_C_Start_Block { get; set; } = 2;
+    public static int Cost_C_Start_Block { get; set; } = 1;
     [ConfigSlider(1, 20, 1)]
     public static int Cost_C_Start_Strength { get; set; } = 9;
     [ConfigSlider(1, 20, 1)]
@@ -114,7 +114,7 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigSlider(1, 20, 1)]
     public static int Cost_T_Start_Energy { get; set; } = 12;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_T_Start_Heal { get; set; } = 12;
+    public static int Cost_T_Start_Heal { get; set; } = 9;
     [ConfigSlider(1, 20, 1)]
     public static int Cost_T_Start_Draw { get; set; } = 12;
     [ConfigSlider(1, 20, 1)]
@@ -142,11 +142,11 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigSlider(1, 40, 1)]
     public static int Refund_N_Start_Frail_Self { get; set; } = 6;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Turn_Lose_Hp { get; set; } = 11;
+    public static int Refund_N_Turn_Lose_Hp { get; set; } = 9;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Turn_Energy_Down { get; set; } = 12;
+    public static int Refund_N_Turn_Energy_Down { get; set; } = 19;
     [ConfigSlider(1, 40, 1)]
-    public static int Refund_N_Turn_Draw_Down { get; set; } = 12;
+    public static int Refund_N_Turn_Draw_Down { get; set; } = 19;
     [ConfigSlider(1, 40, 1)]
     public static int Refund_N_Gold_Down { get; set; } = 2;
     [ConfigSlider(1, 40, 1)]
@@ -180,9 +180,9 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigSlider(1, 20, 1)]
     public static int Cost_X_Stance_Wrath { get; set; } = 7;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_X_Stance_Calm { get; set; } = 7;
+    public static int Cost_X_Stance_Calm { get; set; } = 6;
     [ConfigSlider(1, 20, 1)]
-    public static int Cost_X_Stance_Divinity { get; set; } = 15;
+    public static int Cost_X_Stance_Divinity { get; set; } = 16;
     [ConfigSlider(1, 40, 1)]
     public static int Cost_X_Hand_Ethereal { get; set; } = 4;
 
@@ -308,7 +308,7 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     [ConfigHideInUI]
     public static int Min_N_Turn_Draw_Down { get; set; } = 1;
     [ConfigHideInUI]
-    public static int Max_N_Turn_Draw_Down { get; set; } = 5;
+    public static int Max_N_Turn_Draw_Down { get; set; } = 2;
     [ConfigHideInUI]
     public static int Min_N_Gold_Down { get; set; } = 1;
     [ConfigHideInUI]
