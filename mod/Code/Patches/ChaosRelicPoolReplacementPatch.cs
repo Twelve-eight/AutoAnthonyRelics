@@ -41,12 +41,21 @@ internal static class ChaosRelicPoolReplacement
     {
         try
         {
-            // Runs whenever the mod is loaded - NOT gated on EnableChaosRelics:
-            // with the switch OFF our own registered relics must be REMOVED from
-            // the bag (they are effect-less when disabled), and vanilla restored.
-            // (User report 2026-09-13: 60 effect-less placeholders obtainable with
-            // Qurious enabled - they were the OTHER generator's disabled slots,
-            // kept by the old unconditional keep-all-custom predicate.)
+            // RESPONSIBILITY-SCOPED STRIP (rewrite after the 2026-09-13
+            // "empty bag / Circlet-only shop" incident): two generators each
+            // RemoveAll-ing by their own global policy compose ORDER-DEPENDENTLY
+            // (AAR's off-state pass stripped OUR enabled relics before we could
+            // keep them, emptying the bag -> every shop offered the Circlet
+            // fallback). Each patch now only removes what IT is responsible for:
+            //
+            //   1. our own slots when OUR switch is off (effect-less duds),
+            //   2. vanilla relics when OUR switch is on (we are replacing),
+            //
+            // and NEVER touches other mods' customs: those are governed by
+            // their own IsAllowed, enforced engine-natively by
+            // RemoveDisallowedRelicsFromDeques below. The composition is then
+            // order-independent: with AAR off + us on, AAR's patch removes
+            // AAR's duds, ours removes vanilla, ours keep ours -> Qurious-only.
             var bagType = bag.GetType();
             var dequesField = AccessTools.Field(bagType, "_deques");
             var originalsField = AccessTools.Field(bagType, "_originalRelics");
@@ -58,32 +67,35 @@ internal static class ChaosRelicPoolReplacement
             IRunState? runState = player?.RunState
                 ?? RunManager.Instance?.DebugOnlyGetState();
 
-            bool Keep(RelicModel r)
+            int removed = 0;
+            if (QuriousCraftingRelicsConfig.EnableChaosRelics)
             {
-                if (r is Models.ChaosRelicModel)
+                // Replacing: strip vanilla. Our own slots + other mods' customs stay.
+                foreach (var list in deques.Values)
                 {
-                    return QuriousCraftingRelicsConfig.EnableChaosRelics; // own: only when on
+                    removed += list.RemoveAll(r => r is not BaseLib.Abstracts.CustomRelicModel);
                 }
-                if (r is BaseLib.Abstracts.CustomRelicModel)
+                if (originalsField?.GetValue(bag) is List<RelicModel> originals)
                 {
-                    // Other mods' customs: respect THEIR gates (an effect-less
-                    // disabled generator's relics must not be obtainable).
-                    return runState != null && r.IsAllowed(runState);
+                    removed += originals.RemoveAll(r => r is not BaseLib.Abstracts.CustomRelicModel);
                 }
-                return QuriousCraftingRelicsConfig.EnableChaosRelics; // vanilla: only when replacing
+            }
+            else
+            {
+                // Switch off: strip ONLY our own slots (effect-less duds).
+                // Vanilla and other mods' relics are restored/untouched.
+                foreach (var list in deques.Values)
+                {
+                    removed += list.RemoveAll(r => r is Models.ChaosRelicModel);
+                }
+                if (originalsField?.GetValue(bag) is List<RelicModel> originals)
+                {
+                    removed += originals.RemoveAll(r => r is Models.ChaosRelicModel);
+                }
             }
 
-            int removed = 0;
-            foreach (var list in deques.Values)
-            {
-                removed += list.RemoveAll(r => !Keep(r));
-            }
-            if (originalsField?.GetValue(bag) is List<RelicModel> originals)
-            {
-                removed += originals.RemoveAll(r => !Keep(r));
-            }
-            // Engine-native IsAllowed enforcement on top of ours (covers other
-            // mods' gates with the same rule the engine itself uses).
+            // Engine-native IsAllowed enforcement: covers other generators'
+            // off-states through THEIR IsAllowed, with the engine's own rule.
             if (runState != null)
             {
                 AccessTools.Method(bagType, "RemoveDisallowedRelicsFromDeques")
@@ -97,8 +109,6 @@ internal static class ChaosRelicPoolReplacement
             MainFile.Logger.Error($"[QuriousCraftingRelics] pool replacement failed: {e.Message}");
         }
     }
-
-
 }
 
 /// <summary>Postfix for Populate(Player, Rng) - the shared-bag path used by new runs.</summary>
