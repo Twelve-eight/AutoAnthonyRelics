@@ -148,6 +148,17 @@ public static class ChaosRelicRunRegistry
     /// </summary>
     public static string? CurrentRunSeed { get; internal set; }
 
+    /// <summary>
+    /// Seed of the most recently captured run in THIS process. Survives
+    /// CleanUp (unlike <see cref="CurrentRunSeed"/>) so a reload of the same
+    /// run resumes its original frozen snapshot instead of re-freezing the
+    /// live config; run-start captures (SetUpNew) always re-freeze. Nothing
+    /// consumes it without a seed arriving, so it cannot leak definitions
+    /// into menus. Cross-process continuation needs persisted definitions
+    /// (QCR-2, future).
+    /// </summary>
+    public static string? LastRunSeed { get; internal set; }
+
     public static string? RunSeedOf(IRunState? runState)
     {
         if (runState is null || runState is NullRunState)

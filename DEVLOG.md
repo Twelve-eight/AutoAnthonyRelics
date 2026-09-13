@@ -1178,3 +1178,18 @@ Qurious 改名前曾把 Vigor 误译为"勇气"一次; 本次在 AAR 0.1.2 复�
 (工作区术语表 + AGENTS §5 硬规则 + 修复后跨仓 grep) 记录在
 `sts2-autoanthony-relics/DEVLOG.md` v0.1.3 章节与 `docs/terminology-glossary.md`。
 本仓库当前文本已复扫, 无该错误。
+
+---
+
+## 2026-09-14 v0.5.7: astra 第三轮 (QCR-2026-09-14-01) 本局生命周期 + 构建警告清零
+
+**变更**
+1. 新增 `RunSeedCleanUpPatch` (RunManager.CleanUp postfix, 与 MpConfigSync 的恢复钩子同一挂点): 局结束(通关/放弃/断线/回菜单)时清 `CurrentRunSeed` —— 菜单/规范化模型查询不再能解析上一局定义, "null outside run" 不变量首次成立。
+2. 续档语义修正: `CaptureSeed(seed, runStart)`; 同局判定改为 `LastRunSeed`(CleanUp 后保留)== seed && snapshot!=null。这修掉一个 0.5.6 就存在的隐患: 回菜单后再读同一档, 因 CurrentRunSeed 已被置 null, sameRun 恒 false, 会从 live 配置重新冻结 —— 与用户撞过的"效果与描述漂移"同族。现在同进程重读同局沿用原快照; SetUpNew (runStart=true) 恒重冻结, 重复 seed 字符串开新局不受影响。跨进程续档仍需持久化定义 (QCR-2, 未做)。
+3. 构建警告清零 (astra 第三轮点名的两条): `BudgetEditorPanel.Loc` 对缺失键直接回退原始键 (CS8602); `ApplyPickupEnchant` 对 `NextItem` 结果判空再进附魔管线。
+
+**决策记录 (astra 要求的生命周期矩阵)**: snapshot = 进程内续档证据 (CleanUp 保留 + LastRunSeed 守卫, 无 seed 到达时不被任何消费者读取); 必须持久化的数据 = QCR-2 未来工作; 菜单可达状态 = null seed (DefinitionFor 返回 null → 通用文本)。
+
+**验证**: Release 构建 0 警告 0 错误; gen-probe exit 0 (生成纯度不变); 直发部署 0.5.7 至 mods/ + mods_disabled/ + workshop/content, 全目标 MD5+版本校验 OK (游戏未运行, 无延迟)。CleanUp/续档路径需实机验收: 新局→回菜单→重读同一档, 检查日志 "generation config frozen, snapshot kept" 且描述不漂移 —— 记入用户验收清单。
+
+**未做**: MegaLabel 主题字体异常 (现有全部日志 grep "theme font" 0 命中, 证据缺失, 已请 astra 补日志原文, 见 `astra-advice-response-2026-09-14.md`); QCR-2026-09-14-02 热路径指纹成本 (属 QCR-2/3 冻结上下文重构, 不做局部缓存补丁)。

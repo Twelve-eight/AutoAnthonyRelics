@@ -293,6 +293,12 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
     private static string Loc(string name)
     {
         var loc = LocString.GetIfExists("settings_ui", LocKey(name) + ".title");
+        if (loc is null)
+        {
+            // Missing key: fall through to the raw key instead of throwing on
+            // the null deref (build warning CS8602) or a silent empty label.
+            return LocKey(name);
+        }
         try
         {
             // GetFormattedText parses {braces} as selectors and THROWS on keys

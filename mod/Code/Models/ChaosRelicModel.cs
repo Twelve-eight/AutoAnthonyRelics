@@ -953,6 +953,13 @@ public abstract class ChaosRelicModel : CustomRelicModel
         }
         Flash();
         var card = owner.RunState.Rng.UpFront.NextItem(eligible);
+        if (card is null)
+        {
+            // Defensive: NextItem is declared nullable; an empty draw must not
+            // hand a null card into the enchant pipeline (build warning).
+            MainFile.Logger.Info($"[QuriousCraftingRelics] pickup enchant {typeof(T).Name}: rng returned no card");
+            return;
+        }
         EnchantWithStacking<T>(card, levels);
         await Task.CompletedTask;
     }

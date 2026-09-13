@@ -33,6 +33,36 @@ internal static class RunSeedEarlyTrackMultiplayerPatch
 }
 
 /// <summary>
+/// Run-scope cleanup (astra third review, QCR-2026-09-14-01): CleanUp fires
+/// when a run ends (finish/abandon/disconnect/return to menu - the same
+/// surface MpConfigSync's restore uses). Without this, CurrentRunSeed
+/// survived into menus and menu/canonical queries could still resolve the
+/// previous run's definitions, contradicting the "null outside runs"
+/// contract. The frozen snapshot is deliberately KEPT as continuation
+/// evidence (guarded by LastRunSeed) so reloading the same run in this
+/// process resumes its original generation; see CaptureSeed.
+/// </summary>
+[HarmonyPatch(typeof(RunManager), "CleanUp")]
+internal static class RunSeedCleanUpPatch
+{
+    private static void Postfix()
+    {
+        try
+        {
+            if (Chaos.ChaosRelicRunRegistry.CurrentRunSeed is not null)
+            {
+                Chaos.ChaosRelicRunRegistry.CurrentRunSeed = null;
+                MainFile.Logger.Info("[QuriousCraftingRelics] run cleaned up: active seed reset");
+            }
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Error($"[QuriousCraftingRelics] run cleanup failed: {e.Message}");
+        }
+    }
+}
+
+/// <summary>
 /// Shared early-capture logic. MUST live in separate single-target patch classes:
 /// a patch class with TWO [HarmonyPatch] attributes only patches the LAST target
 /// (verified offline against sts2.dll with Harmony 2.4.2 - SetUpNewSingleplayer got
@@ -51,7 +81,9 @@ internal static class RunSeedEarlyTrackPatch
     {
         try
         {
-            CaptureSeed(state?.Rng?.StringSeed);
+            // runStart: a genuinely NEW run re-freezes even when its seed
+            // string repeats a previous run's seed.
+            CaptureSeed(state?.Rng?.StringSeed, runStart: true);
         }
         catch (Exception e)
         {
@@ -67,20 +99,32 @@ internal static class RunSeedEarlyTrackPatch
     /// the SAME seed on the next reload, so held relics' effects drifted away
     /// from their descriptions (observed 2026-09-13). A later capture of the
     /// same seed keeps the existing snapshot and only refreshes the loc table.
+    ///
+    /// Continuation (astra third review, QCR-2026-09-14-01): after CleanUp
+    /// drops <see cref="Chaos.ChaosRelicRunRegistry.CurrentRunSeed"/>, a
+    /// reload of the SAME run (same seed, same process) must resume its
+    /// ORIGINAL frozen snapshot, not re-freeze the live config - a mid-run
+    /// rebalance would otherwise redefine held relics on reload. Hence the
+    /// same-run check compares against <c>LastRunSeed</c>, which survives
+    /// CleanUp; run-start captures (SetUpNew) always re-freeze, so rerolling
+    /// a new run with a repeated seed string still picks up current config.
+    /// Cross-process continuation still needs persisted definitions (QCR-2).
     /// </summary>
-    internal static void CaptureSeed(string? seed)
+    internal static void CaptureSeed(string? seed, bool runStart = false)
     {
         if (string.IsNullOrEmpty(seed))
         {
             // Leaving a run (menu): drop the seed so canonical models render
-            // the generic text again; the snapshot is kept so a continuation
-            // of the same run resumes its original generation.
+            // the generic text again; the snapshot is kept as continuation
+            // evidence (guarded by LastRunSeed, see above).
             Chaos.ChaosRelicRunRegistry.CurrentRunSeed = null;
             return;
         }
-        bool sameRun = Chaos.ChaosRelicRunRegistry.CurrentRunSeed == seed
+        bool sameRun = !runStart
+            && Chaos.ChaosRelicRunRegistry.LastRunSeed == seed
             && Chaos.ChaosRelicRunRegistry.CurrentSnapshot is not null;
         Chaos.ChaosRelicRunRegistry.CurrentRunSeed = seed;
+        Chaos.ChaosRelicRunRegistry.LastRunSeed = seed;
         if (!sameRun)
         {
             Chaos.ChaosRelicRunRegistry.CurrentSnapshot = Chaos.QuriousGenerationSnapshot.Capture();
