@@ -961,3 +961,22 @@ filename = 根命名空间(去特殊字符) + ".cfg".
 - MpConfigSync: 鉴权短路顺序 (CurrentService 非空不触 RunManager);
   事务先验证后提交; cfg 冻结/还原对称。
 - 其余小修复 (Spire1/Perfect/HeartShake/ChaosBridge/RegentFXFastBoot) 复查无新问题。
+
+---
+
+## 附: 会话输入与工作顺序 (2026-09-12~13, 全量见 docs/session-log-2026-09-12-13.md)
+
+与本仓库直接相关的用户输入序列:
+1. 「两个遗物mod都要尽快可游玩」→ 本局配置冻结 + 迁移归属修复 (1ba3009)。
+2. 「上架工坊的一切工作」→ 0.5.2 更新包 staging (6183923)。
+3. 「设置页标题仍是autoanthony,应改成怪异炼化」→ zhs loc 修复。
+4. 「每点价格的改动需要反应在点数预算编辑器里」→ RefreshCosts + ConfigChanged 接线。
+5. 「额外池附魔没有可编辑上下限;新加三项是变量名」→ 排查确认属性链路本就存在,
+   真因是 MegaLabel 主题字体异常斩断编辑器构建 (二轮复审 log 证据) → 换普通 Label + 213 hover.desc 键。
+6. 「点数写入默认」→ 40 项默认值按用户 cfg 写入 (0.5.3)。
+7. 「考虑将相同减益项合并成一次施加」→ BeforeCombatStart 累积 + 第一回合开始统一施加。
+8. 「每回合格挡改为回合结束时施加」→ BeforeSideTurnEnd (CloakClasp 模式)。
+9. 「虚无是正面词条」→ 计价 Cost 4/Refund 0, 配置键更换。
+10. 全量审查 → 池谓词改保留全部 BaseLib CustomRelicModel (共存修复) (5eaf4e1)。
+教训要点: L1 真机冒烟独立层 / L3 日志是契约 / L6 loc 是 SmartFormat 模板 / L7 静态状态生命周期 /
+L8 共存谓词按家族划界。详见 docs/session-log-2026-09-12-13.md 第二节。
