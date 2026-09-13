@@ -1172,3 +1172,9 @@ Qurious 0.5.6 → mods/mods_disabled/staging，AAR 0.1.1 → mods/staging，哈�
   等于没有冻结 —— Launch 是存档漏斗，频率远高于"一局一次"。
 - L25: 缓存/去重键必须覆盖**全部**影响输出的输入（seed+指纹），缺一项就会出现
   "A 随输入漂移、B 钉在旧值"的偏差类报告。
+
+## 2026-09-14 - L28 跨仓关联 (vigor→勇气 复发记录)
+Qurious 改名前曾把 Vigor 误译为"勇气"一次; 本次在 AAR 0.1.2 复发。根因与 durable 修复
+(工作区术语表 + AGENTS §5 硬规则 + 修复后跨仓 grep) 记录在
+`sts2-autoanthony-relics/DEVLOG.md` v0.1.3 章节与 `docs/terminology-glossary.md`。
+本仓库当前文本已复扫, 无该错误。
