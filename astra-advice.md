@@ -1,6 +1,24 @@
-## 第二轮复审 (2026-09-13)
+## 第三轮复审 (2026-09-14)
 
-当前 `tools/migration-probe` 通过: 真旧 Qurious cfg 迁移, 重跑不覆盖第一备份, 新 `AutoAnthonyRelics.cfg` 原位保留. 当前 Qurious 隔离构建 exit 0, 2 warning/0 error. 这些结果只覆盖迁移 seam, 不覆盖中断写入,真实用户目录重启和旧存档.
+当前隔离构建 exit 0, 2 warning/0 error. 当前源码已把生成预算/价格/边界/额外池/Watcher 存入 `QuriousGenerationSnapshot`, 并在同 seed 复捕获时保留快照. 本轮没有运行 Qurious probe 或真实 UI/战斗/存档.
+
+当前构建还保留两个警告: `BudgetEditorPanel.cs:301` 的 `LocString.GetFormattedText()` 可能空引用,以及 `ChaosRelicModel.cs:956` 的随机选牌结果传入 `EnchantWithStacking` 可能为空. 前者位于设置 UI 的异常回退路径,后者位于拾取附魔的非空 eligible 列表之后;两者本轮没有运行时验证,不可用构建成功掩盖.
+
+### P1 本局上下文仍没有完整清理
+
+`RunSeedTrackPatch.cs:71-89` 在 seed 为空时只清 `ChaosRelicRunRegistry.CurrentRunSeed`, 明确保留 `CurrentSnapshot`; 当前源码未找到 `RunManager.CleanUp` 清空两者的补丁. `ChaosRelicRunRegistry.cs:45-151` 的定义查询仍从静态当前 seed 取值. 这与"菜单/局外为 null"的注释不一致: 退出后 canonical/menu 查询可能继续得到上一局定义. 需要按新局,读档,放弃/结束,回菜单,下一局和进程重启分别证明, 再决定 snapshot 是续档证据还是必须持久化的数据.
+
+### P2 稳态查询仍做全量指纹工作
+
+`ChaosRelicRunRegistry.ConfigFingerprint` 每次 `ForSeed` 都重建并排序模板列表,调用 `Effective`,成本/退款查询; `ChaosTemplates.PositiveTemplates`/`NegativeTemplates` 也返回新列表. 快照解决了定义随 live 配置漂移,没有解决 `Rarity`/描述/效果查询的重复分配. 本轮没有新的分配测量,上一轮数字不能当当前结果.
+
+### P2 设置和运行时来源分离仍需验收
+
+`VanillaRelicMapping.cs:298-301` 和 `BudgetEditorPanel.cs:176-180` 用 live `PointCosts`,而生成路径用冻结成本. 这是菜单编辑器与本局执行的分层,不应直接判为 bug; 但必须验证开局后编辑不会改变已持有定义,且设置页重新加载不会触发写盘污染. 本轮未操作 UI.
+
+### 第三轮未执行
+
+没有真实 Qurious 设置页,战斗,遗物获得,存读档,重启续档,中断恢复或双端. `migration-probe` 只证明迁移 seam, 不能证明本局身份和生命周期.
 
 ### P1 新确认: 设置页 MegaLabel 运行时异常
 
