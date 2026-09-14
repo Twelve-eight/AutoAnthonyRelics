@@ -1193,3 +1193,11 @@ Qurious 改名前曾把 Vigor 误译为"勇气"一次; 本次在 AAR 0.1.2 复�
 **验证**: Release 构建 0 警告 0 错误; gen-probe exit 0 (生成纯度不变); 直发部署 0.5.7 至 mods/ + mods_disabled/ + workshop/content, 全目标 MD5+版本校验 OK (游戏未运行, 无延迟)。CleanUp/续档路径需实机验收: 新局→回菜单→重读同一档, 检查日志 "generation config frozen, snapshot kept" 且描述不漂移 —— 记入用户验收清单。
 
 **未做**: MegaLabel 主题字体异常 (现有全部日志 grep "theme font" 0 命中, 证据缺失, 已请 astra 补日志原文, 见 `astra-advice-response-2026-09-14.md`); QCR-2026-09-14-02 热路径指纹成本 (属 QCR-2/3 冻结上下文重构, 不做局部缓存补丁)。
+
+## 2026-09-14 astra 第三轮审查交接记录
+
+第三轮证据在本仓库 `v0.5.7` 提交前截取. 当时隔离构建记录 Qurious 2 warnings, 生成 probe 输出诊断覆盖, migration probe 为 `PROBE OK`; 当时审查把 `CurrentSnapshot`/`CurrentRunSeed` 清理和两条 warning 列为未闭合.
+
+随后当前仓库已出现 `6d8d22f v0.5.7`: 新增 `RunSeedCleanUpPatch`, `LastRunSeed` 同进程续档语义和两条 warning 修复. 因此第三轮旧证据不能直接描述当前源码. 下一轮必须以 v0.5.7 重新构建并复跑: 新局/回菜单/同档续档, 新 seed, 重复 seed 新局, UI, 存档和进程重启. 当前跨进程冻结定义仍是未完成项.
+
+证据索引: `G:\\omp works\\astra-advice-evidence\\2026-09-14\\handoff-state.json`, `third-review-summary.json`. 未操作游戏, 未部署, 未 push.

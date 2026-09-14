@@ -5,106 +5,79 @@
 	"previewfile"		"G:\\omp works\\AutoAnthonyRelics\\workshop\\preview.png"
 	"visibility"		"0"
 	"title"		"Qurious Crafting - Relics (怪异炼化 - 遗物)"
-	"description"		"[h1]Qurious Crafting - Relics(怪异炼化 - 遗物)[/h1]
+	"description"		"[h1]怪异炼化 - 遗物 / Qurious Crafting - Relics[/h1]
 
-每局游戏,用东尼算法从本局种子确定性地生成 60 件混沌遗物,并替换本局全部的遗物掉落.
-[i]Every run, deterministically generate 60 chaos relics from the run seed and replace all relic drops.[/i]
+每局游戏,用东尼算法从本局种子确定性地生成 60 件混沌遗物,替换本局全部的随机遗物掉落.点数预算制:正面词条按点数购置,负面词条返还点数,像怪物猎人的炼化一样攒出你的专属神装.
+
+[i]Every run, deterministically generate 60 chaos relics from the run seed and replace all random relic drops. Point-budget crafting: buy positive entries with points, sell debuffs back for more.[/i]
 
 [hr]
 
 [h2]它做什么 / What it does[/h2]
 
-开局时,本 mod 依据本局种子生成 60 件混沌遗物(混沌遗物 1-60).每一件都有:
 [list]
-[*][b]随机名字[/b] - 形容词 + 名词组合
-[*][b]点数预算[/b] - 稀有度决定预算(普通 10 / 罕见 16 / 稀有 24),正词条按点数购置
-[*][b]负面词条[/b] - 概率出现一条负面效果,返还点数换取更多正词条(怪猎炼化风格)
-[*][b]随机稀有度[/b] - 20 普通 / 20 罕见 / 20 稀有,逐种子重新生成
-[*][b]动态描述[/b] - 遗物提示框实时显示本局的具体效果列表(逐行中文)
+[*][b]60 件生成遗物[/b] - 每局从种子派生:20 普通 / 20 罕见 / 20 稀有
+[*][b]点数预算[/b] - 稀有度决定预算(默认 普通 12 / 罕见 18 / 稀有 25),正面词条按点数购置
+[*][b]负面词条[/b] - 按稀有度概率出现一条负面(默认 5% / 25% / 75%),返还点数换取更强正面
+[*][b]词条数量[/b] - 默认 3 条为主,全局倍率最高可拉到 5 条
+[*][b]动态描述[/b] - 提示框逐行显示本局的实际效果与数值,所见即所得
+[*][b]确定性[/b] - 同种子 = 同一批遗物;开局冻结配置,局内改设置或重读存档都不会让已获得的遗物变义
 [/list]
 
-同种子 = 同一批遗物;换种子 = 同一槽位完全不同的词条.
+[h2]词条模板 / Templates[/h2]
 
-[h2]遗物替换范围 / Relic replacement[/h2]
-
-以下全部遗物来源都只出混沌遗物:
+核心 36 条(正面 26 + 负面 10):
 [list]
-[*]战斗奖励 / 精英奖励
-[*]宝箱 / 商店
-[*]事件的随机遗物
-[*]挖掘 / 营火等
+[*][b]战斗开始[/b]:伤害 / 格挡 / 力量 / 敏捷 / 抽牌 / 能量 / 覆甲 / 中毒 / 再生 / 荆棘 / 易伤 / 虚弱 / 人工制品
+[*][b]回合开始[/b]:格挡 / 抽牌 / 能量 / 回复生命
+[*][b]打出卡牌[/b]:获得格挡 / 随机敌人伤害
+[*][b]被动[/b]:攻击伤害 / 格挡加成 / 金币 / 能量上限
+[*][b]战斗胜利[/b]:金币 / 回复;[b]营火[/b]:休息回复加成
+[*][b]负面[/b]:自身易伤 / 出牌上限 / 每回合失去生命 / 能量上限- / 每回合抽牌- / 金币获得- / 攻击伤害- / 营火回复- / 无法获得药水 / 虚弱开场 / 迟滞开场 / 生命上限-
 [/list]
 
-保持原版不受影响的:
-[list]
-[*][b]先古之民(Ancient)遗物[/b] - 完全不动
-[*]初始遗物 / Neow 遗物 / 事件专属固定遗物(本就不经过奖励池)
-[/list]
+额外池(默认关闭,共 15 条):附魔三系 锋利 / 灵巧 / 注能(结算入口 + 拾取入口)、手牌 保留 / 奇巧 / 虚无、保留触发(攻击强化 / 能量折扣)、观者姿态 平静 / 愤怒 / 神格(需安装观者 Watcher)。
 
-混沌遗物耗尽后回落到游戏原生兜底行为.
-
-[h2]词条效果模板(共 47: 核心 26 正 + 10 负,额外池 10 正 + 1 负)/ Effect templates[/h2]
+[h2]替换范围 / Scope[/h2]
 
 [list]
-[*][b]战斗开始[/b]:对全体敌人伤害 / 格挡 / 力量 / 敏捷 / 抽牌 / 能量 / 全体易伤 / 全体虚弱 / 再生 / 荆棘 / 人工制品 / 全体中毒 / 覆甲
-[*][b]回合开始[/b]:格挡 / 能量 / 回复生命 / 抽牌
-[*][b]打出卡牌[/b]:对随机敌人伤害 / 获得格挡
-[*][b]被动[/b]:攻击伤害加成 / 能量上限加成 / 格挡加成 / 金币加成 / 营火回复加成
-[*][b]战斗胜利[/b]:回复生命 / 获得金币
-[*][b]负面词条[/b]:自身脆弱 / 自身出牌上限 / 每回合失去生命 / 能量上限- / 每回合抽牌数- / 金币获得- / 攻击伤害- / 营火回复- / 无法获得药水 / 获得时最大生命值-
+[*]战斗 / 精英 / 宝箱 / 商店 / 事件 / 挖掘 / 营火 —— 全部只出混沌遗物;耗尽后回落游戏原生兜底
+[*][b]先古之民(Ancient)遗物完全不动[/b];初始遗物 / Neow / 事件专属固定遗物本就不经过奖励池
 [/list]
 
-额外池(默认关闭):手牌保留 / 奇巧 / 虚无,附魔(锋利 / 灵巧 / 注能),保留触发,观者姿态(需安装观者 mod).
+[h2]游戏内设置 / Settings[/h2]
 
-[h2]游戏内设置 / In-game settings[/h2]
-
-设置 -> 常规 -> 怪异炼化 - 遗物(专属设置页,与东尼算法本体入口相邻):
+主菜单 设置 → 常规 → [b]Qurious Crafting - Relics[/b](专属设置页,与东尼算法本体入口相邻):
 [list]
-[*][b]启用混沌遗物[/b] - 总开关.关闭后:混沌遗物不再生成,奖励池恢复原版遗物,已拥有的混沌遗物效果停用
-[*][b]点数预算[/b] - 普通 / 罕见 / 稀有 各自的预算(默认 10 / 16 / 24)
-[*][b]负面词条概率[/b] - 普通 / 罕见 / 稀有 各自的概率(默认 35% / 55% / 75%)
-[*][b]点数预算编辑器[/b] - 每个词条模板的点数与数值区间(双手柄范围滑条)
-[*]恢复默认设置按钮
+[*]启用混沌遗物 —— 总开关;关闭后奖励池恢复原版遗物
+[*]点数预算 / 负面概率 —— 普通 / 罕见 / 稀有 三档独立可调
+[*][b]点数预算编辑器[/b] —— 每个模板的数值区间(双端滑条)与每点价格实时编辑,悬停原版遗物名可对照参考
+[*]恢复默认设置
 [/list]
 
-进阶:每个模板的点数同时是配置文件键(Cost_ / Refund_ 前缀,详见 mod 目录文档).
+[h2]联机 / Multiplayer[/h2]
 
-[h2]多人联机 / Multiplayer[/h2]
+同种子 + 相同配置 = 双端完全一致。推荐搭配 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3799210379]MpConfigSync[/url](开局自动把主机配置下发给全队,配置文件全程冻结,会话结束自动还原,只影响本局)。
 
-同种子两端确定性生成同一批遗物(预算/点数/区间配置也必须一致);随机目标使用游戏的播种随机通道(CombatTargets),不破坏联机同步.
-[i]Same seed = identical relics on both ends; deterministic generation keeps multiplayer in sync.[/i]
+[h2]兼容 / Compatibility[/h2]
 
-[hr]
+[list]
+[*]与 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3786611028]Auto-Anthonyology(东尼算法)[/url] 同装自由,互不依赖
+[*]与 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3801304033]Anthony Algorithm - Relics(东尼算法 - 遗物)[/url] 同装:双方都做遗物池替换,最终掉落受加载顺序影响,组合体验以实测为准
+[*]内置 遗物三选一 + Act4Heart 蓝钥匙修复:同时安装 RelicRewardChoices 与 Act4Heart 时,宝箱跳过会正确补发蓝钥匙
+[/list]
 
-[h2]前置依赖 / Requirements[/h2]
+[h2]前置 / Requirements[/h2]
 
 [list]
 [*][b]必须[/b]:[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3737335127]BaseLib[/url]
 [/list]
 
-[b]重要 - BaseLib 版本提示 / Important - BaseLib version note[/b]
+[b]BaseLib 版本提示[/b]:工坊版常落后于官方 GitHub;游戏更新后若报错,前往 [url=https://github.com/Alchyr/BaseLib-StS2/releases]GitHub Releases[/url] 下载最新版解压进 mods 目录,并取消订阅工坊版避免双加载。
 
-创意工坊的 BaseLib 更新经常落后于官方 GitHub.游戏版本更新后,如果工坊版 BaseLib 报错或本 mod 无法加载,请前往 GitHub 下载最新版:
-[list]
-[*][url=https://github.com/Alchyr/BaseLib-StS2/releases]GitHub Releases(推荐 / recommended)[/url] - 最新正式版
-[*]安装方法:下载 zip,解压到 [code]Slay the Spire 2/mods/[/code],并[b]取消订阅工坊版 BaseLib[/b](避免双加载)
-[/list]
+[h2]控制台验证 / Console test[/h2]
 
-[i]The Workshop BaseLib often lags behind the official GitHub. If BaseLib errors after a game update, grab the latest release from GitHub (link above), unzip into the mods folder, and unsubscribe from the Workshop copy to avoid double-loading.[/i]
-
-[hr]
-
-[h2]兼容 / Compatibility[/h2]
-
-[list]
-[*]可与 AutoAnthony(卡牌侧)联用,但[b]不依赖它[/b],可单独订阅
-[*]内置 [b]遗物三选一 + Act4Heart 蓝宝石钥匙修复[/b]: 同时安装 RelicRewardChoices(三选一)与 Act4Heart 时,宝箱跳过会正确补发蓝宝石钥匙(也可单独订阅独立的 RrcA4hKeyFix,双装安全不冲突)
-[/list]
-
-[h2]控制台验证(可选)/ Console test[/h2]
-
-局内按 ` 打开开发者控制台,输入:
-[code]relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005[/code]"
-	"changenote"		"v0.5.7: lifecycle hardfix - RunManager.CleanUp now resets the active run seed when a run ends (menus and canonical models can no longer resolve the previous run's definitions), while reloading the SAME run in the same process resumes its original frozen generation config and a new run start always re-freezes (in-process continuation; cross-process persistence is future work); two compiler warnings fixed (null-safe loc fallback, null rng card guard). v0.5.6: hotfix - the generation config was re-frozen on every save-load, so a mid-run point rebalance silently changed held relics' effects on the next room transition while tooltips kept the old text (effects vs description drift); the first capture of a run now owns the config for its whole run and descriptions refresh whenever the definitions change. User-rebalanced point allocation written as the new defaults. v0.5.5:  hotfix - hand selections opened during a room-transition reload window hit the engine choice pipeline mid-rebuild (PlayerChoiceSynchronizer ArgumentOutOfRangeException) and the selection faulted; the selection is now contained and the effect skips that turn instead. v0.5.4:  hotfix - the extra-pool per-turn hand-selection (retain/sly/ethereal/enchant) opened its selection UI on a ThrowingPlayerChoiceContext, whose choice signal throws, killing the engine turn loop and freezing the combat (reported as BloodWall unplayable); selection now uses the live pipeline context, duplicate turn-start invocations are idempotent, and turn-loop hooks are exception-guarded." community-feedback round - user-tuned point allocation as new defaults; per-turn block now applies at the player's turn end; same-enchant LEVEL stacking (engine stack branch) for the enchant entries plus new pickup-time deck enchant entries (one random eligible card at +N levels); enemy debuffs (vulnerable/weak/poison) from multiple relics merge into ONE application per power so enemy Artifact charges are not wasted; relic hover now shows tooltips for every power the relic grants; hand-ethereal entry moved to positive pricing; budget editor always shows the extra-pool section and refreshes per-point costs live; settings page title fixed (was showing a leftover AutoAnthony name)."
+局内按 ` 打开开发者控制台:[code]relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005[/code]"
+	"changenote"		"v0.5.7: lifecycle hardfix - RunManager.CleanUp now resets the active run seed when a run ends (menus and canonical models can no longer resolve the previous run's definitions), while reloading the SAME run in the same process resumes its original frozen generation config and a new run start always re-freezes (in-process continuation; cross-process persistence is future work); two compiler warnings fixed (null-safe loc fallback, null rng card guard). v0.5.6: hotfix - the generation config was re-frozen on every save-load, so a mid-run point rebalance silently changed held relics' effects on the next room transition while tooltips kept the old text (effects vs description drift); the first capture of a run now owns the config for its whole run and descriptions refresh whenever the definitions change. User-rebalanced point allocation written as the new defaults. v0.5.5:  hotfix - hand selections opened during a room-transition reload window hit the engine choice pipeline mid-rebuild (PlayerChoiceSynchronizer ArgumentOutOfRangeException) and the selection faulted; the selection is now contained and the effect skips that turn instead. v0.5.4:  hotfix - the extra-pool per-turn hand-selection (retain/sly/ethereal/enchant) opened its selection UI on a ThrowingPlayerChoiceContext, whose choice signal throws, killing the engine turn loop and freezing the combat (reported as BloodWall unplayable); selection now uses the live pipeline context, duplicate turn-start invocations are idempotent, and turn-loop hooks are exception-guarded.' community-feedback round - user-tuned point allocation as new defaults; per-turn block now applies at the player's turn end; same-enchant LEVEL stacking (engine stack branch) for the enchant entries plus new pickup-time deck enchant entries (one random eligible card at +N levels); enemy debuffs (vulnerable/weak/poison) from multiple relics merge into ONE application per power so enemy Artifact charges are not wasted; relic hover now shows tooltips for every power the relic grants; hand-ethereal entry moved to positive pricing; budget editor always shows the extra-pool section and refreshes per-point costs live; settings page title fixed (was showing a leftover AutoAnthony name)."
 	"publishedfileid"		"3798163198"
 }

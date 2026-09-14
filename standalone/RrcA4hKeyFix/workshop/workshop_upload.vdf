@@ -1,0 +1,51 @@
+"workshopitem"
+{
+	"appid"		"2868840"
+	"contentfolder"		"G:\omp works\AutoAnthonyRelics\standalone\RrcA4hKeyFix\workshop"
+	"previewfile"		"G:\omp works\AutoAnthonyRelics\standalone\RrcA4hKeyFix\workshop\preview.png"
+	"visibility"		"0"
+	"title"		"RrcA4hKeyFix (三选一蓝钥匙修复)"
+	"description"		"[h1]RrcA4hKeyFix / 三选一蓝钥匙修复[/h1]
+
+同时安装 遗物三选一(RelicRewardChoices)与 Act4Heart 时,打开的宝箱不再发放蓝钥匙(尖塔之心的入场钥匙)—— 无论你领取奖励还是跳过。本修复补上这条链路:跳过宝箱正确补发钥匙,领取三选一则不发,与原版规则一致.
+
+[i]Fixes the RelicRewardChoices (three-choice relic rewards) + Act4Heart interaction where opened chests never award the Sapphire Key - whether the choice is taken or skipped.[/i]
+
+[hr]
+
+[h2]行为 / Behaviour[/h2]
+
+[list]
+[*][b]跳过宝箱[/b] - 正确补发蓝钥匙,只补一次,绝不重复
+[*][b]领取三选一奖励[/b] - 不发钥匙(与原版[领取即视为打开]规则一致)
+[*][b]已有钥匙 / Act4Heart 设置中关闭钥匙[/b] - 不多发
+[*][b]普通战斗奖励[/b] - 完全不受影响
+[*][b]联机[/b] - 挂在同步跳过路径上,双端个人宝箱一致
+[/list]
+
+[i]Skip a chest -> the key is granted exactly once. Take a reward -> no key (matching vanilla take-rules). Respects existing keys and the keys-disabled setting. Combat rewards untouched. MP-safe via the synchronized skip path.[/i]
+
+[h2]前置与休眠 / Requirements[/h2]
+
+[list]
+[*][b]必须[/b]:[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3795496596]遗物三选一 Relic Reward Choices[/url] 0.3.4+
+[*][b]必须[/b]:[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3747537811]Act 4 Heart[/url] 1.1.7+
+[*][b]必须[/b]:[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3737335127]BaseLib[/url] 3.4.5+
+[/list]
+
+任一前置未安装时本 mod 自动休眠,无任何副作用.
+
+[i]Sleeps automatically (zero side effects) unless all of the above are installed.[/i]
+
+[h2]与 怪异炼化 同装 / With Qurious Crafting - Relics[/h2]
+
+与 [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3798163198]Qurious Crafting - Relics[/url] 同装安全:其内置同一份修复,补丁身份去重,不会双发钥匙.
+
+[i]Safe alongside Qurious Crafting - Relics: its built-in copy of this fix shares the same Harmony patch identity - no double-grant.[/i]
+
+[hr]
+
+[b]BaseLib 版本提示[/b]:工坊版常落后于官方 GitHub;游戏更新后若报错,前往 [url=https://github.com/Alchyr/BaseLib-StS2/releases]GitHub Releases[/url] 下载最新版解压进 mods 目录,并取消订阅工坊版避免双加载."
+	"changenote"		"v0.1.0: first release - chest-skip key compensation for RelicRewardChoices + Act4Heart, take/skip/existing-keys/disabled rules, MP-safe, deduped with Qurious built-in fix."
+	"publishedfileid"		""
+}
