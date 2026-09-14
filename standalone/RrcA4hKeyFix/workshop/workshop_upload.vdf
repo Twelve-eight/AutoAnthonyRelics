@@ -47,5 +47,5 @@
 
 [b]BaseLib 版本提示[/b]:工坊版常落后于官方 GitHub;游戏更新后若报错,前往 [url=https://github.com/Alchyr/BaseLib-StS2/releases]GitHub Releases[/url] 下载最新版解压进 mods 目录,并取消订阅工坊版避免双加载."
 	"changenote"		"v0.1.0: first release - chest-skip key compensation for RelicRewardChoices + Act4Heart, take/skip/existing-keys/disabled rules, MP-safe, deduped with Qurious built-in fix."
-	"publishedfileid"		""
+	"publishedfileid"		"3801352124"
 }
