@@ -1,36 +1,34 @@
-## 第三轮复审 (2026-09-14)
+## 第四轮复审 (2026-09-14): 生命周期局部闭合, 持久身份仍开放
 
-当前隔离构建 exit 0, 2 warning/0 error. 当前源码已把生成预算/价格/边界/额外池/Watcher 存入 `QuriousGenerationSnapshot`, 并在同 seed 复捕获时保留快照. 本轮没有运行 Qurious probe 或真实 UI/战斗/存档.
+当前源码截点 HEAD `adce5e2`. 隔离 Release 构建 exit 0, 0 warnings/0 errors. 当前 gen-probe exit 0, 仅生成诊断; migration-probe `PROBE OK`, 11 个 PASS 行. 两个 probe 实际加载的 mod DLL SHA256 均与本轮 build 相同, 不再使用仓库旧 Debug 输出.
 
-当前构建还保留两个警告: `BudgetEditorPanel.cs:301` 的 `LocString.GetFormattedText()` 可能空引用,以及 `ChaosRelicModel.cs:956` 的随机选牌结果传入 `EnchantWithStacking` 可能为空. 前者位于设置 UI 的异常回退路径,后者位于拾取附魔的非空 eligible 列表之后;两者本轮没有运行时验证,不可用构建成功掩盖.
+### 已闭合的具体修复
 
-### P1 本局上下文仍没有完整清理
+`REPRO_ISOLATED_PASS`: 直接调用当前 `CaptureSeed`/`RunSeedCleanUpPatch.Postfix` 和定义消费者, 观察到: 同局修改预算不改定义; CleanUp 后 seed/null DefinitionFor; 立即续读同 seed 保留 snapshot/定义; 同 seed 明确开新局重新冻结并使用新预算. 两条旧构建警告本轮为零.
 
-`RunSeedTrackPatch.cs:71-89` 在 seed 为空时只清 `ChaosRelicRunRegistry.CurrentRunSeed`, 明确保留 `CurrentSnapshot`; 当前源码未找到 `RunManager.CleanUp` 清空两者的补丁. `ChaosRelicRunRegistry.cs:45-151` 的定义查询仍从静态当前 seed 取值. 这与"菜单/局外为 null"的注释不一致: 退出后 canonical/menu 查询可能继续得到上一局定义. 需要按新局,读档,放弃/结束,回菜单,下一局和进程重启分别证明, 再决定 snapshot 是续档证据还是必须持久化的数据.
+这证明 registry/hook 函数的局部合同, 没有运行真实 RunManager 或设置页. 旧第三轮的 "没有 CleanUp" 不再是当前事实. `CurrentSnapshot` 保留为续档证据是有意设计, 不能仅因它非 null 判清理失败.
 
-### P2 稳态查询仍做全量指纹工作
+### P1 QCR-R4-01: 单个 LastRunSeed 不是已保存各局的定义身份
 
-`ChaosRelicRunRegistry.ConfigFingerprint` 每次 `ForSeed` 都重建并排序模板列表,调用 `Effective`,成本/退款查询; `ChaosTemplates.PositiveTemplates`/`NegativeTemplates` 也返回新列表. 快照解决了定义随 live 配置漂移,没有解决 `Rarity`/描述/效果查询的重复分配. 本轮没有新的分配测量,上一轮数字不能当当前结果.
+`REPRO_ISOLATED`: A 以原预算捕获 -> CleanUp -> 更改 live 预算 -> B 新局 -> CleanUp -> A 以续档入口捕获, A 定义改变. fixture `initialRunDefinitionKeptAfterAnotherRun=false`. 立即续读上一次局通过, 不代表跨其他局/其他存档槽也通过. 真实多存档/UI 路径本轮未运行; 跨进程本来就没有持久化 snapshot.
 
-### P2 设置和运行时来源分离仍需验收
+位置: `RunSeedTrackPatch.cs:123-130`, `ChaosRelicRunRegistry.cs:48,160`. 建议在存档身份上保存精确定义/生成输入和版本, 使 A 的恢复不依赖进程中最后一次玩的 seed. 不仅增加 seed 缓存就宣称跨更新/跨进程安全. 验收立即续档, A/B/A, 重复 seed 的不同新局, 重启和算法版本变化.
 
-`VanillaRelicMapping.cs:298-301` 和 `BudgetEditorPanel.cs:176-180` 用 live `PointCosts`,而生成路径用冻结成本. 这是菜单编辑器与本局执行的分层,不应直接判为 bug; 但必须验证开局后编辑不会改变已持有定义,且设置页重新加载不会触发写盘污染. 本轮未操作 UI.
+### P2 QCR-R4-02: 热命中仍重复构造指纹
 
-### 第三轮未执行
+`REPRO_ISOLATED`: 当前 DLL 对已经命中的 ForSeed 预热 100 次后, 用强类型 delegate 调用 1000 次, 分配 7,208,000 bytes, 即 7,208 bytes/call; 返回同一 pool. 不含反射 Invoke/结果 JSON 分配. 这只是当前配置/当前 CLR 的分配测量, 不是实际帧耗时, 不沿用第三轮以前的 83,968 bytes/call.
 
-没有真实 Qurious 设置页,战斗,遗物获得,存读档,重启续档,中断恢复或双端. `migration-probe` 只证明迁移 seam, 不能证明本局身份和生命周期.
+位置: `ChaosRelicRunRegistry.cs:59-85,92-99`, `ChaosTemplates.cs:87-98`. 本局 snapshot 建立时一次生成指纹/定义, getter 按 slot 查询; 不在每次 Rarity/描述/效果查询重新枚举和排序模板.
 
-### P1 新确认: 设置页 MegaLabel 运行时异常
+### P2 QCR-R4-03: 本地化写入失败仍会记为已更新
 
-当前 `mod/Code/Patches/BudgetEditorPanel.cs:126-157` 创建多处 `MegaLabel` 却没有显式 `AddThemeFontOverride`. 当前 live `godot.log:3507-3523` 在 `Build` 添加 title 时抛 `MegaLabel .. has no theme font override`; 同类错误再次出现在 `:6814-6829` 的 row label. `:3495-3504` 同时有新 hover key 缺失警告. 这不是主菜单无异常就可忽略的日志: Qurious settings page 的标题/行/hover 交互未证明可用. 修复后必须实际打开页面,滚动全部行,拖动范围,悬停 vanilla reference, 再检查无同类错误.
+`SOURCE`: `ChaosRelicLocUpdater.cs:44-55` 在确认表存在并写成功前设置 `_lastKey`. 本轮无 LocManager 的隔离运行第一回记录 table not found, 同 key 后续调用直接跳过; 这不是设置页错误复现. 同样的顺序会阻止首次失败后的重试. 建议成功更新后再提交 key, 按语言/表重建生命周期失效.
 
-### P2 本局快照仍缺生命周期证明
+### 撤回当前 MegaLabel 异常结论
 
-`QuriousGenerationSnapshot` 现在捕获 budgets, negative chances, extra-pool, Watcher presence, cost/refund 和 bounds, 且 `ChaosTemplates` 的 active lists/Effective 读取 snapshot. 预算隔离 probe 证实 snapshot 存在时 live budget edit 不改变已有对象, 重新 capture 才改变生成结果. 但当前未发现 `RunManager.CleanUp` 清空 `ChaosRelicRunRegistry.CurrentRunSeed`/`CurrentSnapshot`; 当前文档中的 null-outside-run invariant 尚未成立. 另外 `VanillaRelicMapping.OurPointsFor` 和 budget editor 仍读 live pricing, 只能用于菜单/编辑器; 不得作为运行中已冻结定义的来源. 验收要覆盖单机新局 -> CleanUp -> 菜单/下一局, 读档和中断.
+旧 advice 引用的 `godot.log:3507-3523` 原文未保存在可恢复证据里; 本轮也没有找到对应归档. 将 "当前 UI 已复现主题字体异常" 降为 `UNVERIFIED`, 不再把旧行号当现版本证据. 不改写历史日志或猜测故障仍存在. 真正验收仍需打开设置页/滚动/悬停/拖动.
 
-### 仍需真实验证
-
-没有运行 Qurious settings UI,预算拖动,实战,存读档或双端. `probe-results.json` 的 `registry-config-change` 只证明手工设置 snapshot 后的预算路径, 不能证明 extra-pool/Watcher/bounds/cost/refund 的所有读取和清理.
+证据: [binary-boundaries.json](../astra-advice-evidence/2026-09-14/round4/binary-boundaries.json), [probe-results.json](../astra-advice-evidence/2026-09-14/round4/probe-results.json), [fixture-runtime.json](../astra-advice-evidence/2026-09-14/round4/fixture-runtime.json). 未改产品源码, 未操作游戏/部署/实机配置/push. 以下为历史建议, 不将旧版本状态当当前事实.
 
 # Astra advice - Qurious Crafting - Relics
 

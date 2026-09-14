@@ -1201,3 +1201,11 @@ Qurious 改名前曾把 Vigor 误译为"勇气"一次; 本次在 AAR 0.1.2 复�
 随后当前仓库已出现 `6d8d22f v0.5.7`: 新增 `RunSeedCleanUpPatch`, `LastRunSeed` 同进程续档语义和两条 warning 修复. 因此第三轮旧证据不能直接描述当前源码. 下一轮必须以 v0.5.7 重新构建并复跑: 新局/回菜单/同档续档, 新 seed, 重复 seed 新局, UI, 存档和进程重启. 当前跨进程冻结定义仍是未完成项.
 
 证据索引: `G:\\omp works\\astra-advice-evidence\\2026-09-14\\handoff-state.json`, `third-review-summary.json`. 未操作游戏, 未部署, 未 push.
+
+## 2026-09-14 astra 第四轮代码复审
+
+源码截点 adce5e2. 隔离 Release 0 warnings/0 errors; gen-probe exit 0, migration-probe PROBE OK, DLL hash 与本轮 build 相同. 当前 CaptureSeed/CleanUp 的直接调用确认立即续档稳定, 同 seed 新局重新冻结, 菜单 DefinitionFor=null. 旧没有 CleanUp 的 finding 关闭到此范围.
+
+新证据: A/B/A 私有捕获序列不能恢复 A 的原预算定义; warm ForSeed 1000 次直接 delegate 调用分配 7,208,000 bytes. 单个 LastRunSeed 不是多存档/跨进程定义持久化. LocUpdater 失败前提交 key 仍为 SOURCE 风险. MegaLabel 旧原始日志无法恢复, 不再称当前 UI 已复现.
+
+证据: ../astra-advice-evidence/2026-09-14/round4/review-results.json, binary-boundaries.json, probe-results.json. 未运行游戏/UI/真实存档, 未改产品源码/实机配置/部署/push. 本轮 advice 为当前分级入口.
