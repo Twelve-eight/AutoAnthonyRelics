@@ -1,0 +1,422 @@
+<div class="bb_h1">怪异炼化 - 遗物 / Qurious Crafting - Relics</div><br>每局游戏,用东尼算法从本局种子确定性地生成 60 件混沌遗物,替换本局全部的随机遗物掉落.点数预算制:正面词条按点数购置,负面词条返还点数。<br><i>Every run, deterministically generate 60 chaos relics from the run seed and replace all random relic drops. Point-budget crafting: buy positive entries with points, sell debuffs back for more.</i><br><br><hr><br><br><div class="bb_h2">它做什么 / What it does</div><br><ul class="bb_ul"><li><b>60 件生成遗物</b> - 每局从种子派生:20 普通 / 20 罕见 / 20 稀有<br></li><li><b>点数预算</b> - 稀有度决定预算(默认 普通 12 / 罕见 18 / 稀有 25),正面词条按点数购置<br></li><li><b>负面词条</b> - 按稀有度概率出现一条负面(默认 5% / 25% / 75%),返还点数换取更强正面<br></li><li><b>词条数量</b> - 默认 3 条为主,全局倍率最高可拉到 5 条<br></li><li><b>动态描述</b> - 提示框逐行显示本局的实际效果与数值,所见即所得<br></li><li><b>确定性</b> - 同种子 = 同一批遗物;开局冻结配置,局内改设置或重读存档都不会让已获得的遗物变义</li></ul><br><div class="bb_h2">词条模板 / Templates</div><br>核心 36 条(正面 26 + 负面 10):<br><ul class="bb_ul"><li><b>战斗开始</b>:伤害 / 格挡 / 力量 / 敏捷 / 抽牌 / 能量 / 覆甲 / 中毒 / 再生 / 荆棘 / 易伤 / 虚弱 / 人工制品<br></li><li><b>回合开始</b>:格挡 / 抽牌 / 能量 / 回复生命<br></li><li><b>打出卡牌</b>:获得格挡 / 随机敌人伤害<br></li><li><b>被动</b>:攻击伤害 / 格挡加成 / 金币 / 能量上限<br></li><li><b>战斗胜利</b>:金币 / 回复;<b>营火</b>:休息回复加成<br></li><li><b>负面</b>:自身易伤 / 出牌上限 / 每回合失去生命 / 能量上限- / 每回合抽牌- / 金币获得- / 攻击伤害- / 营火回复- / 无法获得药水 / 虚弱开场 / 迟滞开场 / 生命上限-</li></ul><br>额外池(默认关闭,共 15 条):附魔三系 锋利 / 灵巧 / 注能(结算入口 + 拾取入口)、手牌 保留 / 奇巧 / 虚无、保留触发(攻击强化 / 能量折扣)、观者姿态 平静 / 愤怒 / 神格(需安装观者 Watcher)。<br><br><div class="bb_h2">替换范围 / Scope</div><br><ul class="bb_ul"><li>战斗 / 精英 / 宝箱 / 商店 / 事件 / 挖掘 / 营火 —— 全部只出混沌遗物;耗尽后回落游戏原生兜底<br></li><li><b>先古之民(Ancient)遗物完全不动</b>;初始遗物 / Neow / 事件专属固定遗物本就不经过奖励池</li></ul><br><div class="bb_h2">游戏内设置 / Settings</div><br>主菜单 设置 → 常规 → <b>Qurious Crafting - Relics</b>(专属设置页,与东尼算法本体入口相邻):<br><ul class="bb_ul"><li>启用混沌遗物 —— 总开关;关闭后奖励池恢复原版遗物<br></li><li>点数预算 / 负面概率 —— 普通 / 罕见 / 稀有 三档独立可调<br></li><li><b>点数预算编辑器</b> —— 每个模板的数值区间(双端滑条)与每点价格实时编辑,悬停原版遗物名可对照参考<br></li><li>恢复默认设置</li></ul><br><div class="bb_h2">联机 / Multiplayer</div><br>同种子 + 相同配置 = 双端完全一致。推荐搭配 <a class="bb_link" href="https://steamcommunity.com/sharedfiles/filedetails/?id=3799210379" target="_blank" rel="" >MpConfigSync</a>(开局自动把主机配置下发给全队,配置文件全程冻结,会话结束自动还原,只影响本局)。<br><br><div class="bb_h2">兼容 / Compatibility</div><br><ul class="bb_ul"><li>与 <a class="bb_link" href="https://steamcommunity.com/sharedfiles/filedetails/?id=3786611028" target="_blank" rel="" >Auto-Anthonyology(东尼算法)</a> 同装自由,互不依赖<br></li><li>与 <a class="bb_link" href="https://steamcommunity.com/sharedfiles/filedetails/?id=3801304033" target="_blank" rel="" >Anthony Algorithm - Relics(东尼算法 - 遗物)</a> 同装:双方都做遗物池替换,最终掉落受加载顺序影响,组合体验以实测为准<br></li><li>内置 遗物三选一 + Act4Heart 蓝钥匙修复:同时安装 RelicRewardChoices 与 Act4Heart 时,宝箱跳过会正确补发蓝钥匙</li></ul><br><div class="bb_h2">前置 / Requirements</div><br><ul class="bb_ul"><li><b>必须</b>:<a class="bb_link" href="https://steamcommunity.com/sharedfiles/filedetails/?id=3737335127" target="_blank" rel="" >BaseLib</a></li></ul><br><b>BaseLib 版本提示</b>:工坊版常落后于官方 GitHub;游戏更新后若报错,前往 <a class="bb_link" href="https://steamcommunity.com/linkfilter/?u=https%3A%2F%2Fgithub.com%2FAlchyr%2FBaseLib-StS2%2Freleases" target="_blank" rel=" noopener" >GitHub Releases</a><span class="bb_link_host">[github.com]</span> 下载最新版解压进 mods 目录,并取消订阅工坊版避免双加载。<br><br><div class="bb_h2">控制台验证 / Console test</div><br>局内按 ` 打开开发者控制台:<div class="bb_code">relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005</div></hr></div>
+			</div>
+
+			
+<script>
+
+</script>
+<div class="detailBox"><script type="text/javascript">
+	$J( function() {
+		InitializeCommentThread( "PublishedFile_Public", "PublishedFile_Public_76561199466878739_3798163198", {"feature":"3798163198","feature2":-1,"owner":"76561199466878739","total_count":5,"start":0,"pagesize":10,"has_upvoted":0,"upvotes":0,"votecountid":null,"voteupid":null,"commentcountid":null,"subscribed":false,"extended_data":"{\"contributors\":[\"76561199466878739\",{}],\"appid\":2868840,\"sharedfile\":{\"m_parentsDetails\":null,\"m_parentBundlesDetails\":null,\"m_bundledChildren\":[],\"m_ownedBundledItems\":[]},\"parent_item_reported\":false}"}, 'https://steamcommunity.com/comment/PublishedFile_Public/', 40 );
+	} );
+</script>
+<div class="commentthread_area"  id="commentthread_PublishedFile_Public_76561199466878739_3798163198_area">
+	<div class="commentthread_header">
+		<div class="commentthread_header_and_count">
+			<span class="ellipsis commentthread_count_label">
+									<span id="commentthread_PublishedFile_Public_76561199466878739_3798163198_totalcount">5</span> Comments							</span>
+			<div class="commentthread_count">
+							</div>
+		</div>
+		<div class="commentthread_paging " id="commentthread_PublishedFile_Public_76561199466878739_3798163198_pagecontrols">
+						<div class="commentthread_pagelinks_ctn">
+				<a id="commentthread_PublishedFile_Public_76561199466878739_3798163198_pagebtn_prev" href="javascript:void(0);" class="pagebtn">&lt;</a>
+				<span id="commentthread_PublishedFile_Public_76561199466878739_3798163198_pagelinks" class="commentthread_pagelinks"></span>
+				<span id="commentthread_PublishedFile_Public_76561199466878739_3798163198_pagedropdown" class="commentthread_pagedropdown"></span>
+				<a id="commentthread_PublishedFile_Public_76561199466878739_3798163198_pagebtn_next" href="javascript:void(0);" class="pagebtn">&gt;</a>
+			</div>
+		</div>
+	</div>
+				<!-- 15 -->
+				<div style="" class="commentthread_comment_container" id="commentthread_PublishedFile_Public_76561199466878739_3798163198_postcontainer">
+			<div class="commentthread_comments" id="commentthread_PublishedFile_Public_76561199466878739_3798163198_posts">
+						
+	
+	<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;,&quot;type&quot;:&quot;PanelGroup&quot;}" class="commentthread_comment responsive_body_text   " id="comment_617711086156758912" style="">
+
+		<div class="commentthread_comment_content">
+			<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;}" class="commentthread_comment_author">
+								<div class="commentthread_comment_avatar playerAvatar online">
+												<div class="profile_avatar_frame">
+					<picture>
+						<source media="(prefers-reduced-motion: reduce)" srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/1446780/25904030dee21f2d3de17c45cf3dff1c3a536420.png"></source>
+						<source srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/1446780/14c30f1ac5f81171954b7c43fe82cb47e3711080.png"></source>
+						<img src="https://shared.akamai.steamstatic.com/community_assets/images/items/1446780/14c30f1ac5f81171954b7c43fe82cb47e3711080.png">
+					</picture>
+				</div>
+										<a href="https://steamcommunity.com/id/Layinn" data-miniprofile="1506613011">
+													<img src="https://avatars.akamai.steamstatic.com/ffa7f7e0b839e362d718b741319ce7052448ae06.jpg" srcset="https://avatars.akamai.steamstatic.com/ffa7f7e0b839e362d718b741319ce7052448ae06.jpg 1x, https://avatars.akamai.steamstatic.com/ffa7f7e0b839e362d718b741319ce7052448ae06_medium.jpg 2x">											</a>
+				</div>
+				<div class="author_name_group">
+					<div class="flex_row">
+						<a class="hoverunderline commentthread_author_link" href="https://steamcommunity.com/id/Layinn"  data-miniprofile="1506613011">
+							<bdi>骄傲绽放的重要之人</bdi></a>
+
+						
+						<span class="commentthread_workshop_authorbadge">&nbsp;[author]</span>																		
+						
+					</div>
+					<div class="commentthread_comment_timestamp">
+											</div>
+					<div class="commentthread_comment_timestamp" title="13 September, 2026 @ 4:19:48 pm PDT" data-timestamp="1789341588">
+						23 hours ago&nbsp;
+					</div>
+				</div>
+
+				
+				<div class="commentthread_comment_actions" >
+														</div>
+			</div>
+			<div class="commentthread_comment_text" id="comment_content_617711086156758912">
+				这个版本的mod强度应该较平衡了！并且接入了三选一，在获取时有更多选择。感谢上个不完善版本的游玩和支持！			</div>
+			<div class="comment_footer_ctn">
+									<div></div>
+				
+				
+							</div>
+		</div>
+	</div>
+		
+	
+	<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;,&quot;type&quot;:&quot;PanelGroup&quot;}" class="commentthread_comment responsive_body_text   " id="comment_617710833111200131" style="">
+
+		<div class="commentthread_comment_content">
+			<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;}" class="commentthread_comment_author">
+								<div class="commentthread_comment_avatar playerAvatar online">
+												<div class="profile_avatar_frame">
+					<picture>
+						<source media="(prefers-reduced-motion: reduce)" srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/1446780/25904030dee21f2d3de17c45cf3dff1c3a536420.png"></source>
+						<source srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/1446780/14c30f1ac5f81171954b7c43fe82cb47e3711080.png"></source>
+						<img src="https://shared.akamai.steamstatic.com/community_assets/images/items/1446780/14c30f1ac5f81171954b7c43fe82cb47e3711080.png">
+					</picture>
+				</div>
+										<a href="https://steamcommunity.com/id/Layinn" data-miniprofile="1506613011">
+													<img src="https://avatars.akamai.steamstatic.com/ffa7f7e0b839e362d718b741319ce7052448ae06.jpg" srcset="https://avatars.akamai.steamstatic.com/ffa7f7e0b839e362d718b741319ce7052448ae06.jpg 1x, https://avatars.akamai.steamstatic.com/ffa7f7e0b839e362d718b741319ce7052448ae06_medium.jpg 2x">											</a>
+				</div>
+				<div class="author_name_group">
+					<div class="flex_row">
+						<a class="hoverunderline commentthread_author_link" href="https://steamcommunity.com/id/Layinn"  data-miniprofile="1506613011">
+							<bdi>骄傲绽放的重要之人</bdi></a>
+
+						
+						<span class="commentthread_workshop_authorbadge">&nbsp;[author]</span>																		
+						
+					</div>
+					<div class="commentthread_comment_timestamp">
+											</div>
+					<div class="commentthread_comment_timestamp" title="10 September, 2026 @ 11:23:49 am PDT" data-timestamp="1789064629">
+						10 Sep @ 11:23am&nbsp;
+					</div>
+				</div>
+
+				
+				<div class="commentthread_comment_actions" >
+														</div>
+			</div>
+			<div class="commentthread_comment_text" id="comment_content_617710833111200131">
+				收到反馈，这个版本里我没意识到遗物是始终全部生效，并且因为纠结词条少会不会没内容，然后就做出了强力效果泛滥的mod<img src="https://community.akamai.steamstatic.com/economy/emoticon/MHRISE_NG" alt=":MHRISE_NG:" class="emoticon">平静<br>我考虑接进那个遗物三选一的mod，同时人工手动给词条加强度点数，总点数根据稀有度来，还允许出现负面效果减点数，最后凑几个正词条+一个负词条，就像黑环深夜的红色品质和怪猎崛起的怪异炼化那样<img src="https://community.akamai.steamstatic.com/economy/emoticon/MHRISE_happy" alt=":MHRISE_happy:" class="emoticon">退出平静进入愤怒，获得2费，伤害翻倍<br>感谢游玩<img src="https://community.akamai.steamstatic.com/economy/emoticon/tsuki_mizuho" alt=":tsuki_mizuho:" class="emoticon">（神格）			</div>
+			<div class="comment_footer_ctn">
+									<div></div>
+				
+				
+							</div>
+		</div>
+	</div>
+		
+	
+	<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;,&quot;type&quot;:&quot;PanelGroup&quot;}" class="commentthread_comment responsive_body_text   " id="comment_617710833111180925" style="">
+
+		<div class="commentthread_comment_content">
+			<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;}" class="commentthread_comment_author">
+								<div class="commentthread_comment_avatar playerAvatar offline">
+												<div class="profile_avatar_frame">
+					<picture>
+						<source media="(prefers-reduced-motion: reduce)" srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/3099300/b969a4d1fdd2621883e74cbf05c329014d4f0b5d.png"></source>
+						<source srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/3099300/7f852f5cabe69b59ae59da69761a466eba8cdf81.png"></source>
+						<img src="https://shared.akamai.steamstatic.com/community_assets/images/items/3099300/7f852f5cabe69b59ae59da69761a466eba8cdf81.png">
+					</picture>
+				</div>
+										<a href="https://steamcommunity.com/profiles/76561198359627162" data-miniprofile="399361434">
+													<img src="https://avatars.akamai.steamstatic.com/5f73299050b3c7a020aea909943efd87b60bf6c4.jpg" srcset="https://avatars.akamai.steamstatic.com/5f73299050b3c7a020aea909943efd87b60bf6c4.jpg 1x, https://avatars.akamai.steamstatic.com/5f73299050b3c7a020aea909943efd87b60bf6c4_medium.jpg 2x">											</a>
+				</div>
+				<div class="author_name_group">
+					<div class="flex_row">
+						<a class="hoverunderline commentthread_author_link" href="https://steamcommunity.com/profiles/76561198359627162"  data-miniprofile="399361434">
+							<bdi>蓝</bdi></a>
+
+						
+																								
+						
+					</div>
+					<div class="commentthread_comment_timestamp">
+											</div>
+					<div class="commentthread_comment_timestamp" title="10 September, 2026 @ 6:53:33 am PDT" data-timestamp="1789048413">
+						10 Sep @ 6:53am&nbsp;
+					</div>
+				</div>
+
+				
+				<div class="commentthread_comment_actions" >
+														</div>
+			</div>
+			<div class="commentthread_comment_text" id="comment_content_617710833111180925">
+				由于遗物是全局效果，导致只要第一个精英过了/磨到了宝箱，后面就是瓦库来了也能赢。<br>战斗开始牌都没抽完三骑士就被遗物崩死了。<img src="https://community.akamai.steamstatic.com/economy/emoticon/steamhappy" alt=":steamhappy:" class="emoticon">			</div>
+			<div class="comment_footer_ctn">
+									<div></div>
+				
+				
+							</div>
+		</div>
+	</div>
+		
+	
+	<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;,&quot;type&quot;:&quot;PanelGroup&quot;}" class="commentthread_comment responsive_body_text   " id="comment_617710833111173885" style="">
+
+		<div class="commentthread_comment_content">
+			<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;}" class="commentthread_comment_author">
+								<div class="commentthread_comment_avatar playerAvatar offline">
+															<a href="https://steamcommunity.com/profiles/76561199244612216" data-miniprofile="1284346488">
+													<img src="https://avatars.akamai.steamstatic.com/87e1228135557274b71051ced61686aab93e68a3.jpg" srcset="https://avatars.akamai.steamstatic.com/87e1228135557274b71051ced61686aab93e68a3.jpg 1x, https://avatars.akamai.steamstatic.com/87e1228135557274b71051ced61686aab93e68a3_medium.jpg 2x">											</a>
+				</div>
+				<div class="author_name_group">
+					<div class="flex_row">
+						<a class="hoverunderline commentthread_author_link" href="https://steamcommunity.com/profiles/76561199244612216"  data-miniprofile="1284346488">
+							<bdi>疑惑君</bdi></a>
+
+						
+																								
+						
+					</div>
+					<div class="commentthread_comment_timestamp">
+											</div>
+					<div class="commentthread_comment_timestamp" title="10 September, 2026 @ 5:17:16 am PDT" data-timestamp="1789042636">
+						10 Sep @ 5:17am&nbsp;
+					</div>
+				</div>
+
+				
+				<div class="commentthread_comment_actions" >
+														</div>
+			</div>
+			<div class="commentthread_comment_text" id="comment_content_617710833111173885">
+				可以再多优化一下，目前效果太过单调并且强度极高，几乎一半的遗物都含有回合加费的逆天效果，玩起来没啥意思，加油！			</div>
+			<div class="comment_footer_ctn">
+									<div></div>
+				
+				
+							</div>
+		</div>
+	</div>
+		
+	
+	<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;,&quot;type&quot;:&quot;PanelGroup&quot;}" class="commentthread_comment responsive_body_text   " id="comment_617710833111146455" style="">
+
+		<div class="commentthread_comment_content">
+			<div data-panel="{&quot;flow-children&quot;:&quot;row&quot;}" class="commentthread_comment_author">
+								<div class="commentthread_comment_avatar playerAvatar offline">
+												<div class="profile_avatar_frame">
+					<picture>
+						<source media="(prefers-reduced-motion: reduce)" srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/3186040/a7a524553a1a0ba740098c416baee61e869a8f4b.png"></source>
+						<source srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/3186040/4b90253a66218759cd3b052386899c9ba9a74b9a.png"></source>
+						<img src="https://shared.akamai.steamstatic.com/community_assets/images/items/3186040/4b90253a66218759cd3b052386899c9ba9a74b9a.png">
+					</picture>
+				</div>
+										<a href="https://steamcommunity.com/profiles/76561199473216841" data-miniprofile="1512951113">
+																<picture>
+				<source media="(prefers-reduced-motion: reduce)" srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/3186040/1125ec083142a559500e04e927c724438fdc2c0b.jpg"></source>
+				<img srcset="https://shared.akamai.steamstatic.com/community_assets/images/items/3186040/d6fbae08b00702ec8623aca8e805e7ffa1be92ef.gif" >
+			</picture>
+													</a>
+				</div>
+				<div class="author_name_group">
+					<div class="flex_row">
+						<a class="hoverunderline commentthread_author_link" href="https://steamcommunity.com/profiles/76561199473216841"  data-miniprofile="1512951113">
+							<bdi>向山</bdi></a>
+
+						
+																								
+						
+					</div>
+					<div class="commentthread_comment_timestamp">
+											</div>
+					<div class="commentthread_comment_timestamp" title="9 September, 2026 @ 8:28:49 pm PDT" data-timestamp="1789010929">
+						9 Sep @ 8:28pm&nbsp;
+					</div>
+				</div>
+
+				
+				<div class="commentthread_comment_actions" >
+														</div>
+			</div>
+			<div class="commentthread_comment_text" id="comment_content_617710833111146455">
+				强度过高了感觉			</div>
+			<div class="comment_footer_ctn">
+									<div></div>
+				
+				
+							</div>
+		</div>
+	</div>
+
+			</div>
+		</div>
+		<div class="commentthread_footer" id="commentthread_PublishedFile_Public_76561199466878739_3798163198_fpagecontrols">
+			<div class="commentthread_paging" id="commentthread_PublishedFile_Public_76561199466878739_3798163198_fpagecontrols">
+				<a id="commentthread_PublishedFile_Public_76561199466878739_3798163198_fpagebtn_prev" href="javascript:void(0);" class="pagebtn">&lt;</a>
+				<span id="commentthread_PublishedFile_Public_76561199466878739_3798163198_fpagelinks" class="commentthread_pagelinks"></span>
+				<span id="commentthread_PublishedFile_Public_76561199466878739_3798163198_fpagedropdown" class="commentthread_pagedropdown"></span>
+				<a id="commentthread_PublishedFile_Public_76561199466878739_3798163198_fpagebtn_next" href="javascript:void(0);" class="pagebtn">&gt;</a>
+			</div>
+			<div style="clear: both;"></div>
+		</div>
+	</div></div> 		</div>
+	</div>
+
+	</div>
+
+</div>
+
+<div id="previewImageEnlarged" class="modal_frame_image" style="display:none;">
+	<div class="modal_box_preview_image">
+		<div class="modal_close_image"><a onclick="hideModal( 'previewImageEnlarged' );"><img src="https://community.akamai.steamstatic.com/public/images/x9x9.gif" width="9" height="9" border="0" alt="Close" /></a></div>
+		<div><img id="enlargedImage" src="https://community.akamai.steamstatic.com/public/images/trans.gif"></div>
+	</div>
+</div>
+
+<div id="ShareOnSteamDialog" style="display: none">
+	<div id="ShareOnSteamDialogContents"></div>
+</div>
+
+<div id="SharePopup" style="display: none">
+	<div class="share_ctn">
+		<a class="share_controls_steam" onclick="ShareOnSteam();">
+			<span>Share to your Steam activity feed</span>
+		</a>
+		<div class="share_controls_other">
+			<div class="shareItemLink"><a class="btn_grey_black btn_medium" id="SharePopupLink_Facebook" href="" title="Share on Facebook"><span><img src="https://community.akamai.steamstatic.com/public/images//social/facebook_large.png"></span></a></div>
+			<div class="shareItemLink"><a class="btn_grey_black btn_medium" id="SharePopupLink_Twitter" href="" title="Share on Twitter"><span><img src="https://community.akamai.steamstatic.com/public/images//social/twitter_large.png"></span></a></div>
+			<div class="shareItemLink"><a class="btn_grey_black btn_medium" id="SharePopupLink_Reddit" href="" title="Share on Reddit"><span><img src="https://community.akamai.steamstatic.com/public/images//social/reddit_large.png"></span></a></div>
+		</div>
+		<div style="clear: left"></div>
+	</div>
+	<div class="share_controls_divider"></div>
+	<div class="share_controls_page_link">
+		<form onsubmit="return false;">
+			Link:&nbsp;<input type="input" id="SharePopupInput" value="" readonly="readonly" >
+		</form>
+	</div>
+</div>	<div id="NotLoggedInWarning" class="modal_frame" style="display: none">
+		<div class="modal_box">
+			<div class="modal_box_ctn">
+				<div class="notLoggedInText">You need to sign in or create an account to do that.</div>
+				<div class="notLoggedInButtons">
+					<a class="btn_green_white_innerfade btn_medium" href="https://steamcommunity.com/login/home/?goto=sharedfiles%2Ffiledetails%2F%3Fid%3D3798163198%26insideModal%3D0%26requirelogin%3D1"><span>Sign In</span></a>
+					<a class="btn_green_white_innerfade btn_medium" href="https://store.steampowered.com/join"><span>Create an Account</span></a>
+					<a class="btn_grey_black btn_medium" onclick="hideModal( 'NotLoggedInWarning' )"><span>Cancel</span></a>
+					<div style="clear: left"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+		<div id="updateKVTagsFormModal" class="modal_frame_tags" style="display:none;">
+		<div class="modal_top_band">
+			<div class="modal_close"><a onclick="hideModal( 'updateKVTagsFormModal' )"><img src="https://community.akamai.steamstatic.com/public/images/x9x9.gif" width="9" height="9" border="0" alt="Close" /></a></div>
+		</div>
+		<div class="modal_box">
+			<div class="updateKVTagsForm" id="updateKVTagsForm">
+				<script>
+					function UpdateKVTags()
+					{
+						$('KVTagsUpdateForm').submit();
+					}
+				</script>
+				<h2>Edit links</h2>
+				<form class="smallForm" method="POST" name="KVTagsUpdateForm" id="KVTagsUpdateForm" action="https://steamcommunity.com/workshop/updatekvtags/" >
+					<input type="hidden" name="id" value="3798163198" />
+					<input type="hidden" name="sessionid" value="5786ecd58f80a1ae974cfe65" />
+													<div class="box">
+									<div class="itemBulletArrow"></div>
+									<div class="title">On Facebook</div>
+									<p class="description">Enter the full URL of your item or group's Facebook page</p>
+									<input type="text" class="titleField" name="facebook" value="">
+								</div>
+															<div class="box">
+									<div class="itemBulletArrow"></div>
+									<div class="title">On Twitter</div>
+									<p class="description">Enter the full URL of your item or group's Twitter page</p>
+									<input type="text" class="titleField" name="twitter" value="">
+								</div>
+															<div class="box">
+									<div class="itemBulletArrow"></div>
+									<div class="title">On Youtube</div>
+									<p class="description">If you have a related Youtube channel, enter the URL.</p>
+									<input type="text" class="titleField" name="youtube" value="">
+								</div>
+															<div class="box">
+									<div class="itemBulletArrow"></div>
+									<div class="title">On Polycount</div>
+									<p class="description">Enter the full URL of your item or group's Polycount page</p>
+									<input type="text" class="titleField" name="polycount" value="">
+								</div>
+															<div class="box">
+									<div class="itemBulletArrow"></div>
+									<div class="title">On Reddit</div>
+									<p class="description">Enter the full URL of your item or group's reddit page</p>
+									<input type="text" class="titleField" name="reddit" value="">
+								</div>
+															<div class="box">
+									<div class="itemBulletArrow"></div>
+									<div class="title">On Sketchfab</div>
+									<p class="description">Enter the full URL to your item or group's Sketchfab page</p>
+									<input type="text" class="titleField" name="sketchfab" value="">
+								</div>
+												<a class="btn_green_white_innerfade btn_medium button" href="javascript:UpdateKVTags();"><span>Update</span></a>
+
+					<div style="clear:both"></div>
+				</form>
+			</div>
+		</div>
+	</div>
+
+<div id="PromptModal" class="modal_frame_tags" style="display:none;">
+	<div class="modal_top_band">
+		<div class="modal_close"><a onclick="hideModal( 'PromptModal' )"><img src="https://community.akamai.steamstatic.com/public/images/x9x9.gif" width="9" height="9" border="0" alt="Close" /></a></div>
+	</div>
+	<div class="modal_box">
+		<div class="updateKVTagsForm" id="PromptModalFormDiv">
+			<script>
+				function UpdateKVTagsSingle()
+				{
+					$('PromptModalForm').submit();
+				}
+			</script>
+			<form class="smallForm" method="POST" name="KVTagsUpdateFormSingle" id="PromptModalForm" action="https://steamcommunity.com/workshop/updatekvtags/" >
+				<input type="hidden" name="id" value="3798163198" />
+				<input type="hidden" name="sessionid" value="5786ecd58f80a1ae974cfe65" />
+
+				<div class="box">
+					<div class="itemBulletArrow"></div>
+					<div class="title" id="PromptTitle"></div>
+					<p class="description" id="PromptDescription"></p>
+					<input type="text" class="titleField" name="value" id="PromptValue">
+				</div>
+
+
+				<a class="btn_green_white_innerfade btn_medium button" href="javascript:UpdateKVTagsSingle();"><span>Update</span></a>
+
+				<div style="clear:both"></div>
+			</form>
+		</div>
+	</div>
+</div>
+		</div>	<!-- responsive_page_legacy_content -->
+
+				<script>
+			RecordAppImpression( 2868840, '2_100100_100101_100103' );
+		</script>
+		<div  data-featuretarget="footer"></div>
+	</div>	<!-- responsive_page_content -->
+
+</div>	<!-- responsive_page_frame -->
+</body>
+</html>
