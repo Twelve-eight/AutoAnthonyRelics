@@ -43,16 +43,18 @@ internal static class ChaosTemplates
     /// bounds overlay applied. Inside a run the bounds were frozen at seed
     /// capture (astra-advice 2026-09-12 item 5): mid-run preference edits must
     /// not change template bands, or already-held relics change meaning.
+    /// QCR-1: with a frozen snapshot the effective spec is served from the
+    /// snapshot's precomputed immutable map (identity-preserving overlay built
+    /// once at capture) - no per-call record allocation, no live-config read.
+    /// LIFECYCLE: producer/owner/invalidation = QuriousGenerationSnapshot
+    /// (see its class comment); this class is only a consumer.
     /// </summary>
     internal static ChaosRelicCatalog.TemplateSpec Effective(string template)
     {
         var spec = Spec(template);
-        var frozen = ChaosRelicRunRegistry.CurrentSnapshot?.BoundsFor(template);
-        if (frozen is { } bounds)
+        if (ChaosRelicRunRegistry.CurrentSnapshot?.EffectiveSpecFor(template) is { } frozen)
         {
-            return (bounds.Min == spec.Min && bounds.Max == spec.Max)
-                ? spec
-                : spec with { Min = bounds.Min, Max = bounds.Max };
+            return frozen;
         }
         return QuriousCraftingRelicsConfig.ApplyUserBounds(spec);
     }
@@ -83,16 +85,32 @@ internal static class ChaosTemplates
     /// enabled, stance templates only while the Watcher mod is loaded.
     /// Deterministically ordered (core order first, then extra order) because
     /// the generator indexes this list with the seeded RNG.
+    /// QCR-1: with a frozen snapshot this returns the snapshot's prebuilt
+    /// sampling-order list - no Concat/Where/ToList per access and no Watcher
+    /// assembly probe. Without a snapshot (menus/previews, before any run) the
+    /// live list is rebuilt from live config on each access, so preview inputs
+    /// stay separately invalidated. Content is identical to the pre-QCR-1
+    /// construction for the same state.
     /// </summary>
     internal static IReadOnlyList<string> PositiveTemplates =>
+        ChaosRelicRunRegistry.CurrentSnapshot?.ActivePositiveTemplates ?? BuildLivePositiveTemplates();
+
+    private static IReadOnlyList<string> BuildLivePositiveTemplates() =>
         (ExtraPoolActive
             ? ChaosRelicCatalog.PositiveTemplates.Concat(ChaosRelicExtraCatalog.PositiveTemplates)
             : ChaosRelicCatalog.PositiveTemplates)
         .Where(t => !ChaosRelicExtraCatalog.WatcherTemplates.Contains(t) || WatcherModLoaded)
         .ToList();
 
-    /// <summary>Active negative pool: core always, extra only while enabled.</summary>
+    /// <summary>
+    /// Active negative pool: core always, extra only while enabled (no Watcher
+    /// filter - matches the historical contract). Frozen sampling-order list
+    /// while a run snapshot exists; live rebuild otherwise.
+    /// </summary>
     internal static IReadOnlyList<string> NegativeTemplates =>
+        ChaosRelicRunRegistry.CurrentSnapshot?.ActiveNegativeTemplates ?? BuildLiveNegativeTemplates();
+
+    private static IReadOnlyList<string> BuildLiveNegativeTemplates() =>
         ExtraPoolActive
             ? ChaosRelicCatalog.NegativeTemplates.Concat(ChaosRelicExtraCatalog.NegativeTemplates).ToList()
             : ChaosRelicCatalog.NegativeTemplates;

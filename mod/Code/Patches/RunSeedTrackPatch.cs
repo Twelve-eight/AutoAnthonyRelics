@@ -127,7 +127,10 @@ internal static class RunSeedEarlyTrackPatch
         Chaos.ChaosRelicRunRegistry.LastRunSeed = seed;
         if (!sameRun)
         {
-            Chaos.ChaosRelicRunRegistry.CurrentSnapshot = Chaos.QuriousGenerationSnapshot.Capture();
+            // QCR-1: the seed is stamped into the snapshot so the frozen
+            // context can precompose the canonical cache key. CaptureSeed sets
+            // CurrentRunSeed above and is the only freeze producer.
+            Chaos.ChaosRelicRunRegistry.CurrentSnapshot = Chaos.QuriousGenerationSnapshot.Capture(seed);
         }
         ChaosRelicLocUpdater.OnSeedCaptured(seed);
         MainFile.Logger.Info($"[QuriousCraftingRelics] run seed captured: {seed} (generation config frozen{(sameRun ? ", snapshot kept" : "")})");

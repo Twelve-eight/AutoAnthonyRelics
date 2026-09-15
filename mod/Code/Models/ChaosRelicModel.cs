@@ -117,6 +117,10 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// (vanilla Akabeko pattern, user request 2026-09-13): players should not
     /// have to guess what Vigor/Thorns/Artifact do from the entry text alone.
     /// Only powers the definition actually carries get a tip.
+    /// QCR-1: the closed FromPower MethodInfo per power type is immutable
+    /// tooltip-FACTORY metadata, resolved once (see PowerTipFactories); the
+    /// IHoverTip INSTANCE is still produced per hover and is never cached -
+    /// tooltip objects are consumer-facing mutable state.
     /// </summary>
     protected override IEnumerable<IHoverTip> ExtraHoverTips
     {
@@ -127,13 +131,11 @@ public abstract class ChaosRelicModel : CustomRelicModel
             {
                 yield break;
             }
-            foreach (var (template, powerType) in PowerTipMap)
+            foreach (var (template, fromPower) in PowerTipFactories)
             {
                 if (definition.Sum(template) > 0)
                 {
-                    var tip = s_fromPowerGeneric.Value
-                        .MakeGenericMethod(powerType)
-                        .Invoke(null, new object?[] { null }) as IHoverTip;
+                    var tip = fromPower.Invoke(null, new object?[] { null }) as IHoverTip;
                     if (tip is not null)
                     {
                         yield return tip;
@@ -163,6 +165,28 @@ public abstract class ChaosRelicModel : CustomRelicModel
         (ChaosRelicCatalog.StartVulnAll, typeof(VulnerablePower)),
         (ChaosRelicCatalog.StartWeakAll, typeof(WeakPower)),
     };
+
+    /// <summary>
+    /// Closed FromPower&lt;T&gt; method per mapped power type: immutable
+    /// tooltip-factory metadata, built ONCE (QCR-1; the previous code ran
+    /// MakeGenericMethod on every hovered power on every hover).
+    /// LIFECYCLE: producer = static initializer (below, after PowerTipMap);
+    /// owner = ChaosRelicModel static state; first consumer = ExtraHoverTips;
+    /// invalidation = never - it depends only on static types. The IHoverTip
+    /// instances and any DynamicVars stay per-call (never cached here).
+    /// </summary>
+    private static readonly (string Template, MethodInfo FromPower)[] PowerTipFactories = BuildPowerTipFactories();
+
+    private static (string, MethodInfo)[] BuildPowerTipFactories()
+    {
+        var open = s_fromPowerGeneric.Value;
+        var factories = new (string, MethodInfo)[PowerTipMap.Length];
+        for (int i = 0; i < PowerTipMap.Length; i++)
+        {
+            factories[i] = (PowerTipMap[i].Template, open.MakeGenericMethod(PowerTipMap[i].PowerType));
+        }
+        return factories;
+    }
 
     // ---------- Counter (entry count) ----------
 
@@ -196,8 +220,22 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// allocating: the previous `definition.All(template)` built a fresh array
     /// on every hook call, and ModifyDamageAdditive runs for every damage
     /// instance including card-hover previews.
+    /// Single-read operations only - multi-read hooks must resolve Definition
+    /// once and go through <see cref="SumOf"/> instead (QCR-1).
     /// </summary>
     private int AmountOf(string template) => Definition?.Sum(template) ?? 0;
+
+    /// <summary>
+    /// Total amount of one template on an ALREADY RESOLVED definition (QCR-1):
+    /// hooks that read several amounts resolve <see cref="Definition"/> once
+    /// per consumer operation and pass that instance here, so every read
+    /// within the operation sees the SAME definition instance even if the
+    /// registry's bounded cache evicts mid-operation, and DefinitionFor's
+    /// lookup runs once per operation instead of once per read. The definition
+    /// itself is immutable and shared; nothing mutable is cached here.
+    /// </summary>
+    private static int SumOf(ChaosRelicDefinition? definition, string template) =>
+        definition?.Sum(template) ?? 0;
 
     /// <summary>Combat-start one-shots that must NOT be granted from BeforeCombatStart.</summary>
     private int _startEnergyPending;
@@ -279,7 +317,9 @@ public abstract class ChaosRelicModel : CustomRelicModel
         }
         var context = new ThrowingPlayerChoiceContext();
 
-        int damageAll = AmountOf(ChaosRelicCatalog.StartDamageAll);
+        // One DefinitionFor resolution per operation (QCR-1): every amount
+        // below reads THIS instance, not a fresh registry lookup.
+        int damageAll = SumOf(definition, ChaosRelicCatalog.StartDamageAll);
         if (damageAll > 0)
         {
             Flash();
@@ -287,52 +327,52 @@ public abstract class ChaosRelicModel : CustomRelicModel
                 owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>(),
                 damageAll, ValueProp.Unpowered, owner.Creature, null, null);
         }
-        int block = AmountOf(ChaosRelicCatalog.StartBlock);
+        int block = SumOf(definition, ChaosRelicCatalog.StartBlock);
         if (block > 0)
         {
             Flash();
             await CreatureCmd.GainBlock(owner.Creature, block, ValueProp.Unpowered, null);
         }
-        int strength = AmountOf(ChaosRelicCatalog.StartStrength);
+        int strength = SumOf(definition, ChaosRelicCatalog.StartStrength);
         if (strength > 0)
         {
             Flash();
             await PowerCmd.Apply<StrengthPower>(context, owner.Creature, strength, owner.Creature, null);
         }
-        int dexterity = AmountOf(ChaosRelicCatalog.StartDexterity);
+        int dexterity = SumOf(definition, ChaosRelicCatalog.StartDexterity);
         if (dexterity > 0)
         {
             Flash();
             await PowerCmd.Apply<DexterityPower>(context, owner.Creature, dexterity, owner.Creature, null);
         }
-        AccumulateEnemyDebuff<VulnerablePower>(AmountOf(ChaosRelicCatalog.StartVulnAll));
-        AccumulateEnemyDebuff<WeakPower>(AmountOf(ChaosRelicCatalog.StartWeakAll));
-        int regen = AmountOf(ChaosRelicCatalog.StartRegen);
+        AccumulateEnemyDebuff<VulnerablePower>(SumOf(definition, ChaosRelicCatalog.StartVulnAll));
+        AccumulateEnemyDebuff<WeakPower>(SumOf(definition, ChaosRelicCatalog.StartWeakAll));
+        int regen = SumOf(definition, ChaosRelicCatalog.StartRegen);
         if (regen > 0)
         {
             Flash();
             await PowerCmd.Apply<RegenPower>(context, owner.Creature, regen, owner.Creature, null);
         }
-        int thorns = AmountOf(ChaosRelicCatalog.StartThorns);
+        int thorns = SumOf(definition, ChaosRelicCatalog.StartThorns);
         if (thorns > 0)
         {
             Flash();
             await PowerCmd.Apply<ThornsPower>(context, owner.Creature, thorns, owner.Creature, null);
         }
-        int artifact = AmountOf(ChaosRelicCatalog.StartArtifact);
+        int artifact = SumOf(definition, ChaosRelicCatalog.StartArtifact);
         if (artifact > 0)
         {
             Flash();
             await PowerCmd.Apply<ArtifactPower>(context, owner.Creature, artifact, owner.Creature, null);
         }
-        AccumulateEnemyDebuff<PoisonPower>(AmountOf(ChaosRelicCatalog.StartPoisonAll));
-        int plating = AmountOf(ChaosRelicCatalog.StartPlating);
+        AccumulateEnemyDebuff<PoisonPower>(SumOf(definition, ChaosRelicCatalog.StartPoisonAll));
+        int plating = SumOf(definition, ChaosRelicCatalog.StartPlating);
         if (plating > 0)
         {
             Flash();
             await PowerCmd.Apply<PlatingPower>(context, owner.Creature, plating, owner.Creature, null);
         }
-        int frail = AmountOf(ChaosRelicCatalog.NegStartFrail);
+        int frail = SumOf(definition, ChaosRelicCatalog.NegStartFrail);
         if (frail > 0)
         {
             Flash();
@@ -342,7 +382,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         // Combat-start energy is DEFERRED to AfterSideTurnStart: ResetEnergy
         // runs in SetupPlayerTurn, between this hook and the player's turn
         // start, and would discard anything granted here.
-        _startEnergyPending = AmountOf(ChaosRelicCatalog.StartEnergy);
+        _startEnergyPending = SumOf(definition, ChaosRelicCatalog.StartEnergy);
     }
 
     // ---------- Sloth (VelvetChoker-style card cap; user order 2026-09-11) ----------
@@ -481,28 +521,28 @@ public abstract class ChaosRelicModel : CustomRelicModel
             // and every enchant loop iterated zero cards.
             if (ExtraPoolActive && turn <= 1)
             {
-                await RunExtraCombatStartEnchants(choiceContext, player);
+                await RunExtraCombatStartEnchants(choiceContext, player, definition);
             }
 
-            int energy = AmountOf(ChaosRelicCatalog.TurnStartEnergy);
+            int energy = SumOf(definition, ChaosRelicCatalog.TurnStartEnergy);
             if (energy > 0)
             {
                 Flash();
                 await PlayerCmd.GainEnergy(energy, player);
             }
-            int heal = AmountOf(ChaosRelicCatalog.TurnStartHeal);
+            int heal = SumOf(definition, ChaosRelicCatalog.TurnStartHeal);
             if (heal > 0)
             {
                 Flash();
                 await CreatureCmd.Heal(player.Creature, heal);
             }
-            int draw = AmountOf(ChaosRelicCatalog.TurnStartDraw);
+            int draw = SumOf(definition, ChaosRelicCatalog.TurnStartDraw);
             if (draw > 0)
             {
                 Flash();
                 await CardPileCmd.Draw(choiceContext, draw, player);
             }
-            int loseHp = AmountOf(ChaosRelicCatalog.NegTurnLoseHp);
+            int loseHp = SumOf(definition, ChaosRelicCatalog.NegTurnLoseHp);
             if (loseHp > 0)
             {
                 Flash();
@@ -518,7 +558,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
             // Extra pool: per-turn hand keywords + stance entry (opt-in pool).
             if (ExtraPoolActive)
             {
-                await RunExtraTurnStart(choiceContext, player);
+                await RunExtraTurnStart(choiceContext, player, definition);
             }
         }
         catch (Exception e)
@@ -572,7 +612,9 @@ public abstract class ChaosRelicModel : CustomRelicModel
             InvokeDisplayAmountChanged();
         }
 
-        int damage = AmountOf(ChaosRelicCatalog.PlayDamageRandom);
+        // One DefinitionFor resolution per operation (QCR-1).
+        var definition = Definition;
+        int damage = SumOf(definition, ChaosRelicCatalog.PlayDamageRandom);
         if (damage > 0)
         {
             var enemies = owner.Creature.CombatState?.HittableEnemies ?? Array.Empty<Creature>();
@@ -583,7 +625,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
                 await CreatureCmd.Damage(choiceContext, target, damage, ValueProp.Unpowered, owner.Creature, null, null);
             }
         }
-        int block = AmountOf(ChaosRelicCatalog.PlayBlock);
+        int block = SumOf(definition, ChaosRelicCatalog.PlayBlock);
         if (block > 0)
         {
             Flash();
@@ -618,8 +660,11 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return 0m;
         }
-        int bonus = AmountOf(ChaosRelicCatalog.PassiveAttackDamage);
-        int malus = AmountOf(ChaosRelicCatalog.NegAttackDamageDown);
+        // One DefinitionFor resolution per operation (QCR-1): this hook runs
+        // for every damage instance including card-hover previews.
+        var definition = Definition;
+        int bonus = SumOf(definition, ChaosRelicCatalog.PassiveAttackDamage);
+        int malus = SumOf(definition, ChaosRelicCatalog.NegAttackDamageDown);
         int retainBonus = ExtraPoolActive ? _retainAttackBuff : 0;
         return bonus - malus + retainBonus;
     }
@@ -649,9 +694,11 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return amount;
         }
+        // One DefinitionFor resolution per operation (QCR-1).
+        var definition = Definition;
         return Math.Max(0m, amount
-            + AmountOf(ChaosRelicCatalog.PassiveMaxEnergy)
-            - AmountOf(ChaosRelicCatalog.NegTurnEnergyDown));
+            + SumOf(definition, ChaosRelicCatalog.PassiveMaxEnergy)
+            - SumOf(definition, ChaosRelicCatalog.NegTurnEnergyDown));
     }
 
     /// <summary>
@@ -664,13 +711,16 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return count;
         }
+        // One DefinitionFor resolution per operation (QCR-1): the draw-down
+        // negative applies even outside the turn-1 branch, so resolve once.
+        var definition = Definition;
         decimal result = count;
         if (player.PlayerCombatState?.TurnNumber <= 1)
         {
-            result += AmountOf(ChaosRelicCatalog.StartDraw);
+            result += SumOf(definition, ChaosRelicCatalog.StartDraw);
         }
         // Floor 1: a 0-card hand would brick the run; NoDraw semantics.
-        return Math.Max(1m, result - AmountOf(ChaosRelicCatalog.NegTurnDrawDown));
+        return Math.Max(1m, result - SumOf(definition, ChaosRelicCatalog.NegTurnDrawDown));
     }
 
     public override decimal ModifyGoldGained(Player player, decimal amount)
@@ -680,9 +730,11 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return amount;
         }
+        // One DefinitionFor resolution per operation (QCR-1).
+        var definition = Definition;
         return amount
-            + AmountOf(ChaosRelicCatalog.PassiveGoldGain)
-            - AmountOf(ChaosRelicCatalog.NegGoldDown);
+            + SumOf(definition, ChaosRelicCatalog.PassiveGoldGain)
+            - SumOf(definition, ChaosRelicCatalog.NegGoldDown);
     }
 
     public override decimal ModifyRestSiteHealAmount(Creature creature, decimal amount)
@@ -692,9 +744,11 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return amount;
         }
+        // One DefinitionFor resolution per operation (QCR-1).
+        var definition = Definition;
         return amount
-            + AmountOf(ChaosRelicCatalog.RestHealBonus)
-            - AmountOf(ChaosRelicCatalog.NegRestHealDown);
+            + SumOf(definition, ChaosRelicCatalog.RestHealBonus)
+            - SumOf(definition, ChaosRelicCatalog.NegRestHealDown);
     }
 
     public override bool ShouldProcurePotion(PotionModel potion, Player player)
@@ -728,26 +782,29 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return;
         }
+        // One DefinitionFor resolution per operation (QCR-1): every one-shot
+        // below reads THIS instance.
+        var definition = Definition;
         // Pickup enchants (extra pool, form B, user order 2026-09-13): one
         // random eligible DECK card per entry, at {N} levels, same-type
         // stacking via EnchantWithStacking.
-        int pickupSharp = AmountOf(ChaosRelicExtraCatalog.PickupEnchantSharp);
+        int pickupSharp = SumOf(definition, ChaosRelicExtraCatalog.PickupEnchantSharp);
         if (pickupSharp > 0)
         {
             await ApplyPickupEnchant<Sharp>(owner, pickupSharp);
         }
-        int pickupNimble = AmountOf(ChaosRelicExtraCatalog.PickupEnchantNimble);
+        int pickupNimble = SumOf(definition, ChaosRelicExtraCatalog.PickupEnchantNimble);
         if (pickupNimble > 0)
         {
             await ApplyPickupEnchant<Nimble>(owner, pickupNimble);
         }
-        int pickupImbued = AmountOf(ChaosRelicExtraCatalog.PickupEnchantImbued);
+        int pickupImbued = SumOf(definition, ChaosRelicExtraCatalog.PickupEnchantImbued);
         if (pickupImbued > 0)
         {
             await ApplyPickupEnchant<Imbued>(owner, pickupImbued);
         }
 
-        int maxHpDown = AmountOf(ChaosRelicCatalog.NegMaxHpDown);
+        int maxHpDown = SumOf(definition, ChaosRelicCatalog.NegMaxHpDown);
         if (maxHpDown > 0)
         {
             Flash();
@@ -765,13 +822,15 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return;
         }
-        int heal = AmountOf(ChaosRelicCatalog.VictoryHeal);
+        // One DefinitionFor resolution per operation (QCR-1).
+        var definition = Definition;
+        int heal = SumOf(definition, ChaosRelicCatalog.VictoryHeal);
         if (heal > 0)
         {
             Flash();
             await CreatureCmd.Heal(owner.Creature, heal);
         }
-        int gold = AmountOf(ChaosRelicCatalog.VictoryGold);
+        int gold = SumOf(definition, ChaosRelicCatalog.VictoryGold);
         if (gold > 0)
         {
             Flash();
@@ -860,20 +919,23 @@ public abstract class ChaosRelicModel : CustomRelicModel
     /// enchantment's own CanEnchant before CardCmd.Enchant - which THROWS
     /// InvalidOperationException on an ineligible card (Nimble requires
     /// GainsBlock, Imbued requires a Skill) rather than returning null.
+    /// <paramref name="definition"/> is the caller's one-per-operation
+    /// resolution (QCR-1).
     /// </summary>
-    private async Task RunExtraCombatStartEnchants(PlayerChoiceContext context, Player owner)
+    private async Task RunExtraCombatStartEnchants(PlayerChoiceContext context, Player owner,
+        ChaosRelicDefinition? definition)
     {
-        int sharp = AmountOf(ChaosRelicExtraCatalog.EnchantSharp);
+        int sharp = SumOf(definition, ChaosRelicExtraCatalog.EnchantSharp);
         if (sharp > 0)
         {
             await ApplyEnchant<Sharp>(context, owner, sharp);
         }
-        int nimble = AmountOf(ChaosRelicExtraCatalog.EnchantNimble);
+        int nimble = SumOf(definition, ChaosRelicExtraCatalog.EnchantNimble);
         if (nimble > 0)
         {
             await ApplyEnchant<Nimble>(context, owner, nimble);
         }
-        int imbued = AmountOf(ChaosRelicExtraCatalog.EnchantImbued);
+        int imbued = SumOf(definition, ChaosRelicExtraCatalog.EnchantImbued);
         if (imbued > 0)
         {
             await ApplyEnchant<Imbued>(context, owner, imbued);
@@ -964,13 +1026,16 @@ public abstract class ChaosRelicModel : CustomRelicModel
         await Task.CompletedTask;
     }
 
-    /// <summary>Per-turn: hand keywords + stance entry (re-applied each turn).</summary>
-    private async Task RunExtraTurnStart(PlayerChoiceContext context, Player player)
+    /// <summary>Per-turn: hand keywords + stance entry (re-applied each turn).
+    /// <paramref name="definition"/> is the caller's one-per-operation
+    /// resolution (QCR-1).</summary>
+    private async Task RunExtraTurnStart(PlayerChoiceContext context, Player player,
+        ChaosRelicDefinition? definition)
     {
         // Hand-keyword effects are PLAYER-CHOSEN (user report 2026-09-13: the
         // old TakeEligible auto-picked the first N hand cards). The engine's
         // CardSelectCmd.FromHand provides the native selection UI (MP-synced).
-        int retain = AmountOf(ChaosRelicExtraCatalog.HandRetain);
+        int retain = SumOf(definition, ChaosRelicExtraCatalog.HandRetain);
         if (retain > 0)
         {
             Flash();
@@ -978,7 +1043,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
                 static _ => true,
                 static card => card.GiveSingleTurnRetain());
         }
-        int sly = AmountOf(ChaosRelicExtraCatalog.HandSly);
+        int sly = SumOf(definition, ChaosRelicExtraCatalog.HandSly);
         if (sly > 0)
         {
             Flash();
@@ -986,7 +1051,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
                 static _ => true,
                 static card => card.GiveSingleTurnSly());
         }
-        int ethereal = AmountOf(ChaosRelicExtraCatalog.NegHandEthereal);
+        int ethereal = SumOf(definition, ChaosRelicExtraCatalog.NegHandEthereal);
         if (ethereal > 0)
         {
             Flash();
@@ -1001,22 +1066,23 @@ public abstract class ChaosRelicModel : CustomRelicModel
         int turn = player.PlayerCombatState?.TurnNumber ?? 0;
         if (turn == 2)
         {
-            await RunStanceEntry(player, ChaosRelicExtraCatalog.StanceWrathStart, "EnterWrath");
+            await RunStanceEntry(player, definition, ChaosRelicExtraCatalog.StanceWrathStart, "EnterWrath");
         }
         if (turn == 1)
         {
-            await RunStanceEntry(player, ChaosRelicExtraCatalog.StanceCalmStart, "EnterCalm");
+            await RunStanceEntry(player, definition, ChaosRelicExtraCatalog.StanceCalmStart, "EnterCalm");
         }
         if (turn == 3)
         {
-            await RunStanceEntry(player, ChaosRelicExtraCatalog.StanceDivinityStart, "EnterDivinity");
+            await RunStanceEntry(player, definition, ChaosRelicExtraCatalog.StanceDivinityStart, "EnterDivinity");
         }
     }
 
     /// <summary>Watcher-mod stance entry via reflection (skipped when absent).</summary>
-    private async Task RunStanceEntry(Player player, string template, string helperMethod)
+    private async Task RunStanceEntry(Player player, ChaosRelicDefinition? definition,
+        string template, string helperMethod)
     {
-        if (AmountOf(template) == 0)
+        if (SumOf(definition, template) == 0)
         {
             return;
         }
@@ -1053,8 +1119,10 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             return Task.CompletedTask;
         }
-        int discount = AmountOf(ChaosRelicExtraCatalog.RetainEnergyDiscount);
-        int attackBuff = AmountOf(ChaosRelicExtraCatalog.RetainAttackBuff);
+        // One DefinitionFor resolution per operation (QCR-1).
+        var definition = Definition;
+        int discount = SumOf(definition, ChaosRelicExtraCatalog.RetainEnergyDiscount);
+        int attackBuff = SumOf(definition, ChaosRelicExtraCatalog.RetainAttackBuff);
         if (discount == 0 && attackBuff == 0)
         {
             return Task.CompletedTask;

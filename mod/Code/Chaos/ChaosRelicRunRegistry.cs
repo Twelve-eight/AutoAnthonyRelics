@@ -33,6 +33,21 @@ namespace QuriousCraftingRelics.Chaos;
 /// is only consulted outside runs (menus/previews). The MP divergence above
 /// still needs config sync to deliver host values before run start; the
 /// freeze only guarantees THIS process cannot change its mind mid-run.
+///
+/// FROZEN WARM LOOKUP (QCR-1, QCR-R4-02): the snapshot precomposes the
+/// canonical cache key, the ordered active catalogs and the effective template
+/// metadata once at capture. A warm ForSeed/DefinitionFor hit inside the
+/// active run is therefore a plain dictionary lookup with ZERO allocation -
+/// no fingerprint string building, no list rebuild/sort, no Watcher assembly
+/// probe. Menu/preview/foreign-seed queries rebuild the key from live state
+/// on every call (allocations accepted there; separately invalidated, and
+/// they never reuse a prior run's composed context).
+///
+/// LIFECYCLE of the bounded cache: Cache/Order are owned by this static class
+/// for the whole process; entries are keyed by (seed, fingerprint), evicted
+/// FIFO beyond CacheLimit, and survive CleanUp by design - keys can only be
+/// reached with a matching seed, so a kept entry cannot leak into menus
+/// (DefinitionFor returns null whenever CurrentRunSeed is null).
 /// </summary>
 public static class ChaosRelicRunRegistry
 {
@@ -43,7 +58,11 @@ public static class ChaosRelicRunRegistry
 
     /// <summary>
     /// Generation inputs frozen at run-seed capture; null outside runs.
-    /// Set by the seed-tracking patches alongside <see cref="CurrentRunSeed"/>.
+    /// Set by the seed-tracking patches alongside <see cref="CurrentRunSeed"/>;
+    /// the snapshot carries the precomposed cache key, ordered active catalogs
+    /// and effective template metadata (QCR-1) and is only published after
+    /// those are fully built. Deliberately kept after CleanUp as continuation
+    /// evidence (see LastRunSeed).
     /// </summary>
     public static QuriousGenerationSnapshot? CurrentSnapshot { get; internal set; }
 
@@ -52,21 +71,57 @@ public static class ChaosRelicRunRegistry
     /// Also the loc-updater dedupe key: the definitions can change without the
     /// seed changing, and a seed-only skip left tooltips stale while effects
     /// drifted (2026-09-13 report).
+    /// Active-run fast path (QCR-1): the key was precomposed on the frozen
+    /// snapshot at capture, so this getter allocates nothing inside a run.
+    /// Every other state (no snapshot, or seed/snapshot mismatch) composes the
+    /// key from the current process state exactly as before.
     /// </summary>
-    internal static string CurrentCacheKey => (CurrentRunSeed ?? "") + "\0" + ConfigFingerprint();
+    internal static string CurrentCacheKey
+    {
+        get
+        {
+            var snapshot = CurrentSnapshot;
+            if (snapshot is not null && CurrentRunSeed is not null
+                && string.Equals(snapshot.RunSeed, CurrentRunSeed, StringComparison.Ordinal))
+            {
+                return snapshot.CanonicalCacheKey;
+            }
+            return (CurrentRunSeed ?? "") + "\0" + ConfigFingerprint();
+        }
+    }
 
-    /// <summary>Generation config fingerprint for the current process state.</summary>
+    /// <summary>Generation config fingerprint for the current process state.
+    /// Active or kept snapshot: the canonical fingerprint frozen at capture
+    /// (identical content to the previous per-call construction, no rebuild).
+    /// Otherwise the live menu/preview build, which re-reads live config on
+    /// every call so preview inputs stay separately invalidated.</summary>
     private static string ConfigFingerprint()
     {
         var snapshot = CurrentSnapshot;
+        if (snapshot is not null)
+        {
+            return snapshot.CanonicalFingerprint;
+        }
+        return BuildLiveFingerprint();
+    }
+
+    /// <summary>
+    /// Live (no snapshot) fingerprint build - the menu/preview path. Allocates
+    /// by design: it must re-read live config each time so a preference edit
+    /// between two preview lookups is never served from a stale composed key.
+    /// Mirrors the pre-QCR-1 construction exactly (same fields, same order,
+    /// sorted template ids, live point-cost table).
+    /// </summary>
+    private static string BuildLiveFingerprint()
+    {
         var sb = new StringBuilder(256);
-        sb.Append(snapshot?.BudgetCommon ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetCommon).Append('/')
-          .Append(snapshot?.BudgetUncommon ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetUncommon).Append('/')
-          .Append(snapshot?.BudgetRare ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetRare).Append('/')
-          .Append(snapshot?.NegativeChanceCommon ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceCommon).Append('/')
-          .Append(snapshot?.NegativeChanceUncommon ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceUncommon).Append('/')
-          .Append(snapshot?.NegativeChanceRare ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceRare).Append('/')
-          .Append(snapshot?.EnableExtraPool ?? QuriousCraftingRelicsConfig.EnableExtraPool ? '1' : '0').Append('/')
+        sb.Append(QuriousCraftingRelicsConfig.ChaosRelicBudgetCommon).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicBudgetUncommon).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicBudgetRare).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceCommon).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceUncommon).Append('/')
+          .Append(QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceRare).Append('/')
+          .Append(QuriousCraftingRelicsConfig.EnableExtraPool ? '1' : '0').Append('/')
           .Append(ChaosTemplates.WatcherModLoaded ? '1' : '0');
         // Per-template economics and bounds. Ordered by template id so the
         // fingerprint does not depend on collection iteration order.
@@ -77,8 +132,8 @@ public static class ChaosRelicRunRegistry
         {
             var spec = ChaosTemplates.Effective(template);
             sb.Append('|').Append(template)
-              .Append(':').Append(Costs().CostPerPoint(template))
-              .Append(':').Append(Costs().RefundPerPoint(template))
+              .Append(':').Append(QuriousCraftingRelicsConfig.PointCosts.CostPerPoint(template))
+              .Append(':').Append(QuriousCraftingRelicsConfig.PointCosts.RefundPerPoint(template))
               .Append(':').Append(spec.Min)
               .Append(':').Append(spec.Max);
         }
@@ -91,7 +146,33 @@ public static class ChaosRelicRunRegistry
 
     public static IReadOnlyList<ChaosRelicDefinition> ForSeed(string seed, int multiplier)
     {
-        string key = seed + "\u0000" + ConfigFingerprint();
+        // ACTIVE-RUN FAST PATH (QCR-1 / QCR-R4-02): the canonical key was
+        // precomposed on the frozen snapshot at capture. A warm hit performs
+        // no string building, no list rebuild, no sorting and no assembly
+        // probing - the astra round-4 typed-delegate probe measured 7,208
+        // bytes/call for the old per-hit rebuild; the acceptance contract for
+        // this path is 0 bytes after warm-up.
+        var snapshot = CurrentSnapshot;
+        if (snapshot is not null
+            && string.Equals(snapshot.RunSeed, seed, StringComparison.Ordinal))
+        {
+            return Lookup(snapshot.CanonicalCacheKey, seed);
+        }
+        // MENU / PREVIEW / foreign-seed path: the key is rebuilt from the
+        // current process state on every call. This never reuses a prior
+        // run's composed context, so preview inputs are invalidated
+        // independently of the frozen run context. (Allocations accepted and
+        // reported separately from the warm in-run path.)
+        return Lookup(seed + "\u0000" + ConfigFingerprint(), seed);
+    }
+
+    /// <summary>
+    /// Cache lookup + bounded generation, shared by both key paths. The
+    /// generation branch reads <see cref="CurrentSnapshot"/> under the lock,
+    /// exactly as the pre-QCR-1 body did.
+    /// </summary>
+    private static IReadOnlyList<ChaosRelicDefinition> Lookup(string key, string seed)
+    {
         lock (Gate)
         {
             if (Cache.TryGetValue(key, out var cached))
@@ -118,7 +199,11 @@ public static class ChaosRelicRunRegistry
     }
 
     /// <summary>The definition for a slot in the current run; null when the model's
-    /// owner has no run seed yet (menus, previews).</summary>
+    /// owner has no run seed yet (menus, previews). Inside the active run the
+    /// ForSeed hit is allocation-free (frozen canonical key + bounded cache),
+    /// so per-read DefinitionFor calls cost a dictionary lookup (QCR-1);
+    /// consumers that read several amounts still resolve the definition once
+    /// per operation (see ChaosRelicModel.SumOf).</summary>
     public static ChaosRelicDefinition? DefinitionFor(RelicModel relic, int slot)
     {
         string? seed = RunSeedOf(relic);
