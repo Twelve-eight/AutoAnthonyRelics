@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>SaveIdentityProbe</AssemblyName>
+    <RootNamespace>SaveIdentityProbe</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The identity decision is compiled from the mod source itself, so this
+         probe exercises the shipped code, not a copy. Both files are
+         deliberately engine-free (System only). -->
+    <Compile Include="Program.cs" />
+    <Compile Include="../../mod/Code/Chaos/ChaosRunIdentity.cs" Link="ChaosRunIdentity.cs" />
+    <Compile Include="../../mod/Code/Chaos/RunIdentityCapture.cs" Link="RunIdentityCapture.cs" />
+  </ItemGroup>
+</Project>

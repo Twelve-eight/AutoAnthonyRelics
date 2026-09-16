@@ -108,6 +108,61 @@ instead of serving the stale pool (F04 probe, 2026-09-12: the seed-only
 cache returned the old pool after budgets changed). Deterministic per
 (seed, config): same inputs -> same relics (MP replay safety).
 
+### Run identity (WS-0916-06, 2026-09-16)
+
+Which save a cached relic belongs to is decided by a DURABLE per-save
+identity, never by a process-local "last capture" slot. The old
+`LastRunSeed` slot could not distinguish save A -> save B (different
+config) -> save A, and could not survive a clean process exit, so
+returning to A could re-freeze A from whatever the live config said on
+the way back, and a restart could not tell that the loaded save was the
+one whose definitions were already generated.
+
+- Identity shape: `<version>:<seed>:<mint nonce>:<frozen-inputs tag>`, minted
+  once per new run. Persisted with the run save through BaseLib's
+  `ExtendedSaveTypes.RegisterSavedValue<IRunState, string>` (key
+  `quriouscraftingrelics_run_identity`), which BaseLib's existing patches
+  already carry through `RunManager.ToSave`, `RunState.FromSerializable`,
+  `SerializableRun.Serialize/Deserialize` (so both ends of a multiplayer
+  run agree) and canonicalization.
+- Registration timing is load-bearing: it happens in `MainFile.Initialize`,
+  because BaseLib materializes and then freezes the extended save property
+  list; a later registration is dropped and the value would never be
+  written or read. A refused registration is reported at Error and the
+  registry falls back to the deterministic legacy identity rather than a
+  process-local one.
+- A loaded save resolves its identity from its token; a run whose identity
+  is already retained RESUMES its original frozen context, so A -> B -> A
+  returns A's original definitions even though B was loaded in between and
+  the live config changed. A genuinely new run (`SetUpNew*`) always mints
+  and always freezes, so a repeated seed string never inherits another
+  save's context.
+- A save with no token gets a deterministic identity derived from persisted
+  data - the save's start time, else the seed string - never a random nonce,
+  and is reported at Info (or Warn when even the start time is unavailable,
+  since two saves sharing a seed string then look identical).
+- A mod version change does NOT change the identity; it is reported. A
+  change in generation inputs is reported too, and the pool is regenerated
+  from the current configuration - already-held relics keep their slot
+  identity but their effects follow the current configuration. Nothing is
+  ever redefined silently.
+- Retention is bounded (8 identities, FIFO, re-entering a retained identity
+  refreshes it in place), matching the definition cache. An evicted run
+  re-freezes but keeps its identity.
+
+Engine-free rule: `Chaos/ChaosRunIdentity.cs` (token shape, resolution,
+drift) and `Chaos/RunIdentityCapture.cs` (resume-vs-freeze, retention). The
+engine side (`ChaosRelicRunRegistry.CaptureRun`, `ChaosRunIdentitySave`,
+`Patches/RunSeedTrackPatch.cs`) only supplies inputs and reports outcomes.
+
+Verified by `tools/save-identity-probe` (engine-free, no game run): identity
+is stable across a simulated restart, distinct between different saves,
+stable across a mod version change, deterministic for token-less saves, and
+retention keeps two runs resumable while evicting the oldest. What the probe
+does NOT establish - and what still needs a real game run - is that BaseLib
+actually round-trips the token through a real save file and a real
+multiplayer packet.
+
 ### Runtime model
 
 ChaosRelicModel : BaseLib CustomRelicModel (shared pool).

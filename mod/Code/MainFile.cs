@@ -47,6 +47,15 @@ public partial class MainFile : Node
             // Settings -> Mod Settings UI registration.
             ModConfigRegistry.Register(ModId, new QuriousCraftingRelicsConfig());
 
+            // Run identity persistence (WS-0916-06). MUST happen here, during
+            // mod init: BaseLib materializes the extended save properties lazily
+            // and then freezes that list, so a registration performed after the
+            // first save/load would be dropped and the identity would never be
+            // written or read. A refused registration is reported and leaves the
+            // registry on the deterministic legacy identity instead of a
+            // process-local one.
+            Chaos.ChaosRunIdentitySave.Register();
+
             // Godot scenes shipped in the .pck (v1: none, but register anyway -
             // costs nothing and future-proof for icon-atlas scenes).
 

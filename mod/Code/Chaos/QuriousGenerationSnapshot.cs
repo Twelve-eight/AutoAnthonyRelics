@@ -26,22 +26,22 @@ namespace QuriousCraftingRelics.Chaos;
 /// is a plain dictionary lookup and allocates nothing.
 ///
 /// LIFECYCLE (per structure):
-/// - Producer: <see cref="Capture"/>, called only by
-///   RunSeedEarlyTrackPatch.CaptureSeed (new run, or first capture of a
-///   different seed in this process). CaptureSeed assigns the result to
-///   ChaosRelicRunRegistry.CurrentSnapshot after it is fully built, so no
-///   consumer can observe a snapshot without its frozen context.
-/// - Owner: ChaosRelicRunRegistry.CurrentSnapshot (process-lifetime static).
-///   Deliberately KEPT after RunManager.CleanUp as continuation evidence
-///   (QCR-2026-09-14-01) - the sameRunSnapshotKept invariant depends on it.
+/// - Producer: QuriousGenerationSnapshot.Capture, called by
+///   RunIdentityCapture.Capture when a run's identity has no retained context
+///   (a new run, or the first capture of a save in this process).
+/// - Owner: ChaosRelicRunRegistry.CurrentSnapshot (the active run) plus the
+///   capture rule's bounded per-identity retention. Deliberately KEPT after
+///   RunManager.CleanUp as continuation evidence (QCR-2026-09-14-01,
+///   WS-0916-06) - returning to a save resumes its ORIGINAL context.
 /// - First consumers: ChaosRelicRunRegistry.ForSeed / CurrentCacheKey,
 ///   ChaosTemplates' active-pool getters and Effective, then the generator
 ///   and the per-slot definition reads.
-/// - Invalidation / cleanup point: replaced by the NEXT freeze (run-start
-///   capture, or first capture of a different seed). There is no explicit
-///   cleanup - the kept snapshot is intentional (LastRunSeed continuation
-///   contract); preview/menu definition lookups are separately gated on
-///   CurrentRunSeed, so a kept snapshot cannot leak definitions into menus.
+/// - Invalidation / cleanup point: replaced by the NEXT freeze (a new run, or a
+///   save whose identity is not retained and whose retention slot was evicted).
+///   There is no explicit cleanup - the kept snapshot is intentional (the
+///   run-identity continuation contract); preview/menu definition lookups are
+///   separately gated on CurrentRunSeed, so a kept snapshot cannot leak
+///   definitions into menus.
 ///
 /// Multiplayer note: this snapshot is what the local process saw when the run
 /// started. Keeping host/client pools identical still requires config sync to

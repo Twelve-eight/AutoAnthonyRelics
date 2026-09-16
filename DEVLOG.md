@@ -1,3 +1,38 @@
+## WS-0916-06 - 2026-09-16 - 每存档持久身份 (QCR-2 落地)
+
+### 问题
+
+registry 用进程内 `LastRunSeed` 单槽判断"是不是同一局". 后果: 存档 A -> 存档 B(配置不同)
+-> 回存档 A, 无法从持久数据判定, 于是 A 会用当时的实时配置重新冻结; 干净退出进程后继续 A
+同样无法判定. 用进程内种子当存档身份本身就是错的.
+
+### 修复
+
+- 新增持久身份 `<version>:<seed>:<mint nonce>:<frozen-inputs tag>`, 通过 BaseLib
+  `ExtendedSaveTypes.RegisterSavedValue<IRunState, string>` 随存档写入/读回; BaseLib 既有补丁
+  已覆盖 `RunManager.ToSave`, `RunState.FromSerializable`, `SerializableRun.Serialize/Deserialize`
+  (多人两端一致)与 canonicalization, 不新建并行持久层.
+- 注册时机是硬约束: 放在 `MainFile.Initialize`. BaseLib 会惰性物化再冻结扩展属性列表
+  (`ExtendedSaveHandlers._initializedSaveProps`), 之后注册会被丢弃. 注册失败按 Error 报告,
+  身份退回确定性 legacy 身份, 不退化成进程内判定.
+- 加载存档按 token 解析身份; 身份已在保留表中则**恢复原始冻结上下文**, 所以 A -> B -> A 拿回
+  A 的原始定义, 即使中途加载过 B 且实时配置已变. 真正的新局(`SetUpNew*`)总是重新铸造并冻结,
+  重复的种子字符串不会继承别的存档上下文.
+- 无 token 的旧档得到由持久数据推导的确定性身份(存档开始时间, 否则种子字符串), 绝不随机; Info
+  报告(连开始时间都没有时 Warn, 因为两个同种子字符串的存档此时无法区分).
+- mod 版本变化**不改变**身份, 只报告; 生成输入变化也报告, 并按当前配置重新生成池 -- 已持有遗物
+  保留槽位身份, 效果跟随当前配置. 任何情况下都不静默重定义.
+- 保留上限 8 个身份, FIFO; 重新进入已保留身份是原地刷新, 不会顶掉别的存档. 被淘汰的局重新冻结
+  但身份不变.
+
+### 验证
+
+`tools/save-identity-probe`(引擎外, 无实机): 模拟重启后身份稳定; 不同存档不碰撞; mod 版本变化
+后身份不变且被报告; 无 token 存档身份确定且非随机; 保留两条可恢复且淘汰最旧. 未验证部分: BaseLib
+是否真的在真实存档文件与真实多人包中往返 token -- 需要实机.
+
+未做: 未启动游戏, 未部署.
+
 # DEVLOG - AutoAnthonyRelics
 
 ## Session 1 - 2026-09-07 - v0.1.0 first playable build

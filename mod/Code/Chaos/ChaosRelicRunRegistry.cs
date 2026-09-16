@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace QuriousCraftingRelics.Chaos;
@@ -48,10 +49,25 @@ namespace QuriousCraftingRelics.Chaos;
 /// FIFO beyond CacheLimit, and survive CleanUp by design - keys can only be
 /// reached with a matching seed, so a kept entry cannot leak into menus
 /// (DefinitionFor returns null whenever CurrentRunSeed is null).
+///
+/// PER-SAVE IDENTITY (WS-0916-06): which save a cached relic belongs to is
+/// decided by a DURABLE identity persisted with the run save
+/// (<see cref="ChaosRunIdentity"/>, <see cref="ChaosRunIdentitySave"/>), never
+/// by the most recent capture in this process. Frozen contexts are retained by
+/// <see cref="RunIdentityCapture{TContext}"/> under that identity, so save A
+/// -&gt; save B (different config) -&gt; save A resumes A's ORIGINAL generation
+/// context instead of re-freezing A from whatever the live config says on the
+/// way back, and a clean process exit followed by continuing A resolves to the
+/// same identity. What the identity can and cannot reproduce across processes is
+/// stated on <see cref="ChaosRunIdentity"/>.
 /// </summary>
 public static class ChaosRelicRunRegistry
 {
     private const int CacheLimit = 8;
+
+    /// <summary>How many runs' frozen contexts stay resumable. Same bound as
+    /// the definition cache; the oldest identity is evicted first.</summary>
+    private const int RetainedContextLimit = CacheLimit;
     private static readonly object Gate = new();
     private static readonly Dictionary<string, IReadOnlyList<ChaosRelicDefinition>> Cache = new(StringComparer.Ordinal);
     private static readonly Queue<string> Order = new();
@@ -62,7 +78,8 @@ public static class ChaosRelicRunRegistry
     /// the snapshot carries the precomposed cache key, ordered active catalogs
     /// and effective template metadata (QCR-1) and is only published after
     /// those are fully built. Deliberately kept after CleanUp as continuation
-    /// evidence (see LastRunSeed).
+    /// evidence (see <see cref="CurrentIdentity"/> and
+    /// <see cref="RunIdentityCapture{TContext}"/>).
     /// </summary>
     public static QuriousGenerationSnapshot? CurrentSnapshot { get; internal set; }
 
@@ -234,15 +251,159 @@ public static class ChaosRelicRunRegistry
     public static string? CurrentRunSeed { get; internal set; }
 
     /// <summary>
-    /// Seed of the most recently captured run in THIS process. Survives
-    /// CleanUp (unlike <see cref="CurrentRunSeed"/>) so a reload of the same
-    /// run resumes its original frozen snapshot instead of re-freezing the
-    /// live config; run-start captures (SetUpNew) always re-freeze. Nothing
-    /// consumes it without a seed arriving, so it cannot leak definitions
-    /// into menus. Cross-process continuation needs persisted definitions
-    /// (QCR-2, future).
+    /// Durable identity of the active run (WS-0916-06); null in menus. Resolved
+    /// at capture from the save's persisted token, never from a process-local
+    /// slot, so save switching and process restarts cannot hand one save's
+    /// frozen context to another. See <see cref="ChaosRunIdentity"/> for the
+    /// token shape and what it does and does not reproduce.
     /// </summary>
-    public static string? LastRunSeed { get; internal set; }
+    public static string? CurrentIdentity { get; internal set; }
+
+    /// <summary>
+    /// Captures the run at <paramref name="runState"/>: resolves the DURABLE
+    /// identity and either resumes the retained frozen context for that identity
+    /// or freezes a new one. Returns the resolved identity plus whether the
+    /// context was resumed, so the caller can report the outcome.
+    ///
+    /// The decision itself lives in <see cref="RunIdentityCapture{TContext}"/>
+    /// (engine-free, probe-covered); this method only supplies the engine-side
+    /// inputs (the BaseLib-restored token, the freeze delegate, the mod version)
+    /// and reports the outcome.
+    ///
+    /// <paramref name="runStart"/> is true only for a genuinely NEW run
+    /// (SetUpNew*), which always mints a fresh identity and freezes immediately:
+    /// rerolling with a repeated seed string must never inherit another save's
+    /// context. <paramref name="startTimeUnix"/> is the loaded save's persisted
+    /// run start time, or 0 when the caller could not supply it.
+    /// </summary>
+    internal static (string Identity, bool Resumed) CaptureRun(
+        IRunState? runState, string? seed, bool runStart, long startTimeUnix)
+    {
+        CurrentRunSeed = seed;
+
+        var outcome = CaptureRule.Capture(new RunIdentityCapture<QuriousGenerationSnapshot>.CaptureRequest
+        {
+            RunStart = runStart,
+            PersistedToken = runStart ? null : ChaosRunIdentitySave.TokenOf(runState),
+            Seed = seed,
+            StartTimeUnix = startTimeUnix,
+        });
+
+        CurrentIdentity = outcome.Identity;
+        CurrentSnapshot = CaptureRule.ActiveContext;
+        // The identity is persisted on the RunState so the next save write
+        // carries it; a loaded save already supplied it, and re-storing it keeps
+        // the round-trip idempotent.
+        ChaosRunIdentitySave.Remember(runState, outcome.Identity);
+        ReportCapture(outcome, seed);
+        return (outcome.Identity, outcome.Resumed);
+    }
+
+    /// <summary>
+    /// The capture rule for this mod's context type. One instance for the whole
+    /// process: it owns the bounded retention of frozen contexts.
+    /// </summary>
+    private static readonly RunIdentityCapture<QuriousGenerationSnapshot> CaptureRule =
+        new(
+            RetainedContextLimit,
+            freeze: seed => QuriousGenerationSnapshot.Capture(seed),
+            fingerprintOf: snapshot => ChaosRunIdentity.Tag(snapshot.CanonicalFingerprint),
+            modVersion: ModVersion);
+
+    /// <summary>Leaving a run: drop the active seed/identity so canonical models
+    /// render generic text again. The retained contexts stay, so returning to the
+    /// save resumes its original generation.</summary>
+    internal static void ClearActiveRun()
+    {
+        CurrentRunSeed = null;
+        CurrentIdentity = null;
+        CaptureRule.ClearActive();
+    }
+
+    /// <summary>
+    /// Reports how the identity was obtained and what changed since it was
+    /// minted. Loud by contract (WS-0916-06): a save whose generation inputs or
+    /// mod version no longer match is never redefined silently.
+    /// </summary>
+    private static void ReportCapture(
+        RunIdentityCapture<QuriousGenerationSnapshot>.CaptureOutcome outcome, string? seed)
+    {
+        try
+        {
+            switch (outcome.Source)
+            {
+                case ChaosRunIdentity.Origin.Minted:
+                    MainFile.Logger.Info(
+                        $"[QuriousCraftingRelics] run identity minted for seed {seed} " +
+                        $"(mod {ModVersion()}, inputs {outcome.FrozenFingerprintTag})");
+                    break;
+                case ChaosRunIdentity.Origin.Persisted:
+                    MainFile.Logger.Info(outcome.Resumed
+                        ? $"[QuriousCraftingRelics] run identity {outcome.Identity} resumed with its original frozen context (seed {seed})"
+                        : $"[QuriousCraftingRelics] run identity {outcome.Identity} adopted from the save (seed {seed})");
+                    break;
+                case ChaosRunIdentity.Origin.Legacy:
+                    MainFile.Logger.Info(
+                        $"[QuriousCraftingRelics] save carries no identity token; using the deterministic " +
+                        $"start-time identity {outcome.Identity} (seed {seed}). It survives a restart but cannot " +
+                        "be distinguished from another save that shares this seed and start time.");
+                    break;
+                case ChaosRunIdentity.Origin.SeedOnly:
+                    MainFile.Logger.Warn(
+                        "[QuriousCraftingRelics] save carries no identity token and no start time; falling back to " +
+                        $"the seed-derived identity {outcome.Identity} (seed {seed}). Two different saves that share " +
+                        "this seed string will be treated as the same save.");
+                    break;
+                default:
+                    MainFile.Logger.Warn(
+                        $"[QuriousCraftingRelics] save carries an unrecognized identity token '{outcome.Identity}'; " +
+                        "keeping it verbatim so the save still has one identity.");
+                    break;
+            }
+
+            if (outcome.InputsDiffer)
+            {
+                MainFile.Logger.Info(
+                    $"[QuriousCraftingRelics] run identity {outcome.Identity}: this save was frozen with generation " +
+                    $"inputs {outcome.RecordedFingerprintTag}, but this process uses {outcome.FrozenFingerprintTag}. " +
+                    "The frozen inputs are not reproducible here, so the pool is regenerated from the current " +
+                    "configuration; already held relics keep their slot identity, but their effects follow the " +
+                    "current configuration.");
+            }
+            if (outcome.VersionDiffers)
+            {
+                MainFile.Logger.Info(
+                    $"[QuriousCraftingRelics] run identity {outcome.Identity} was minted by mod version " +
+                    $"{outcome.RecordedVersion}; this process runs {ModVersion()}. The identity is unchanged; the " +
+                    "recorded version is informational.");
+            }
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Error($"[QuriousCraftingRelics] identity report failed: {e.Message}");
+        }
+    }
+
+    /// <summary>Version of the running mod (manifest); empty when unknown.</summary>
+    private static string ModVersion()
+    {
+        try
+        {
+            foreach (var mod in ModManager.GetLoadedMods())
+            {
+                if (string.Equals(mod.manifest?.id, MainFile.ModId, StringComparison.Ordinal))
+                {
+                    return ChaosRunIdentity.SanitizeVersion(mod.manifest?.version);
+                }
+            }
+        }
+        catch
+        {
+            // Manifest unavailable: the version field stays empty, which the
+            // drift report treats as "not recorded" rather than a change.
+        }
+        return "";
+    }
 
     public static string? RunSeedOf(IRunState? runState)
     {
