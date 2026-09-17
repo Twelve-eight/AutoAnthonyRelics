@@ -1,3 +1,19 @@
+## 实机验证 (2026-09-17, 脱 Steam Goldberg 副本)
+
+环境: `I:\Slay the Spire 2\` (v0.111.0, steam_api64 替换), 部署 0.5.7 重建版 + AAR 0.1.6 +
+FastBoot 0.4.0 + MCS 0.1.1 (双副本逐字节一致).
+
+已证实的部分:
+- **身份已持久化进真实存档**: `saves/current_run.save` 内确认含键 `quriouscraftingrelics_run_identity`
+  与值 `qcr1:6388dd195dcc4585:34f4538d9a1574f6:0.5.7:MU25VDXKHR93`(正则 `qcr1:[0-9a-f]{8,}` 命中 1 次).
+  这证明 BaseLib 的 `RegisterSavedValue<IRunState,string>` 通道真的把 token 写进了存档 -- 探针无法证明的那一步.
+- **同局重载走恢复分支**: 日志出现 `run identity qcr1:...:MU25VDXKHR93 resumed with its original frozen
+  context (seed MU25VDXKHR93)` 与 `snapshot resumed`, 即身份命中保留表后复用原冻结上下文, 而非重新冻结.
+- 身份铸造行: `run identity minted for seed MU25VDXKHR93 (mod 0.5.7, inputs 34f4538d9a1574f6)`.
+
+**仍未证实**: 存档 A -> 存档 B -> 回存档 A 的跨存档路径未实机跑过(需要两次不同配置的对局);
+进程完全退出后重新加载同一存档也未单独跑过(本轮是同进程内重载). 这两条仍只有探针证据.
+
 ## WS-0916-06 - 2026-09-16 - 每存档持久身份 (QCR-2 落地)
 
 ### 问题
