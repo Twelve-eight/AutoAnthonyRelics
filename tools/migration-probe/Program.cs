@@ -92,6 +92,35 @@ internal static class Program
         Check(!File.Exists(Path.Combine(dir2, "QuriousCraftingRelics.cfg")),
             "no Qurious cfg materialized from a foreign file");
 
+        // ---- 2b. THE ACTUAL INCIDENT FIXTURE (2026-09-19).
+        //
+        // Scenario 2 above CANNOT detect a regression to the old "any single key
+        // matches" rule: none of its keys is template-scoped or in
+        // KnownLegacyScalarKeys, so the OLD code also returned SkippedNotOurs and
+        // the probe stayed green with the bug restored. This fixture is the real
+        // one - the other mod's config carrying EXACTLY ONE colliding key
+        // (EnableExtraPool, which that mod briefly used) alongside its own
+        // foreign keys. The old rule claimed and renamed this file; the
+        // all-or-nothing rule must skip it.
+        string dir2b = Path.Combine(root, "relicmod-colliding");
+        Directory.CreateDirectory(dir2b);
+        string collidingCfg = Path.Combine(dir2b, "AutoAnthonyRelics.cfg");
+        File.WriteAllText(collidingCfg, JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            ["Enabled"] = "True",
+            ["ReplaceVanillaRelics"] = "True",
+            ["EnableExtraPool"] = "True",
+            ["WeightExtra"] = "100",
+        }));
+        object report2b = _migrate.Invoke(null, new object?[] { dir2b })!;
+        Check(Prop<bool>(reportType, report2b, "SkippedNotOurs"),
+            "cfg with ONE colliding key + foreign keys is still skipped (the 2026-09-19 incident)",
+            Describe(reportType, report2b));
+        Check(File.Exists(collidingCfg)
+              && !Directory.GetFiles(dir2b, "*.bak").Any()
+              && !File.Exists(Path.Combine(dir2b, "QuriousCraftingRelics.cfg")),
+            "colliding cfg untouched: not renamed, not merged, no Qurious cfg written");
+
         // ---- 3. An unrelated cfg is left untouched too.
         string dir3 = Path.Combine(root, "unrelated");
         Directory.CreateDirectory(dir3);
