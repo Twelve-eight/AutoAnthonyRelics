@@ -1,6 +1,41 @@
+## 2026-09-19 - cfg 迁移归属判据收紧为"全有或全无" (真实事故)
+
+### 缺陷 (姊妹 mod 触发, 本 mod 是加害方)
+
+AutoAnthonyRelics 遗物 mod 新增了一个属性 `EnableExtraPool` -- 而它**恰好**是本 mod
+`KnownLegacyScalarKeys` 里的一个旧键名.两个 mod 的 cfg **文件名相同**
+(BaseLib 按**根命名空间**推导文件名, 本 mod 正是从 `AutoAnthonyRelics` 改名而来),
+而当时的归属判据是"**任一键匹配即认领**", 于是:
+- 遗物 mod 的 cfg 被**改名**为 `AutoAnthonyRelics.cfg.v0.5.1.bak`;
+- 它的 6 个键被**并入** `QuriousCraftingRelics.cfg`;
+- 遗物 mod 的全部设置被静默重置.
+
+实测日志(2026-09-19): `[QuriousCraftingRelics] cfg migrated: 7 legacy keys, 6 carried over
+(1 already present); old file kept as AutoAnthonyRelics.cfg.v0.5.1.bak`.
+
+### 修复
+
+归属判据改为**全有或全无**: `LooksLikeQuriousLegacy` 要求**每个**键都是模板作用域键
+或已知标量键, 任一外来键即整体拒绝.真正的旧版 Qurious cfg 不含任何外来键, 所以
+不损失任何合法迁移; 而任何带外来键的文件都留给它的主人.
+
+配套(遗物 mod 侧): 该属性改名 `EnableExtraEffectPool`, 并在其 config 注释里写明
+"不得使用本 mod 的旧键名或 `Cost_/Refund_/Min_/Max_` 前缀".
+
+### 验证 (实测, 含判别力)
+
+`tools/migration-probe` **PROBE OK**.新增场景 2b 复现**真实事故 fixture**:
+一个带**恰好一个**碰撞键(`EnableExtraPool`)+ 外来键的 cfg.
+判别力验证: 把判据恢复成旧的"任一键匹配" -> 该断言 **FAIL** 并重新打印
+`cfg migrated: 4 legacy keys` -- 即该 fixture 真正钉住了修复, 而不只是描述它.
+
+(原场景 2 的 fixture 是 `Enabled`/`ReplaceVanillaRelics`/`KeepModdedRelics`,
+不含任何碰撞键, 旧规则同样会跳过 -> **抓不到回归**; 其注释里"旧代码会偷走该文件"
+的说法对该 fixture 而言是错的.已由 2b 补上.)
+
 ## 实机验证 (2026-09-17, 脱 Steam Goldberg 副本)
 
-环境: `I:\Slay the Spire 2\` (v0.111.0, steam_api64 替换), 部署 0.5.7 重建版 + AAR 0.1.6 +
+环境: `I:\Slay the Spire 2\`(`I:` 已于 2026-09-17 迁至 `E:\Slay the Spire 2`, 见 AGENTS.md Sec 2b) (v0.111.0, steam_api64 替换), 部署 0.5.7 重建版 + AAR 0.1.6 +
 FastBoot 0.4.0 + MCS 0.1.1 (双副本逐字节一致).
 
 已证实的部分:
@@ -871,11 +906,12 @@ filename = 根命名空间(去特殊字符) + ".cfg".
   (BaseLib 按根命名空间命名 cfg) 现在拥有同名文件, 旧迁移器每次启动都会把它整个
   搬走: 键并入 QuriousCraftingRelics.cfg, 原文件改名为 .bak 且**覆盖旧备份**。
 - **修复**:
-  - 归属判据 = 键集合: 至少一个模板作用域键 (`Cost_/Refund_/Min_/Max_` 前缀)
-    或一个已知 Qurious 标量键 (EnableChaosRelics 等 9 个)。不匹配 → `SkipNotOurs`,
-    文件一个字节都不动。
-  - 备份不再覆盖: `UniqueBackupPath` 取第一个空闲的 `.bak.N` 后缀。
-  - 日志口径如实: skip 有专门一行说明留给谁。
+  - 归属判据 = 键集合: ~~至少一个模板作用域键 (`Cost_/Refund_/Min_/Max_` 前缀)
+    或一个已知 Qurious 标量键 (EnableChaosRelics 等 9 个)~~ **本条已于 2026-09-19 被取代** --
+    "任一键匹配即认领"过弱, 见下方 2026-09-19 条目.当前规则是**全有或全无**:
+    **每个**键都必须是模板作用域键或已知标量键.不匹配 -> `SkipNotOurs`, 文件一个字节都不动.
+  - 备份不再覆盖: `UniqueBackupPath` 取第一个空闲的 `.bak.N` 后缀.
+  - 日志口径如实: skip 有专门一行说明留给谁.
 - **验证**: `tools/migration-probe` **11/11 PASS** (隔离, 无 Godot):
   真遗留 cfg 正常迁移 (含 Title_Snake 重命名 + 固定点); 遗物 mod cfg 与无关 cfg
   被完整跳过 (无备份/无合并目标); 二轮迁移不覆盖首个备份。
