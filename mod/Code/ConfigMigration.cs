@@ -154,17 +154,37 @@ internal static class ConfigMigration
         }
     }
 
+    /// <summary>
+    /// True when this file is Qurious's own pre-rename config.
+    ///
+    /// OWNERSHIP IS ALL-OR-NOTHING (hardened 2026-09-19). The original check
+    /// returned true if ANY single key was recognized, which was too weak: the
+    /// new AutoAnthonyRelics relic mod owns a cfg with exactly the same FILENAME
+    /// (BaseLib derives the name from the root namespace and Qurious was renamed
+    /// FROM AutoAnthonyRelics), and when that mod added a property named
+    /// <c>EnableExtraPool</c> - which is also one of Qurious's known legacy scalar
+    /// keys - the single matching key claimed the whole foreign file. Result: the
+    /// other mod's config was renamed to .bak and its keys merged into this one,
+    /// silently resetting that mod's settings (observed live).
+    ///
+    /// The fix: require that EVERY key belongs to Qurious (template-scoped or a
+    /// known scalar). A genuine pre-rename Qurious cfg contains nothing else, so
+    /// this loses no legitimate migration, while any file carrying even one
+    /// foreign key is left alone for its owner.
+    /// </summary>
     private static bool LooksLikeQuriousLegacy(IEnumerable<string> keys)
     {
+        bool any = false;
         foreach (string key in keys)
         {
-            if (ConfigKeyNaming.IsTemplateScopedKey(key)
-                || Array.IndexOf(KnownLegacyScalarKeys, key) >= 0)
+            if (!ConfigKeyNaming.IsTemplateScopedKey(key)
+                && Array.IndexOf(KnownLegacyScalarKeys, key) < 0)
             {
-                return true;
+                return false;
             }
+            any = true;
         }
-        return false;
+        return any;
     }
 
     /// <summary>
