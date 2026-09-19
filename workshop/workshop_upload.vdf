@@ -1,11 +1,14 @@
 "workshopitem"
 {
 	"appid"		"2868840"
-	"contentfolder"		"G:\\omp works\\AutoAnthonyRelics\\workshop\\content"
-	"previewfile"		"G:\\omp works\\AutoAnthonyRelics\\workshop\\preview.png"
+	"contentfolder"		"G:\\omp works\\Sts\\AutoAnthonyRelics\\workshop\\content"
+	"previewfile"		"G:\\omp works\\Sts\\AutoAnthonyRelics\\workshop\\preview.png"
 	"visibility"		"0"
-	"title"		"Qurious Crafting - Relics (怪异炼化 - 遗物)"
+	"title"		"Qurious Crafting - Relics (怪异炼化 - 遗物) [测试中]"
 	"description"		"[h1]怪异炼化 - 遗物 / Qurious Crafting - Relics[/h1]
+
+[b]测试中[/b] -- 本模组仍在测试中, 内容与数值可能随版本调整, 欢迎反馈问题.
+[i]WORK IN PROGRESS - still being tested; content and numbers may change between versions.[/i]
 
 每局游戏,用东尼算法从本局种子确定性地生成 60 件混沌遗物,替换本局全部的随机遗物掉落.点数预算制:正面词条按点数购置,负面词条返还点数,像怪物猎人的炼化一样攒出你的专属神装.
 
