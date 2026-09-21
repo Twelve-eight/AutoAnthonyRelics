@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Probe for the Qurious generation-persistence codec (R04-01) and the BaseLib
+    extended-save transport. Built and run by the coordinator, never by the
+    implementation agent.
+
+    Inputs (override with -p:Name=Value):
+      QuriousDll    REQUIRED. Path to the QuriousCraftingRelics.dll built from
+                    the worktree under test. No default on purpose: a wrong
+                    default would silently probe a stale DLL.
+      Sts2DataDir   game data dir with sts2.dll / GodotSharp.dll / 0Harmony.dll.
+                    Defaults to the G: TEST copy (never the Steam install).
+      BaseLibDll    BaseLib.dll used by that build. Defaults to the local
+                    nuget cache under G:.
+
+    The references are copied next to the probe binary so the mod DLL can be
+    loaded outside the game (same shape as the coordinator's runtime-probe).
+    Those copies live under this project's bin/ (G: only); the referenced
+    originals are never written to.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>GenerationPersistenceProbe</AssemblyName>
+    <RootNamespace>GenerationPersistenceProbe</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Sts2DataDir Condition="'$(Sts2DataDir)' == ''">G:/omp works/Sts/_runtime/sts2-test-client-B/data_sts2_windows_x86_64</Sts2DataDir>
+    <BaseLibDll Condition="'$(BaseLibDll)' == ''">G:/omp works/Sts/sts2-spire1/.nuget/packages/alchyr.sts2.baselib/3.4.5/lib/net9.0/BaseLib.dll</BaseLibDll>
+  </PropertyGroup>
+
+  <Target Name="CheckProbeInputs" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(QuriousDll)' == ''" Text="GenerationPersistenceProbe: pass -p:QuriousDll=&lt;path to the QuriousCraftingRelics.dll under test&gt;" />
+    <Error Condition="!Exists('$(QuriousDll)')" Text="GenerationPersistenceProbe: QuriousDll not found: $(QuriousDll)" />
+    <Error Condition="!Exists('$(Sts2DataDir)/sts2.dll')" Text="GenerationPersistenceProbe: sts2.dll not found under Sts2DataDir=$(Sts2DataDir)" />
+    <Error Condition="!Exists('$(BaseLibDll)')" Text="GenerationPersistenceProbe: BaseLib.dll not found: $(BaseLibDll)" />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="QuriousCraftingRelics">
+      <HintPath>$(QuriousDll)</HintPath>
+    </Reference>
+    <Reference Include="sts2">
+      <HintPath>$(Sts2DataDir)/sts2.dll</HintPath>
+    </Reference>
+    <Reference Include="GodotSharp">
+      <HintPath>$(Sts2DataDir)/GodotSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(Sts2DataDir)/0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="BaseLib">
+      <HintPath>$(BaseLibDll)</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- tools/run-generation-probe is a thin launcher over Runner.Run. -->
+    <InternalsVisibleTo Include="RunGenerationProbe" />
+  </ItemGroup>
+
+</Project>

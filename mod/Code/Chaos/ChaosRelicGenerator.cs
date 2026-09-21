@@ -18,6 +18,14 @@ namespace QuriousCraftingRelics.Chaos;
 ///
 /// Legacy counts (1/3/5 free picks) replaced wholesale; the multiplier
 /// config key stays for save compat but no longer drives counts.
+///
+/// R04-02 CONTEXT RULE: every generation input comes from an explicit
+/// <see cref="GenerationContext"/> parameter - never from the process-wide
+/// active snapshot. A menu preview or foreign-seed query therefore cannot be
+/// served a previous run's frozen inputs, and generation never has to swap
+/// the global snapshot to run. The random draw sequence, the template order
+/// and every numeric rule below are UNCHANGED by this parameterization; the
+/// context only supplies which values are read.
 /// </summary>
 public static class ChaosRelicGenerator
 {
@@ -41,9 +49,23 @@ public static class ChaosRelicGenerator
         "棋子", "纽扣", "羽毛", "鳞片", "书签", "墨水", "香炉", "怀剑", "星盘", "念珠",
     };
 
-    public static IReadOnlyList<ChaosRelicDefinition> Generate(string seed, int budgetCommon,
+    /// <summary>
+    /// Ambient-context overload kept for callers that have no explicit context
+    /// (diagnostic tools). Resolves the active run's frozen context, or live
+    /// config outside a run - exactly what the pre-R04-02 generator read.
+    /// Production callers pass a context explicitly.
+    /// </summary>
+    internal static IReadOnlyList<ChaosRelicDefinition> Generate(string seed, int budgetCommon,
         int budgetUncommon, int budgetRare, ChaosPointCosts costs,
-        int negativeChancePercentCommon, int negativeChancePercentUncommon, int negativeChancePercentRare)
+        int negativeChancePercentCommon, int negativeChancePercentUncommon, int negativeChancePercentRare) =>
+        Generate(seed, budgetCommon, budgetUncommon, budgetRare, costs,
+            negativeChancePercentCommon, negativeChancePercentUncommon, negativeChancePercentRare,
+            GenerationContext.Ambient);
+
+    internal static IReadOnlyList<ChaosRelicDefinition> Generate(string seed, int budgetCommon,
+        int budgetUncommon, int budgetRare, ChaosPointCosts costs,
+        int negativeChancePercentCommon, int negativeChancePercentUncommon, int negativeChancePercentRare,
+        GenerationContext context)
     {
         Random random = new(StableSeed(seed));
         var definitions = new List<ChaosRelicDefinition>(TotalSlots);
@@ -56,7 +78,7 @@ public static class ChaosRelicGenerator
         // that price for generation. The probe reproduced the degenerate case
         // this prevents: budget 1 with every positive priced 20 and negative
         // chance 0 produced 60 relics with zero entries.
-        int floor = ChaosTemplates.CheapestPositiveFloor(costs);
+        int floor = ChaosTemplates.CheapestPositiveFloor(costs, context);
 
         for (int slot = 0; slot < TotalSlots; slot++)
         {
@@ -66,7 +88,7 @@ public static class ChaosRelicGenerator
             int negativeChance = NegativeChanceFor(rarity,
                 negativeChancePercentCommon, negativeChancePercentUncommon, negativeChancePercentRare);
             ChaosRelicDefinition definition = GenerateOne(random, slot, rarity, budget, negativeChance,
-                costs, usedNames, usedEffectSets);
+                costs, usedNames, usedEffectSets, context);
             definitions.Add(definition);
         }
         return definitions;
@@ -98,13 +120,13 @@ public static class ChaosRelicGenerator
     /// </summary>
     internal static ChaosRelicDefinition GenerateOne(Random random, int slot, RelicRarity rarity,
         int budget, int negativeChancePercent, ChaosPointCosts costs,
-        HashSet<string> usedNames, HashSet<string> usedEffectSets)
+        HashSet<string> usedNames, HashSet<string> usedEffectSets, GenerationContext context)
     {
         for (int attempt = 0; attempt < 4; attempt++)
         {
             bool finalAttempt = attempt == 3;
             var operations = AssembleOperations(random, rarity, budget, negativeChancePercent,
-                costs, finalAttempt);
+                costs, finalAttempt, context);
             string name = GenerateName(random, usedNames);
             string signature = string.Join("|", operations
                 .Select(op => op.Template)
@@ -121,36 +143,36 @@ public static class ChaosRelicGenerator
 
     /// <summary>
     /// The budget algorithm. Deterministic given (random state, rarity,
-    /// budgets, cost table). Order: spend on positives, then the negative
-    /// roll, then refund-bought positives. Template picks are uniform over
-    /// the affordable set; amounts are rolled inside the band and clamped
+    /// budgets, cost table, context). Order: spend on positives, then the
+    /// negative roll, then refund-bought positives. Template picks are uniform
+    /// over the affordable set; amounts are rolled inside the band and clamped
     /// down to what the remaining budget affords.
     /// </summary>
     internal static IReadOnlyList<ChaosRelicOperation> AssembleOperations(Random random,
         RelicRarity rarity, int budget, int negativeChancePercent, ChaosPointCosts costs,
-        bool finalAttempt)
+        bool finalAttempt, GenerationContext context)
     {
         var operations = new List<ChaosRelicOperation>();
         var positivesTaken = new HashSet<string>(StringComparer.Ordinal);
         var negativesTaken = new HashSet<string>(StringComparer.Ordinal);
 
         // Phase 1: spend the initial budget on positives.
-        SpendOnPositives(random, budget, rarity, costs, positivesTaken, operations, finalAttempt);
+        SpendOnPositives(random, budget, rarity, costs, positivesTaken, operations, finalAttempt, context);
 
         // Phase 2: negative roll - at most one negative per relic.
         if (random.Next(100) < negativeChancePercent)
         {
-            string? negative = PickNegative(random, costs, negativesTaken);
+            string? negative = PickNegative(random, costs, negativesTaken, context);
             if (negative is not null)
             {
-                var spec = SpecOf(negative);
+                var spec = SpecOf(negative, context);
                 int amount = RollAmount(random, spec);
                 operations.Add(new ChaosRelicOperation(negative, amount, RenderOperation(spec, amount)));
                 negativesTaken.Add(negative);
 
                 // Phase 3: refund buys more positives.
                 int refund = costs.RefundPerPoint(negative) * amount;
-                SpendOnPositives(random, refund, rarity, costs, positivesTaken, operations, finalAttempt);
+                SpendOnPositives(random, refund, rarity, costs, positivesTaken, operations, finalAttempt, context);
             }
         }
 
@@ -164,7 +186,7 @@ public static class ChaosRelicGenerator
         {
             string? cheapest = null;
             int cheapestPrice = int.MaxValue;
-            foreach (var template in ChaosTemplates.PositiveTemplates)
+            foreach (var template in context.Positives)
             {
                 if (UniqueOnly.Contains(template))
                 {
@@ -192,20 +214,21 @@ public static class ChaosRelicGenerator
     }
 
     private static void SpendOnPositives(Random random, int budget, RelicRarity rarity,
-        ChaosPointCosts costs, HashSet<string> taken, List<ChaosRelicOperation> operations, bool finalAttempt)
+        ChaosPointCosts costs, HashSet<string> taken, List<ChaosRelicOperation> operations, bool finalAttempt,
+        GenerationContext context)
     {
-        int cheapestUnit = ChaosTemplates.CheapestPositiveUnit(costs);
+        int cheapestUnit = ChaosTemplates.CheapestPositiveUnit(costs, context);
         int spendable = budget;
         int positivesSoFar = operations.Count(op => !ChaosTemplates.IsNegative(op.Template));
-        while (spendable >= cheapestUnit && taken.Count < ChaosTemplates.PositiveTemplates.Count
+        while (spendable >= cheapestUnit && taken.Count < context.Positives.Count
                && positivesSoFar < MaxPositives)
         {
-            string? template = PickAffordablePositive(random, spendable, rarity, costs, taken);
+            string? template = PickAffordablePositive(random, spendable, rarity, costs, taken, context);
             if (template is null)
             {
                 break; // nothing affordable left
             }
-            var spec = SpecOf(template);
+            var spec = SpecOf(template, context);
             int amount = RollAmountWithinBudget(random, spec, spendable, costs);
             if (amount < spec.Min)
             {
@@ -269,10 +292,14 @@ public static class ChaosRelicGenerator
         };
 
     /// <summary>
-    /// Spec resolution across BOTH pools (core + extra) with the user Min/Max
-    /// bounds overlay. Delegates to <see cref="ChaosTemplates"/> so the
+    /// Spec resolution across BOTH pools (core + extra) with the context's
+    /// Min/Max bounds overlay. Delegates to <see cref="ChaosTemplates"/> so the
     /// generator, the cost table and the budget editor cannot drift apart.
     /// </summary>
+    internal static ChaosRelicCatalog.TemplateSpec SpecOf(string template, GenerationContext context) =>
+        ChaosTemplates.Effective(template, context);
+
+    /// <summary>Ambient-context overload (budget editor, diagnostics).</summary>
     internal static ChaosRelicCatalog.TemplateSpec SpecOf(string template) =>
         ChaosTemplates.Effective(template);
 
@@ -291,16 +318,16 @@ public static class ChaosRelicGenerator
     /// would stack degenerately" rule true.
     /// </summary>
     private static string? PickAffordablePositive(Random random, int spendable, RelicRarity rarity,
-        ChaosPointCosts costs, HashSet<string> taken)
+        ChaosPointCosts costs, HashSet<string> taken, GenerationContext context)
     {
         var affordable = new List<string>();
-        foreach (var t in ChaosTemplates.PositiveTemplates)
+        foreach (var t in context.Positives)
         {
             if (taken.Contains(t) || UniqueOnly.Contains(t))
             {
                 continue;
             }
-            var s = SpecOf(t);
+            var s = SpecOf(t, context);
             if (ChaosTemplates.PriceOf(s, costs, s.Min) <= spendable)
             {
                 affordable.Add(t);
@@ -313,9 +340,10 @@ public static class ChaosRelicGenerator
         return affordable[random.Next(affordable.Count)];
     }
 
-    private static string? PickNegative(Random random, ChaosPointCosts costs, HashSet<string> taken)
+    private static string? PickNegative(Random random, ChaosPointCosts costs, HashSet<string> taken,
+        GenerationContext context)
     {
-        var available = ChaosTemplates.NegativeTemplates
+        var available = context.Negatives
             .Where(t => !taken.Contains(t))
             .ToList();
         if (available.Count == 0)

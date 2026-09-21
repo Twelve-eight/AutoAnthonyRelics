@@ -309,4 +309,108 @@ public sealed class QuriousGenerationSnapshot
 
     public (int Min, int Max)? BoundsFor(string template) =>
         Bounds.TryGetValue(template, out var bounds) ? bounds : null;
+
+    /// <summary>
+    /// Everything a restored snapshot needs, as plain values. Supplied by
+    /// <see cref="QuriousGenerationPersistence"/> from a validated payload, so
+    /// this is the RESTORE path only - the live producer stays
+    /// <see cref="Capture(string?)"/>, whose sampling and fingerprint behavior
+    /// this type does not change.
+    /// </summary>
+    public sealed class RestoreInput
+    {
+        public string RunSeed { get; init; } = "";
+        public int Multiplier { get; init; }
+        public int BudgetCommon { get; init; }
+        public int BudgetUncommon { get; init; }
+        public int BudgetRare { get; init; }
+        public int NegativeChanceCommon { get; init; }
+        public int NegativeChanceUncommon { get; init; }
+        public int NegativeChanceRare { get; init; }
+        public bool EnableExtraPool { get; init; }
+        public bool WatcherModLoaded { get; init; }
+        public IReadOnlyDictionary<string, int> Costs { get; init; } = new Dictionary<string, int>();
+        public IReadOnlyDictionary<string, int> Refunds { get; init; } = new Dictionary<string, int>();
+        public IReadOnlyDictionary<string, (int Min, int Max)> Bounds { get; init; } =
+            new Dictionary<string, (int, int)>();
+        public IReadOnlyDictionary<string, ChaosRelicCatalog.TemplateSpec> EffectiveSpecs { get; init; } =
+            new Dictionary<string, ChaosRelicCatalog.TemplateSpec>();
+        public IReadOnlyList<string> ActivePositiveTemplates { get; init; } = Array.Empty<string>();
+        public IReadOnlyList<string> ActiveNegativeTemplates { get; init; } = Array.Empty<string>();
+        public string CanonicalFingerprint { get; init; } = "";
+        public string CanonicalCacheKey { get; init; } = "";
+    }
+
+    /// <summary>
+    /// Rebuilds a snapshot from PERSISTED fields (R04-01). No config read, no
+    /// catalog enumeration, no RNG: the restored value is exactly the state the
+    /// payload described, which is what keeps already-generated relics stable
+    /// across a restart or a preference edit.
+    ///
+    /// The input collections are COPIED (ordinal-keyed dictionaries, read-only
+    /// lists), so later mutation of the caller's collections cannot reach the
+    /// restored snapshot. <see cref="QuriousGenerationPersistence.Decode"/> is
+    /// the validating entry point; this factory itself only guards its inputs.
+    /// </summary>
+    public static QuriousGenerationSnapshot Restore(RestoreInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (string.IsNullOrEmpty(input.RunSeed))
+        {
+            throw new ArgumentException("a restored snapshot must carry its run seed", nameof(input));
+        }
+        ArgumentNullException.ThrowIfNull(input.Costs);
+        ArgumentNullException.ThrowIfNull(input.Refunds);
+        ArgumentNullException.ThrowIfNull(input.Bounds);
+        ArgumentNullException.ThrowIfNull(input.EffectiveSpecs);
+        ArgumentNullException.ThrowIfNull(input.ActivePositiveTemplates);
+        ArgumentNullException.ThrowIfNull(input.ActiveNegativeTemplates);
+
+        var costs = new Dictionary<string, int>(input.Costs.Count, StringComparer.Ordinal);
+        foreach (var pair in input.Costs)
+        {
+            costs[pair.Key] = pair.Value;
+        }
+        var refunds = new Dictionary<string, int>(input.Refunds.Count, StringComparer.Ordinal);
+        foreach (var pair in input.Refunds)
+        {
+            refunds[pair.Key] = pair.Value;
+        }
+        var bounds = new Dictionary<string, (int Min, int Max)>(input.Bounds.Count, StringComparer.Ordinal);
+        foreach (var pair in input.Bounds)
+        {
+            bounds[pair.Key] = pair.Value;
+        }
+        var effectiveSpecs = new Dictionary<string, ChaosRelicCatalog.TemplateSpec>(
+            input.EffectiveSpecs.Count, StringComparer.Ordinal);
+        foreach (var pair in input.EffectiveSpecs)
+        {
+            effectiveSpecs[pair.Key] = pair.Value;
+        }
+
+        return new QuriousGenerationSnapshot
+        {
+            Multiplier = input.Multiplier,
+            BudgetCommon = input.BudgetCommon,
+            BudgetUncommon = input.BudgetUncommon,
+            BudgetRare = input.BudgetRare,
+            NegativeChanceCommon = input.NegativeChanceCommon,
+            NegativeChanceUncommon = input.NegativeChanceUncommon,
+            NegativeChanceRare = input.NegativeChanceRare,
+            EnableExtraPool = input.EnableExtraPool,
+            WatcherModLoaded = input.WatcherModLoaded,
+            Costs = costs,
+            Refunds = refunds,
+            Bounds = bounds,
+            FrozenCosts = new ChaosPointCosts(
+                template => costs.TryGetValue(template, out int cost) ? cost : (int?)null,
+                template => refunds.TryGetValue(template, out int refund) ? refund : (int?)null),
+            RunSeed = input.RunSeed,
+            ActivePositiveTemplates = input.ActivePositiveTemplates.ToArray(),
+            ActiveNegativeTemplates = input.ActiveNegativeTemplates.ToArray(),
+            EffectiveSpecs = effectiveSpecs,
+            CanonicalFingerprint = input.CanonicalFingerprint,
+            CanonicalCacheKey = input.CanonicalCacheKey,
+        };
+    }
 }

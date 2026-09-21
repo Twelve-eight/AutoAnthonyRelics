@@ -47,14 +47,24 @@ public partial class MainFile : Node
             // Settings -> Mod Settings UI registration.
             ModConfigRegistry.Register(ModId, new QuriousCraftingRelicsConfig());
 
-            // Run identity persistence (WS-0916-06). MUST happen here, during
-            // mod init: BaseLib materializes the extended save properties lazily
-            // and then freezes that list, so a registration performed after the
-            // first save/load would be dropped and the identity would never be
-            // written or read. A refused registration is reported and leaves the
-            // registry on the deterministic legacy identity instead of a
-            // process-local one.
+            // Run persistence (WS-0916-06 identity + R04-01 generation payload).
+            // MUST happen here, during mod init: BaseLib materializes the
+            // extended save properties lazily and then freezes that list, so a
+            // registration performed after the first save/load would be dropped
+            // and the values would never be written or read.
+            //
+            // R04-05: a refused registration is NOT survivable by degrading to a
+            // process-local identity - a new run would silently lose its relics
+            // on the next start. The failure is reported here and the registry
+            // then refuses new runs (and refuses to rebuild loaded ones) instead
+            // of pretending the run is durable.
             Chaos.ChaosRunIdentitySave.Register();
+            if (!Chaos.ChaosRunIdentitySave.PersistenceAvailable)
+            {
+                Logger.Error(
+                    "[QuriousCraftingRelics] run generation state cannot be persisted; new runs will be " +
+                    "refused until the save channel registers successfully.");
+            }
 
             // Godot scenes shipped in the .pck (v1: none, but register anyway -
             // costs nothing and future-proof for icon-atlas scenes).

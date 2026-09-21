@@ -1301,3 +1301,12 @@ Qurious 改名前曾把 Vigor 误译为"勇气"一次; 本次在 AAR 0.1.2 复�
 新证据: A/B/A 私有捕获序列不能恢复 A 的原预算定义; warm ForSeed 1000 次直接 delegate 调用分配 7,208,000 bytes. 单个 LastRunSeed 不是多存档/跨进程定义持久化. LocUpdater 失败前提交 key 仍为 SOURCE 风险. MegaLabel 旧原始日志无法恢复, 不再称当前 UI 已复现.
 
 证据: ../astra-advice-evidence/2026-09-14/round4/review-results.json, binary-boundaries.json, probe-results.json. 未运行游戏/UI/真实存档, 未改产品源码/实机配置/部署/push. 本轮 advice 为当前分级入口.
+
+## 2026-09-22 Qurious 修复 WIP 保存, 用户主动停止
+
+- 仅怪异炼化遗物主体. 工作树 G:/omp works/.tmp/report-fixes-20260922/worktrees/qurious, 分支 fix/qurious-review-20260922, 基线 e18f15d2e14f8df9dcbfaae5605104bd67a894ae. 原仓 G:/omp works/Sts/AutoAnthonyRelics 的既有 dirty 未触碰.
+- 完整恢复断点和提交号: G:/omp works/docs/reviews/2026-09-22-fixes/CHECKPOINT.md. 精确21文件清单: G:/omp works/docs/reviews/2026-09-22-fixes/CHECKPOINT-files.txt. 根 docs 备份: G:/backups/qurious-checkpoint-20260922-040144/reviews.
+- A 已落快照/codec, B 已落注册/生命周期, C 已落两个探针目录. 仅 A 实现与侦察报告存在; B/C实现报告及所有成品监督审查未闭合. 本条随本地 WIP 提交保存, 未审查验收, 未推送, 未整合或部署.
+- 既存日志位于 G:/omp works/.tmp/report-fixes-20260922/verification. 产品构建0警告0错误, generation probe 5错误4警告, launcher XML 编译失败. runtime 的 snapshotCleared/foreignUsesLive/menuUsesLive=true; warmCalls=10000, warmAllocatedBytes=956480000, 对照旧版0仅待核对. golden 未取得完整比较验收, nativeGameStarted=false.
+- 原批指定模型 deepseek-v4.1-flash / relaycat-cn / max, 主会话仅统筹, 执行协调子代理唯一集中验证. 主会话通知六名工作代理均已关闭, 当前仅恢复本代理保存断点.
+- 用户最新停止命令覆盖旧继续执行计划. 本次只写断点与日志并精确本地提交, 不修代码, 不审查, 不构建测试, 不唤醒其它代理, 不 push. 后续须用户明确恢复.

@@ -5,6 +5,95 @@ using System.Linq;
 namespace QuriousCraftingRelics.Chaos;
 
 /// <summary>
+/// Explicit generation context (R04-02): every generation input the query
+/// surface needs, carried as a value instead of being read from the process-wide
+/// <see cref="ChaosRelicRunRegistry.CurrentSnapshot"/>.
+///
+/// WHY: menu previews and foreign-seed queries used to be served from whatever
+/// snapshot happened to be installed globally - including a snapshot retained
+/// after a run ended (reproduced by registry-baseline-repro.json:
+/// snapshotCleared=false, foreignUsesLive=false, menuUsesLive=false). Temporarily
+/// swapping the global to serve such a query would be a cross-thread write to a
+/// shared field. A context is passed down instead, so a query can never observe
+/// another run's frozen inputs.
+///
+/// The ACTIVE run's context is built once per frozen/restored snapshot
+/// (<see cref="ForSnapshot"/>) and its lookups are dictionary hits on the
+/// snapshot's precomposed tables - zero allocation, unchanged from QCR-1.
+/// <see cref="Live"/> re-reads live config on every construction and is what
+/// menus/previews use.
+/// </summary>
+internal sealed class GenerationContext
+{
+    private readonly QuriousGenerationSnapshot? _snapshot;
+    private readonly IReadOnlyList<string> _positives;
+    private readonly IReadOnlyList<string> _negatives;
+
+    private GenerationContext(
+        QuriousGenerationSnapshot? snapshot,
+        IReadOnlyList<string> positives,
+        IReadOnlyList<string> negatives)
+    {
+        _snapshot = snapshot;
+        _positives = positives;
+        _negatives = negatives;
+    }
+
+    /// <summary>Context of a frozen (active run) or freshly captured (live) snapshot.</summary>
+    internal static GenerationContext ForSnapshot(QuriousGenerationSnapshot snapshot) =>
+        new(snapshot, snapshot.ActivePositiveTemplates, snapshot.ActiveNegativeTemplates);
+
+    /// <summary>
+    /// Context built from LIVE config, never from a retained run. Sampling order
+    /// is rebuilt exactly as the pre-QCR-1 live getters did.
+    /// </summary>
+    internal static GenerationContext Live()
+    {
+        bool extraPool = QuriousCraftingRelicsConfig.EnableExtraPool;
+        return new GenerationContext(
+            null,
+            ChaosTemplates.BuildLivePositiveTemplates(extraPool, ChaosTemplates.WatcherModLoadedProbe),
+            ChaosTemplates.BuildLiveNegativeTemplates(extraPool));
+    }
+
+    /// <summary>
+    /// Context of the ACTIVE run, or the live one outside a run. Only the
+    /// active snapshot is consulted - a run that has ended clears it
+    /// (<see cref="ChaosRelicRunRegistry.ClearActiveRun"/>), so this cannot
+    /// serve a previous run's inputs to a menu.
+    /// </summary>
+    internal static GenerationContext Ambient =>
+        ChaosRelicRunRegistry.CurrentSnapshot is { } snapshot
+            ? ForSnapshot(snapshot)
+            : Live();
+
+    /// <summary>Frozen snapshot this context came from; null for live.</summary>
+    internal QuriousGenerationSnapshot? Snapshot => _snapshot;
+
+    /// <summary>Active positive pool in sampling order for this context.</summary>
+    internal IReadOnlyList<string> Positives => _positives;
+
+    /// <summary>Active negative pool in sampling order for this context.</summary>
+    internal IReadOnlyList<string> Negatives => _negatives;
+
+    internal int BudgetCommon => _snapshot?.BudgetCommon ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetCommon;
+    internal int BudgetUncommon => _snapshot?.BudgetUncommon ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetUncommon;
+    internal int BudgetRare => _snapshot?.BudgetRare ?? QuriousCraftingRelicsConfig.ChaosRelicBudgetRare;
+    internal int NegativeChanceCommon =>
+        _snapshot?.NegativeChanceCommon ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceCommon;
+    internal int NegativeChanceUncommon =>
+        _snapshot?.NegativeChanceUncommon ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceUncommon;
+    internal int NegativeChanceRare =>
+        _snapshot?.NegativeChanceRare ?? QuriousCraftingRelicsConfig.ChaosRelicNegativeChanceRare;
+
+    /// <summary>Frozen per-point table inside a run, live table otherwise.</summary>
+    internal ChaosPointCosts Costs => _snapshot?.FrozenCosts ?? QuriousCraftingRelicsConfig.PointCosts;
+
+    /// <summary>Watcher-mod presence, run-frozen inside a run.</summary>
+    internal bool WatcherModLoaded => _snapshot?.WatcherModLoaded ?? ChaosTemplates.WatcherModLoadedProbe;
+}
+
+/// <summary>
 /// Single resolution point for chaos relic templates across BOTH pools
 /// (core + extra).
 ///
@@ -19,12 +108,19 @@ namespace QuriousCraftingRelics.Chaos;
 ///
 /// Every consumer now goes through this class:
 ///   - <see cref="Spec"/>        raw catalog spec, no user overlay
-///   - <see cref="Effective"/>   catalog spec with the user Min/Max bounds applied
+///   - <see cref="Effective(string)"/>   catalog spec with the user Min/Max bounds applied
 ///   - <see cref="PositiveTemplates"/> / <see cref="NegativeTemplates"/>
 ///                               the ACTIVE pool (extra templates join only
 ///                               while EnableExtraPool is on)
 ///   - <see cref="CheapestPositiveUnit"/> / <see cref="CheapestPositiveFloor"/>
 ///                               budget floor, computed over the active pool
+///
+/// R04-02: the pool/spec/bounds queries that depend on run state take an
+/// explicit <see cref="GenerationContext"/>; the parameterless members remain
+/// for catalog-only consumers and delegate to the AMBIENT context (the active
+/// run, else live config). Generation itself always runs on an explicit
+/// context (see <see cref="ChaosRelicGenerator.Generate(string, int, int, int,
+/// ChaosPointCosts, int, int, int, GenerationContext)"/>).
 /// </summary>
 internal static class ChaosTemplates
 {
@@ -39,25 +135,23 @@ internal static class ChaosTemplates
             : ChaosRelicCatalog.Spec(template);
 
     /// <summary>
-    /// Raw spec with the run-frozen (inside a run) or live-user (menus) Min/Max
-    /// bounds overlay applied. Inside a run the bounds were frozen at seed
-    /// capture (astra-advice 2026-09-12 item 5): mid-run preference edits must
-    /// not change template bands, or already-held relics change meaning.
-    /// QCR-1: with a frozen snapshot the effective spec is served from the
-    /// snapshot's precomputed immutable map (identity-preserving overlay built
-    /// once at capture) - no per-call record allocation, no live-config read.
-    /// LIFECYCLE: producer/owner/invalidation = QuriousGenerationSnapshot
-    /// (see its class comment); this class is only a consumer.
+    /// Raw spec with the context's Min/Max bounds overlay applied: the frozen
+    /// snapshot's precomputed immutable map inside a run, live config otherwise.
+    /// QCR-1: with a frozen context the effective spec is a dictionary hit - no
+    /// per-call record allocation, no live-config read.
     /// </summary>
-    internal static ChaosRelicCatalog.TemplateSpec Effective(string template)
+    internal static ChaosRelicCatalog.TemplateSpec Effective(string template, GenerationContext context)
     {
-        var spec = Spec(template);
-        if (ChaosRelicRunRegistry.CurrentSnapshot?.EffectiveSpecFor(template) is { } frozen)
+        if (context.Snapshot?.EffectiveSpecFor(template) is { } frozen)
         {
             return frozen;
         }
-        return QuriousCraftingRelicsConfig.ApplyUserBounds(spec);
+        return QuriousCraftingRelicsConfig.ApplyUserBounds(Spec(template));
     }
+
+    /// <summary>Ambient (active run, else live) variant of <see cref="Effective(string, GenerationContext)"/>.</summary>
+    internal static ChaosRelicCatalog.TemplateSpec Effective(string template) =>
+        Effective(template, GenerationContext.Ambient);
 
     /// <summary>Negative lookup across both pools.</summary>
     internal static bool IsNegative(string template) =>
@@ -70,13 +164,15 @@ internal static class ChaosTemplates
         AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "Watcher");
 
     /// <summary>
-    /// Extra-pool gate, run-frozen when a run is active (the active template
-    /// lists must not reshuffle mid-run), live config otherwise (menus).
+    /// Extra-pool gate, run-frozen while a run is ACTIVE (the active template
+    /// lists must not reshuffle mid-run), live config otherwise (menus). A
+    /// retained-but-inactive context never answers this: the active snapshot is
+    /// cleared when the run ends.
     /// </summary>
     private static bool ExtraPoolActive =>
         ChaosRelicRunRegistry.CurrentSnapshot?.EnableExtraPool ?? QuriousCraftingRelicsConfig.EnableExtraPool;
 
-    /// <summary>Watcher-mod presence, run-frozen inside a run.</summary>
+    /// <summary>Watcher-mod presence, run-frozen while a run is active.</summary>
     internal static bool WatcherModLoaded =>
         ChaosRelicRunRegistry.CurrentSnapshot?.WatcherModLoaded ?? WatcherModLoadedProbe;
 
@@ -93,13 +189,14 @@ internal static class ChaosTemplates
     /// construction for the same state.
     /// </summary>
     internal static IReadOnlyList<string> PositiveTemplates =>
-        ChaosRelicRunRegistry.CurrentSnapshot?.ActivePositiveTemplates ?? BuildLivePositiveTemplates();
+        ChaosRelicRunRegistry.CurrentSnapshot?.ActivePositiveTemplates
+        ?? BuildLivePositiveTemplates(ExtraPoolActive, WatcherModLoaded);
 
-    private static IReadOnlyList<string> BuildLivePositiveTemplates() =>
-        (ExtraPoolActive
+    internal static IReadOnlyList<string> BuildLivePositiveTemplates(bool extraPoolActive, bool watcherLoaded) =>
+        (extraPoolActive
             ? ChaosRelicCatalog.PositiveTemplates.Concat(ChaosRelicExtraCatalog.PositiveTemplates)
             : ChaosRelicCatalog.PositiveTemplates)
-        .Where(t => !ChaosRelicExtraCatalog.WatcherTemplates.Contains(t) || WatcherModLoaded)
+        .Where(t => !ChaosRelicExtraCatalog.WatcherTemplates.Contains(t) || watcherLoaded)
         .ToList();
 
     /// <summary>
@@ -108,21 +205,23 @@ internal static class ChaosTemplates
     /// while a run snapshot exists; live rebuild otherwise.
     /// </summary>
     internal static IReadOnlyList<string> NegativeTemplates =>
-        ChaosRelicRunRegistry.CurrentSnapshot?.ActiveNegativeTemplates ?? BuildLiveNegativeTemplates();
+        ChaosRelicRunRegistry.CurrentSnapshot?.ActiveNegativeTemplates
+        ?? BuildLiveNegativeTemplates(ExtraPoolActive);
 
-    private static IReadOnlyList<string> BuildLiveNegativeTemplates() =>
-        ExtraPoolActive
+    internal static IReadOnlyList<string> BuildLiveNegativeTemplates(bool extraPoolActive) =>
+        extraPoolActive
             ? ChaosRelicCatalog.NegativeTemplates.Concat(ChaosRelicExtraCatalog.NegativeTemplates).ToList()
             : ChaosRelicCatalog.NegativeTemplates;
 
     /// <summary>
-    /// Cheapest single unit of any positive template, using LIVE per-point
-    /// prices over the ACTIVE pool. One unit is the template's minimum amount.
+    /// Cheapest single unit of any positive template, using the context's
+    /// per-point prices over the context's active pool. One unit is the
+    /// template's minimum amount.
     /// </summary>
-    internal static int CheapestPositiveUnit(ChaosPointCosts costs)
+    internal static int CheapestPositiveUnit(ChaosPointCosts costs, GenerationContext context)
     {
         int cheapest = int.MaxValue;
-        foreach (var template in PositiveTemplates)
+        foreach (var template in context.Positives)
         {
             cheapest = Math.Min(cheapest, costs.CostPerPoint(template));
         }
@@ -131,8 +230,8 @@ internal static class ChaosTemplates
 
     /// <summary>
     /// Cheapest amount of points that buys at least one complete positive
-    /// entry: min over the active pool of Cost(spec.Min). This is the hard
-    /// budget floor - a relic budget below it could not produce a single
+    /// entry: min over the context's active pool of Cost(spec.Min). This is the
+    /// hard budget floor - a relic budget below it could not produce a single
     /// positive entry, which is the degenerate configuration the probe
     /// reproduced (budget 1 with every positive priced 20 produced 60 empty
     /// relics).
@@ -143,19 +242,19 @@ internal static class ChaosTemplates
     /// untouched; the raise happens inside the generator and is logged once
     /// per generation when it actually triggers.
     /// </summary>
-    internal static int CheapestPositiveFloor(ChaosPointCosts costs)
+    internal static int CheapestPositiveFloor(ChaosPointCosts costs, GenerationContext context)
     {
         int floor = int.MaxValue;
-        foreach (var template in PositiveTemplates)
+        foreach (var template in context.Positives)
         {
-            var spec = Effective(template);
+            var spec = Effective(template, context);
             floor = Math.Min(floor, PriceOf(spec, costs, spec.Min));
         }
         return floor == int.MaxValue ? 1 : Math.Max(1, floor);
     }
 
     /// <summary>
-    /// Point price of an amount for a spec, using the LIVE per-point table and
+    /// Point price of an amount for a spec, using the given per-point table and
     /// the spec's own pricing shape (triangular when Decaying).
     /// </summary>
     internal static int PriceOf(ChaosRelicCatalog.TemplateSpec spec, ChaosPointCosts costs, int amount) =>
@@ -164,7 +263,7 @@ internal static class ChaosTemplates
             : costs.CostPerPoint(spec.Template) * amount;
 
     /// <summary>
-    /// Points REFUNDED by an amount of a negative spec, using the LIVE
+    /// Points REFUNDED by an amount of a negative spec, using the given
     /// per-point table. Mirrors <see cref="PriceOf"/> for the negative side:
     /// <see cref="ChaosPointCosts.CostPerPoint"/> deliberately returns 0 for
     /// negatives, so a consumer that priced a negative through PriceOf would

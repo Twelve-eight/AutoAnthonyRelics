@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Thin launcher for tools/generation-persistence-probe: builds the probe and
+    calls it in-process, so one command drives a case without retyping a long
+    dotnet invocation.
+
+    Usage (arguments after the separator are handed to the probe unchanged):
+      dotnet run --project tools/run-generation-probe -p:QuriousDll=<dll> -- \
+        --workdir <G: dir> --mode case2 --live-a <a.json> --live-b <b.json>
+
+    The probe project stays the single owner of the checks; this project adds
+    no logic of its own. QuriousDll / Sts2DataDir / BaseLibDll are forwarded to
+    the probe project.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>RunGenerationProbe</AssemblyName>
+    <RootNamespace>RunGenerationProbe</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../generation-persistence-probe/GenerationPersistenceProbe.csproj">
+      <AdditionalProperties>QuriousDll=$(QuriousDll);Sts2DataDir=$(Sts2DataDir);BaseLibDll=$(BaseLibDll)</AdditionalProperties>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>
