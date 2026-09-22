@@ -1,3 +1,76 @@
+## 2026-09-22 - 主动审查轮 1: 设置页 slug 定位键缺口修复 (P2) + 生成器边界取证
+
+### 用户本轮指令
+"继续审查 mod 代码效率, 安全, 符合宣称, 自己找 bug" (同轮裁定: 非 STS 项目暂停推进;
+东尼遗物停止维护; 本项目 = 怪异炼化继续维护).
+
+### 缺陷 (源码 + 独立复现, 已修)
+
+四个配置行只写了**不会被解析**的 loc 键形式, 缺少 BaseLib 真正查询的 slug 形式:
+
+- `Cost_X_Hand_Ethereal` (ConfigSlider 1..40, 可见)
+- `Cost_X_Pickup_Nimble` (可见)
+- `Cost_X_Pickup_Imbued` (可见)
+- `Cost_X_Pickup_Sharp` (ConfigHideInUI)
+
+根因: 本项目 loc 命名有两套形式, 且只有一套是活的. BaseLib 用
+`StringHelper.Slugify(属性名)` 拼 `{ModPrefix}{slug}.title` 与 `..{slug}.hover.desc`
+(见 `research/tools/slug-ground-truth.txt`: `Cost_C_Start_Damage_All => COST_C_START_DAMAGE_ALL`).
+文件里这两种形式大部分同时存在 (92 组大小写变体), 但这 4 组的**活键**从未写入, 只写了
+Title_Snake 死键 (例如 `Cost_X_Pickup_Nimble.title`). 后果: BaseLib 自己的设置页对这 4 行
+回退到"显示原始属性名", 中英两种语言同时缺失 (可见行 3 行 + 隐藏行 1 行).
+
+### 修复
+
+每种语言补 8 键 (4 模板 x `.title` / `.hover.desc`), 文案直接沿用文件里已有的中英文
+(虚无 / 灵巧 / 注能 / 锋利, 与 `docs/terminology-glossary.md` 一致), 未改动任何既有键.
+插入为逐行操作, 保持 CRLF 与无 BOM.
+
+### 验证 (可复现)
+
+- 新增 `tools/loc-key-check.ps1`: 解析配置类属性 + `ConfigHideInUI`, 按 BaseLib 的 Slugify
+  规则检查每个可见属性的活键, 并检查真重复键与 JSON 合法性.
+  - 修复后: `loc-key-check: OK (159 properties checked, 2 language(s))`, exit 0.
+  - 判别力 (对 `git show HEAD:` 的修复前快照): 每语言 3 处 `visibleMissing`, exit 1.
+    即该检查真的咬住这个缺陷, 不是描述性断言.
+- JSON: 每文件 459 键, 序数去重 459 (0 真重复), 两种语言一致.
+- 隔离 Release 构建: 0 警告 / 0 错误; 未部署, 未启动游戏.
+
+### 过程记录 (诚实披露)
+
+第一版插入脚本的插入点取在 `\r` 之后, 产生了 `CR CR LF` 行尾并把整文件写成 920 行假 diff.
+两个 loc 文件在轮次开始时是干净的 (证据: `.tmp/bugfix-20260922-01a0c701/git-status-before.txt`),
+已 `git checkout --` 回滚后改用逐行插入重做; 最终 diff 为每文件 +8 行 / 0 删除. 该错误版本从未提交.
+
+### 生成器与宣称一致性取证 (结果均为通过, 不是缺陷)
+
+独立探针 (`.tmp/sts-audit-20260922-01a0c701/genedge`, 引用本轮构建产物) 覆盖 8 组极端配置 x 120 seeds:
+
+- 硬不变量全过: 池 60 槽, 稀有度 20/20/20, 名称唯一, 每件 >=1 正面词条, 正面 <=6,
+  负面 <=1, 同 relic 内模板不重复, 金额落在用户 Min/Max 带宽内, 无残留 `{N}`/`{M}` 占位符,
+  UniqueOnly 不外泄, 同 seed 同进程逐字节一致, 花费 <= 预算 + 返还.
+- 边界: 全部 Cost_/Refund_ 置 0 或置负 -> 不抛异常且与目录默认同摘要 (证 `CostPerPoint` 的
+  `configured > 0` 回退真的在起作用); 预算 1/1/1 -> 只产出 1 种词条 (文档化的"抬到最低可行价"),
+  不崩; 预算 60/80/120 + 负面 100% -> 每件恰好 1 个负面; Min>Max 交换 -> 正常.
+- 覆盖率: 50/50 模板都有运行时执行分支 (无"生成了却不生效"的词条);
+  文本与钩子一一对应 (`T_START_BLOCK` 文本写"你的回合结束时", 实现也在 `BeforeSideTurnEnd`).
+- 观察项 (P3, 未改): 3 个模板 `PASSIVE_MAX_ENERGY` / `T_START_DRAW` / `T_START_ENERGY` 因
+  `UniqueOnly` 永不参与生成 (与 DEVELOP 一致), 但预算编辑器仍列出这 3 行并可调价, 属"可编辑但永不生效".
+  120 seeds x 默认配置下实际出现 33/36 个活跃模板, 差的正好是这 3 个.
+
+### 模型与路由记录 (AGENTS Sec 4b)
+
+- 子代理: Codex Desktop 原生 `multi_agent_v1`, 会话元数据 `turn_context.model=gpt-6-astra-ar`
+  (用户指定, agentrouter). 额度耗尽后全部中断, 无报告被采信, 已全部关闭, 未换模型或回退路由.
+- 主会话完成剩余工作: 该轮会话 `turn_context.model=deepseek-v4-flash`, `provider=gateway`.
+- 证据: `G:\omp works\.tmp\sts-audit-20260922-01a0c701\agent-routes.json`.
+
+### 证据路径
+
+- 修复: `mod/QuriousCraftingRelics/localization/{eng,zhs}/settings_ui.json`; 工具 `tools/loc-key-check.ps1`.
+- 构建: `.tmp/bugfix-20260922-01a0c701/{baseline-build.log,build-after-loc-fix.log}`.
+- 探针: `.tmp/sts-audit-20260922-01a0c701/genedge/*.log`; 修复前后 loc 哈希: `loc-fix-hashes.json`.
+- 未验证: 实机设置页渲染 (需启动游戏), 实机战斗/联机行为. 本轮未启动游戏, 未部署, 未改共享配置.
 ## 2026-09-19 - cfg 迁移归属判据收紧为"全有或全无" (真实事故)
 
 ### 缺陷 (姊妹 mod 触发, 本 mod 是加害方)
