@@ -17,12 +17,15 @@ internal sealed class Options
     internal string? LiveB;
     internal string? Payload;
     internal string? Manifest;
+    internal string? ModManifest;
     internal string? Golden;
     internal string? Overrides;
     internal string? OutPath;
     internal string Seed = "PROBE-SEED-A";
     internal string SecondSeed = "PROBE-SEED-B";
     internal string Version = "probe-1.0";
+    internal string ModManifestPath => ModManifest ?? Path.Combine(
+        Path.GetDirectoryName(Path.GetFullPath(ModDll)) ?? ".", "QuriousCraftingRelics.json");
 
     internal string PayloadPath => Payload ?? Path.Combine(WorkDir, "encoded.txt");
     internal string ManifestPath => Manifest ?? Path.Combine(WorkDir, "case1-a.json");
@@ -51,6 +54,7 @@ internal sealed class Options
                 case "--live-b": o.LiveB = Next(); break;
                 case "--payload": o.Payload = Next(); break;
                 case "--manifest": o.Manifest = Next(); break;
+                case "--mod-manifest": o.ModManifest = Next(); break;
                 case "--golden": o.Golden = Next(); break;
                 case "--overrides": o.Overrides = Next(); break;
                 case "--out": o.OutPath = Next(); break;
@@ -73,6 +77,7 @@ internal sealed class Options
         "  modes: dump-live | case1-write | case1-check | case2 | case3-golden | case4-rejects | transport",
         "  options: --live-a <json> --live-b <json> --payload <file> --manifest <file> --golden <file>",
         "           --overrides <json> --out <file> --seed <s> --second-seed <s> --mod-version <v>",
+        "           --mod-manifest <QuriousCraftingRelics.json>  (default: next to --mod-dll)",
         "  dump-live writes a COMPLETE live-config fixture from the DLL's own defaults (plus --overrides);",
         "  it never reads the user's real mod_configs. All writes stay under --workdir.",
     });
@@ -102,7 +107,7 @@ internal sealed class ShowUsageException : Exception
         }
         Directory.CreateDirectory(options.WorkDir);
         var assembly = Assembly.LoadFrom(options.ModDll);
-        Refs.Init(assembly);
+        Refs.Init(assembly, options.ModManifestPath);
         Log.Note("mod assembly loaded: " + assembly.Location);
         Log.Note("mod dll sha256: " + Sha256OfFile(options.ModDll));
 
@@ -219,17 +224,35 @@ internal sealed class ShowUsageException : Exception
         BackingField("RegistrationSucceeded")?.SetValue(null, true);
     }
 
+    /// <summary>
+    /// Backing field of a static auto-property. The compiler emits it with
+    /// STATIC | NonPublic, so the field lookup must not be restricted to
+    /// instance fields - a lookup that only asks for instance fields silently
+    /// returns null and would turn this case into a false skip.
+    /// </summary>
     private static FieldInfo? BackingField(string propertyName) =>
-        SaveType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-            ?.DeclaringType
-            ?.GetField("<" + propertyName + ">k__BackingField",
-                BindingFlags.Instance | BindingFlags.NonPublic);
+        SaveType.GetField("<" + propertyName + ">k__BackingField",
+            BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
     internal static object NullRunState()
     {
         var type = Refs.Sts2Assembly.GetType("MegaCrit.Sts2.Core.Runs.NullRunState", throwOnError: true)!;
         return Refs.StaticGet(type, "Instance")
             ?? throw new InvalidOperationException("NullRunState.Instance is null");
+    }
+
+    /// <summary>
+    /// A DISTINCT IRunState instance per call. The basegame's NullRunState has a
+    /// private constructor and a single shared Instance; identity/token storage is
+    /// keyed per instance (ConditionalWeakTable), so two saves must be modelled by
+    /// two instances or they would share one token slot. Creating them through the
+    /// non-public constructor is the only way to get that outside the engine.
+    /// </summary>
+    internal static object NewRunState()
+    {
+        var type = Refs.Sts2Assembly.GetType("MegaCrit.Sts2.Core.Runs.NullRunState", throwOnError: true)!;
+        return Activator.CreateInstance(type, nonPublic: true)
+            ?? throw new InvalidOperationException("NullRunState could not be constructed");
     }
 
     internal static void RememberToken(object runState, string token) =>
@@ -260,6 +283,13 @@ internal sealed class ShowUsageException : Exception
             + (BlockedReason is null ? "" : " blocked=" + BlockedReason);
     }
 
+    /// <summary>
+    /// Drives the registry's capture entry point. It returns a
+    /// <c>(string? Identity, bool Resumed)</c> tuple, whose element names exist
+    /// only at compile time, so the tuple is read positionally and the richer
+    /// outcome (generation kind, refusal reason) comes from the registry's own
+    /// <c>LastOutcome</c> - the value the engine-side caller reports from.
+    /// </summary>
     internal static Capture CaptureRun(object? runState, string seed, bool runStart, long startTimeUnix)
     {
         object? raw = Refs.Call(Refs.Registry, "CaptureRun", runState, seed, runStart, startTimeUnix);
@@ -267,13 +297,15 @@ internal sealed class ShowUsageException : Exception
         {
             throw new InvalidOperationException("CaptureRun returned null");
         }
+        object? outcome = Refs.Get(Refs.Registry, "LastOutcome")
+            ?? throw new InvalidOperationException("registry.LastOutcome is null after a capture");
         return new Capture
         {
-            Identity = (string?)Refs.InstanceGet(raw, "Identity") ?? "",
-            Resumed = (bool?)Refs.InstanceGet(raw, "Resumed") ?? false,
-            Generation = Convert.ToInt32(Refs.InstanceGet(raw, "Generation"), CultureInfo.InvariantCulture),
-            BlockedReason = (string?)Refs.InstanceGet(raw, "BlockedReason"),
-            Refused = (bool?)Refs.InstanceGet(raw, "Refused") ?? false,
+            Identity = (string?)Refs.InstanceGet(raw, "Item1") ?? "",
+            Resumed = (bool?)Refs.InstanceGet(raw, "Item2") ?? false,
+            Generation = Convert.ToInt32(Refs.InstanceGet(outcome, "Generation"), CultureInfo.InvariantCulture),
+            BlockedReason = (string?)Refs.InstanceGet(outcome, "BlockedReason"),
+            Refused = (bool?)Refs.InstanceGet(outcome, "Refused") ?? false,
         };
     }
 
@@ -291,6 +323,16 @@ internal sealed class ShowUsageException : Exception
     internal static int Multiplier() =>
         Convert.ToInt32(Refs.Get(Refs.Cfg, "ChaosRelicMultiplier"), CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// The mod version THIS process reports (registry.ModVersion reads the
+    /// loaded-mod manifest; outside the game no mod is loaded, so it is empty).
+    /// Fixtures that must look like "a save written by this build" have to mint
+    /// with this value, not with a literal - a hard-coded version would be a
+    /// known version drift and be refused, which is the codec being right and
+    /// the fixture being wrong.
+    /// </summary>
+    internal static string ModVersion() => (string?)Refs.Call(Refs.Registry, "ModVersion") ?? "";
+
     internal static IReadOnlyList<object> ForSeed(string seed) =>
         Defs.AsObjectList(Refs.Call(Refs.Registry, "ForSeed", seed, Multiplier())!);
 
@@ -303,7 +345,7 @@ internal sealed class ShowUsageException : Exception
         return (string)Refs.Call(Refs.IdentityType, "Tag", fingerprint)!;
     }
 
-    internal static string Encode(string identity, object snapshot, IReadOnlyList<object> definitions)
+    internal static string Encode(string identity, object snapshot, IReadOnlyList<object>? definitions)
     {
         var method = Refs.Method(Refs.Codec, "Encode", 3)
             ?? throw new MissingMethodException("QuriousGenerationPersistence.Encode/3 not found");
@@ -315,8 +357,21 @@ internal sealed class ShowUsageException : Exception
         {
             throw new NotSupportedException("Encode signature changed: " + method);
         }
-        object? payload = method.Invoke(null, new object?[] { identity, snapshot, Defs.TypedDefinitions(definitions) });
-        return payload as string ?? throw new InvalidOperationException("Encode returned no string");
+        // A null argument is part of the contract under test (the codec must
+        // refuse it), so it is passed through untouched instead of being
+        // dereferenced by the fixture builder.
+        object? typed = definitions is null ? null : Defs.TypedDefinitions(definitions);
+        try
+        {
+            object? payload = method.Invoke(null, new[] { (object?)identity, snapshot, typed });
+            return payload as string ?? throw new InvalidOperationException("Encode returned no string");
+        }
+        catch (TargetInvocationException e) when (e.InnerException is not null)
+        {
+            // Reflection wraps the codec's own exception; the case under test is
+            // the TYPE the codec threw, so unwrap it like Decode does.
+            throw e.InnerException;
+        }
     }
 
     internal static object Decode(string payload, string identity, string seed)
@@ -334,8 +389,12 @@ internal sealed class ShowUsageException : Exception
         }
     }
 
-    internal static IReadOnlyList<object> DefinitionsOf(object saved) =>
-        Defs.AsObjectList(Refs.InstanceGet(saved, "Definitions"));
+    internal static IReadOnlyList<object> DefinitionsOf(object saved)
+    {
+        object? raw = Refs.InstanceGet(saved, "Definitions")
+            ?? throw new InvalidOperationException("saved.Definitions is null");
+        return Defs.AsObjectList(raw);
+    }
 
     internal static object SnapshotOf(object saved) =>
         Refs.InstanceGet(saved, "Snapshot") ?? throw new InvalidOperationException("saved.Snapshot is null");
@@ -365,7 +424,11 @@ internal sealed class ShowUsageException : Exception
         int budgetCommon, int budgetUncommon, int budgetRare,
         int negCommon, int negUncommon, int negRare)
     {
-        var method = Refs.GeneratorType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+        // The generator's context overload is internal to the mod (production
+        // callers are inside it); the probe reaches it by name like every other
+        // non-public member here.
+        var method = Refs.GeneratorType
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
             .FirstOrDefault(m => m.Name == "Generate"
                 && m.GetParameters().Length == 9
                 && m.GetParameters()[8].ParameterType == Refs.ContextType)
@@ -502,8 +565,13 @@ internal sealed class ShowUsageException : Exception
             "expected=" + Short(wantCosts) + " actual=" + Short(gotCosts));
     }
 
-    internal static bool SameDefinitions(JsonNode expected, IReadOnlyList<object> actual)
+    internal static bool SameDefinitions(JsonNode? expected, IReadOnlyList<object> actual)
     {
+        if (expected is null)
+        {
+            Log.Warn("definition mismatch: the expected side is not valid JSON");
+            return false;
+        }
         string want = expected.ToJsonString();
         string got = Defs.FormatPool(actual);
         if (want == got)

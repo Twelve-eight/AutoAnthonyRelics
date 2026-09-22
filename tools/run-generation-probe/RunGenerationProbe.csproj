@@ -6,12 +6,13 @@
     dotnet invocation.
 
     Usage (arguments after the separator are handed to the probe unchanged):
-      dotnet run --project tools/run-generation-probe -p:QuriousDll=<dll> -- \
-        --workdir <G: dir> --mode case2 --live-a <a.json> --live-b <b.json>
+      dotnet run (project tools/run-generation-probe, -p:QuriousDll=path)
+        (separator) (probe args: workdir, mode, live-a, live-b)
 
     The probe project stays the single owner of the checks; this project adds
-    no logic of its own. QuriousDll / Sts2DataDir / BaseLibDll are forwarded to
-    the probe project.
+    no logic of its own. QuriousDll / Sts2DataDir / BaseLibDll are MSBuild
+    GLOBAL properties, so they reach the referenced probe project unchanged and
+    the probe's own defaults stay in force when they are not supplied.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -23,9 +24,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../generation-persistence-probe/GenerationPersistenceProbe.csproj">
-      <AdditionalProperties>QuriousDll=$(QuriousDll);Sts2DataDir=$(Sts2DataDir);BaseLibDll=$(BaseLibDll)</AdditionalProperties>
-    </ProjectReference>
+    <ProjectReference Include="../generation-persistence-probe/GenerationPersistenceProbe.csproj" />
   </ItemGroup>
 
 </Project>

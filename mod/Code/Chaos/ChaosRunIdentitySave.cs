@@ -238,8 +238,19 @@ internal static class ChaosRunIdentitySave
     /// Reads a string in the exact layout of
     /// <see cref="PacketWriter.WriteString"/> while bounding the allocation:
     /// the length is validated against the key's cap AND the reader's remaining
-    /// buffer BEFORE the byte array is created, so a hostile or desynchronized
-    /// length cannot allocate.
+    /// BITS before the byte array is created, so a hostile or desynchronized
+    /// length cannot allocate and cannot overrun.
+    ///
+    /// The remaining-space check is done in BITS on purpose. This read normally
+    /// follows a 1-bit presence flag, so <see cref="PacketReader.BitPosition"/> is
+    /// not byte-aligned; comparing a byte count against
+    /// <c>buffer.Length - BitPosition / 8</c> floors the consumed bytes and
+    /// therefore under-counts them, which lets a length through that
+    /// <see cref="BitSerializationUtil.ReadBits"/> then reads past the buffer end
+    /// (measured: a 64-byte buffer with the length field at bit 1 accepted 60
+    /// bytes although only 479 bits remained, and the overrun surfaced as a raw
+    /// <see cref="IndexOutOfRangeException"/> instead of the InvalidDataException
+    /// this method promises).
     /// </summary>
     private static string ReadBoundedString(PacketReader reader, int maxBytes, string what)
     {
@@ -254,8 +265,7 @@ internal static class ChaosRunIdentitySave
                 $"{what} length {byteCount} bytes is above the {maxBytes} byte cap; refusing to read.");
         }
         byte[]? buffer = reader.Buffer;
-        int consumedBytes = reader.BitPosition / 8;
-        if (buffer is null || byteCount > buffer.Length - consumedBytes)
+        if (buffer is null || !FitsInRemainingBits(buffer.Length, reader.BitPosition, byteCount))
         {
             throw new InvalidDataException(
                 $"{what} length {byteCount} bytes does not fit the remaining packet buffer; refusing to read.");
@@ -263,5 +273,18 @@ internal static class ChaosRunIdentitySave
         var bytes = new byte[byteCount];
         reader.ReadBytes(bytes, byteCount);
         return Encoding.UTF8.GetString(bytes, 0, byteCount);
+    }
+
+    /// <summary>
+    /// Do <paramref name="byteCount"/> bytes fit in the bits left after
+    /// <paramref name="bitPosition"/> in a buffer of <paramref name="bufferBytes"/>
+    /// bytes? Bit-exact, so a mid-byte position cannot round in the caller's
+    /// favour. <c>long</c> arithmetic because a hostile 32-bit length times 8
+    /// overflows <c>int</c>.
+    /// </summary>
+    private static bool FitsInRemainingBits(int bufferBytes, int bitPosition, int byteCount)
+    {
+        long remainingBits = (long)bufferBytes * 8 - bitPosition;
+        return remainingBits >= 0 && (long)byteCount * 8 <= remainingBits;
     }
 }

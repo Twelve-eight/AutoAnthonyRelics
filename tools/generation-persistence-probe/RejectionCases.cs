@@ -236,8 +236,12 @@ internal static class RejectionCases
     {
         liveA.Apply();
         Runner.ClearActive();
+        // A FRESH state per case: token/payload storage is keyed per IRunState
+        // instance, and the basegame's shared NullRunState.Instance would carry
+        // one case's token into the next.
+        object runState = Runner.NewRunState();
         object snapshot = factoryA.Create(options.Seed);
-        Runner.CaptureRun(Runner.NullRunState(), options.Seed, runStart: true, 0);
+        Runner.CaptureRun(runState, options.Seed, runStart: true, 0);
         string before = StateSignature();
         Log.Check(before.Contains("snapshot=", StringComparison.Ordinal) && !before.Contains("snapshot=null", StringComparison.Ordinal),
             "case4.state.published", "an active run is published before the failing decodes: " + Runner.Short(before));
@@ -326,13 +330,20 @@ internal static class RejectionCases
     private static void LegacyMigrationCase(
         Options options, Live liveA, Live liveB, SnapshotFactory factoryA, SnapshotFactory factoryB)
     {
-        object runState = Runner.NullRunState();
+        // One FRESH run state per sub-case: each models a different save file, and
+        // the basegame's shared NullRunState.Instance would otherwise carry one
+        // sub-case's persisted token/payload into the next (which turned the
+        // token-only fixture below into a payload restore).
+        object runState = Runner.NewRunState();
 
         // (1) matching token, no payload -> rebuild + migrate to a payload.
         liveA.Apply();
         Runner.ClearActive();
         object snapshot = factoryA.Create(options.Seed);
-        string matching = Runner.MintIdentity(options.Seed, snapshot, options.Version);
+        // Minted with THIS process's reported version: a token is only migrated
+        // when its recorded version matches, so a literal here would be a
+        // deliberate version drift and the refusal would be correct.
+        string matching = Runner.MintIdentity(options.Seed, snapshot, Runner.ModVersion());
         Runner.RememberToken(runState, matching);
         Runner.Capture legacy = Runner.CaptureRun(runState, options.Seed, runStart: false, 0);
         Log.Check(!legacy.Refused, "case4.legacy.matching.accepted",
@@ -355,21 +366,29 @@ internal static class RejectionCases
             }
         }
 
-        // (2) drifted inputs -> refuse and keep the token.
+        // (2) the same save's token loaded with a DIFFERENT live config. The
+        // sub-case above migrated that identity into this process's retention, so
+        // its own token now resumes - correctly, because a retained context IS
+        // that identity's context. A KNOWN drift is a save whose identity this
+        // process never froze, which is what a fresh mint models: a token minted
+        // under config A, then loaded in a process running config B.
         Runner.ClearActive();
+        liveA.Apply();
+        object driftSnapshot = factoryA.Create(options.SecondSeed);
+        string driftedToken = Runner.MintIdentity(options.SecondSeed, driftSnapshot, Runner.ModVersion());
         liveB.Apply();
-        Runner.RememberToken(runState, matching);
-        Runner.RememberPayload(runState, null!);
-        Runner.Capture drifted = Runner.CaptureRun(runState, options.Seed, runStart: false, 0);
+        object driftState = Runner.NewRunState();
+        Runner.RememberToken(driftState, driftedToken);
+        Runner.Capture drifted = Runner.CaptureRun(driftState, options.SecondSeed, runStart: false, 0);
         Log.Check(drifted.Refused, "case4.legacy.drift.refused",
             "refused=" + drifted.Refused + " reason=" + Runner.Short(drifted.BlockedReason ?? "<null>"));
-        Log.Check(Runner.TokenOf(runState) == matching, "case4.legacy.drift.token.kept",
-            "the save's original token is untouched: " + Runner.Short(Runner.TokenOf(runState) ?? "<null>"));
+        Log.Check(Runner.TokenOf(driftState) == driftedToken, "case4.legacy.drift.token.kept",
+            "the save's original token is untouched: " + Runner.Short(Runner.TokenOf(driftState) ?? "<null>"));
         Log.Check(Runner.CurrentSnapshot() is null, "case4.legacy.drift.no.snapshot",
             "a refused legacy load publishes no snapshot");
         Log.Check(Runner.CurrentDefinitions() is null, "case4.legacy.drift.no.definitions",
             "a refused legacy load publishes no definitions");
-        IReadOnlyList<object> refusedPool = Runner.ForSeed(options.Seed);
+        IReadOnlyList<object> refusedPool = Runner.ForSeed(options.SecondSeed);
         Log.Check(refusedPool.Count == 0, "case4.legacy.drift.no.pool",
             "count=" + refusedPool.Count.ToString(CultureInfo.InvariantCulture)
             + " (a refused run must not silently serve a regenerated pool)");
@@ -378,28 +397,28 @@ internal static class RejectionCases
         Runner.ClearActive();
         liveA.Apply();
         string otherVersion = Runner.MintIdentity(options.Seed, factoryA.Create(options.Seed), "probe-0.0.1");
-        Runner.RememberToken(runState, otherVersion);
-        Runner.Capture versionDrift = Runner.CaptureRun(runState, options.Seed, runStart: false, 0);
+        object versionState = Runner.NewRunState();
+        Runner.RememberToken(versionState, otherVersion);
+        Runner.Capture versionDrift = Runner.CaptureRun(versionState, options.Seed, runStart: false, 0);
         Log.Check(versionDrift.Refused, "case4.legacy.version.drift.refused",
             "reason=" + Runner.Short(versionDrift.BlockedReason ?? "<null>"));
-        Log.Check(Runner.TokenOf(runState) == otherVersion, "case4.legacy.version.drift.token.kept",
-            "token=" + Runner.Short(Runner.TokenOf(runState) ?? "<null>"));
+        Log.Check(Runner.TokenOf(versionState) == otherVersion, "case4.legacy.version.drift.token.kept",
+            "token=" + Runner.Short(Runner.TokenOf(versionState) ?? "<null>"));
 
         // (4) no token at all -> deterministic legacy identity, never a random one.
         Runner.ClearActive();
-        var freshState = Runner.NewRunState();
+        object freshState = Runner.NewRunState();
         Runner.Capture noTokenA = Runner.CaptureRun(freshState, options.Seed, runStart: false, 1700000000L);
-        var freshState2 = Runner.NewRunState();
+        object freshState2 = Runner.NewRunState();
         Runner.Capture noTokenB = Runner.CaptureRun(freshState2, options.Seed, runStart: false, 1700000000L);
         Log.Check(noTokenA.Identity == noTokenB.Identity, "case4.legacy.tokenless.deterministic",
             "identity=" + Runner.Short(noTokenA.Identity));
         Log.Check(noTokenA.Identity.StartsWith("qcr0:", StringComparison.Ordinal), "case4.legacy.tokenless.shape",
             "identity=" + Runner.Short(noTokenA.Identity));
-        var freshState3 = Runner.NewRunState();
+        object freshState3 = Runner.NewRunState();
         Runner.Capture noTokenC = Runner.CaptureRun(freshState3, options.Seed, runStart: false, 0L);
         Log.Check(noTokenC.Identity != noTokenA.Identity, "case4.legacy.tokenless.uses.starttime",
             "a different start time gives a different identity: " + Runner.Short(noTokenC.Identity));
-        _ = liveB;
         _ = factoryB;
     }
 

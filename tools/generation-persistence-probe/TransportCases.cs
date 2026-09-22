@@ -35,12 +35,12 @@ internal static class TransportCases
 {
     private const string ProbeSaveKey = "probe_qurious_generation_transport";
 
-    internal static int Run(Options options, Live liveA, Live liveB, SnapshotFactory factoryA)
+    internal static int Run(Options options, Live liveA, SnapshotFactory factoryA)
     {
         liveA.Apply();
         Runner.ClearActive();
         object snapshot = factoryA.Create(options.Seed);
-        IReadOnlyList<object> definitions = Runner.Generate(options.Seed, snapshot, factoryA);
+        IReadOnlyList<object> definitions = Runner.GenerateForSnapshot(options.Seed, snapshot, factoryA);
         string identity = Runner.MintIdentity(options.Seed, snapshot, options.Version);
         string payload = Runner.Encode(identity, snapshot, definitions);
         Log.Note("transport.payload chars=" + payload.Length.ToString(CultureInfo.InvariantCulture)
@@ -100,6 +100,13 @@ internal static class TransportCases
         ExtendedSaveHandlers<IRunState, SerializableRun>.Load(save, NullRunState.Instance);
         Log.Check(delivered == payload, "transport.json.load.delivers.payload",
             "delivered chars=" + (delivered?.Length ?? -1).ToString(CultureInfo.InvariantCulture));
+
+        // --- the MOD'S OWN registered keys, through the same BaseLib surface ---
+        // The probe above proves the API carries a payload; this proves the mod's
+        // real keys and real delegates do, which is the claim that matters. The
+        // mod's registration runs the production entry point (the same call
+        // MainFile.Initialize makes), and its entries are then driven directly.
+        ModKeyCases(options, identity, payload);
 
         // --- packet path through the REAL registered delegates ---
         var data = ExtendedSaveHandlers<IRunState, SerializableRun>.ExtendedData[save];
@@ -163,15 +170,154 @@ internal static class TransportCases
         // --- explicit list of what remains unverified ---
         Log.Skip("transport.engine.gate",
             "ExtendedSaveHandlers.Write/Read early-return unless PostModInitPatch.CanModifyGameplay (set by LocManager.Initialize in the game)");
-        Log.Skip("transport.mod.registered.key",
-            "the mod's own key and internal delegates need the game mod-init path; this probe uses its own key on the same API");
-        Log.Skip("transport.runmanager.json.save",
-            "RunManager.ToSave / RunState.FromSerializable / the save JSON pipeline need the engine");
+        Log.Skip("transport.mod.engine.entry",
+            "the engine-side callers of the mod's registered entries (RunManager.ToSave's postfix that invokes the "
+            + "getters, and RunState.FromSerializable's postfix that invokes the setters) need the engine; the mod's "
+            + "own entries themselves ARE registered and driven above via Load and the packet delegates");
         Log.Skip("transport.multiplayer.bus",
             "ClientLoadJoinResponseMessage / NetMessageBus need the engine and a live session");
         Log.Skip("transport.foreign.writer.key",
             "a payload written by another mod's key cannot be constructed here; cross-mod forward compatibility stays unproven");
         return Log.Finish();
+    }
+
+    /// <summary>
+    /// Drives the MOD'S OWN two registered save keys through the real BaseLib
+    /// extended-save surface: registration through the production entry point,
+    /// then the engine's Load (JSON path), Serializer and Deserializer (packet
+    /// path) for those entries, with the mod's own bounded string codec.
+    ///
+    /// WHAT THIS ADDS over the probe-key case above: the probe key uses the
+    /// engine's unbounded WriteString/ReadString and a delegate the probe owns.
+    /// The mod registers different keys with its own bounded codec, so only
+    /// driving THOSE entries shows the values a real save would carry actually
+    /// round-trip, and that the mod's length caps accept them.
+    ///
+    /// WHAT IT STILL CANNOT SHOW: RunManager.ToSave and the JSON file pipeline
+    /// need the engine (the getters are called by a RunManager postfix), and the
+    /// whole-set Write/Read are gated on PostModInitPatch.CanModifyGameplay,
+    /// which only LocManager.Initialize sets in a running game. Both stay
+    /// reported as skips.
+    /// </summary>
+    private static void ModKeyCases(Options options, string identity, string payload)
+    {
+        var saveType = Runner.SaveType;
+        string identityKey = (string)Refs.Get(saveType, "SaveKey")!;
+        string generationKey = (string)Refs.Get(saveType, "GenerationSaveKey")!;
+
+        Runner.RegisterPersistence();
+        if (Refs.Get(saveType, "PersistenceAvailable") is not true)
+        {
+            Log.Check(false, "transport.mod.registered",
+                "the mod's own registration did not succeed, so its keys cannot be exercised");
+            return;
+        }
+        Log.Check(true, "transport.mod.registered",
+            "mod keys registered: " + identityKey + ", " + generationKey);
+        var entries = ExtendedSaveHandlers<IRunState, SerializableRun>.RegisteredSaves;
+        var identityEntry = entries.FirstOrDefault(e => string.Equals(e.Id, identityKey, StringComparison.Ordinal));
+        var generationEntry = entries.FirstOrDefault(e => string.Equals(e.Id, generationKey, StringComparison.Ordinal));
+        Log.Check(identityEntry is not null, "transport.mod.key.identity.present",
+            "RegisteredSaves contains " + identityKey);
+        Log.Check(generationEntry is not null, "transport.mod.key.generation.present",
+            "RegisteredSaves contains " + generationKey);
+        if (identityEntry is null || generationEntry is null)
+        {
+            return;
+        }
+
+        // JSON load path: the engine's own Load walks every registered entry and
+        // calls the mod's setter when the save carries the key. The save is built
+        // with the values a real save file would have.
+        var source = new SerializableRun();
+        object holder = Runner.NewRunState();
+        var dict = ExtendedSaveHandlers<IRunState, SerializableRun>.ExtendedData[source].DictForType<string>();
+        dict[identityKey] = identity;
+        dict[generationKey] = payload;
+        ExtendedSaveHandlers<IRunState, SerializableRun>.Load(source, (IRunState)holder);
+        Log.Check(Runner.TokenOf(holder) == identity, "transport.mod.json.load.identity",
+            "the save's identity reached the mod's own setter: "
+            + Runner.Short(Runner.TokenOf(holder) ?? "<null>"));
+        Log.Check(Runner.PayloadOf(holder) == payload, "transport.mod.json.load.payload",
+            "chars=" + (Runner.PayloadOf(holder)?.Length ?? -1).ToString(CultureInfo.InvariantCulture));
+
+        // Packet path: the mod's own Serializer/Deserializer delegates, i.e. its
+        // bounded Write/Read helpers, not the engine's unbounded ones.
+        // ExtendedData is keyed by the SERIALIZABLE side (SerializableRun); the
+        // holder passed to Load is the IRunState the mod's setters write to.
+        var holderData = ExtendedSaveHandlers<IRunState, SerializableRun>.ExtendedData[source];
+        var writer = new PacketWriter();
+        generationEntry.Serializer(holderData, writer);
+        identityEntry.Serializer(holderData, writer);
+        int writtenBits = writer.BitPosition;
+        Log.Check(writtenBits > 0, "transport.mod.packet.wrote.bits",
+            "bits=" + writtenBits.ToString(CultureInfo.InvariantCulture)
+            + " bytes=" + writer.BytePosition.ToString(CultureInfo.InvariantCulture));
+
+        var loadedData = ExtendedSaveHandlers<IRunState, SerializableRun>.ExtendedData[new SerializableRun()];
+        var reader = new PacketReader();
+        reader.Reset(writer.Buffer);
+        generationEntry.Deserializer(loadedData, reader);
+        identityEntry.Deserializer(loadedData, reader);
+        bool generationCarried = loadedData.DictForType<string>().TryGetValue(generationKey, out string? gotPayload);
+        bool identityCarried = loadedData.DictForType<string>().TryGetValue(identityKey, out string? gotIdentity);
+        Log.Check(generationCarried && gotPayload == payload, "transport.mod.packet.payload.exact",
+            "chars=" + (gotPayload?.Length ?? -1).ToString(CultureInfo.InvariantCulture)
+            + " sha256=" + (gotPayload is null ? "<none>" : Runner.Sha256OfString(gotPayload)));
+        Log.Check(identityCarried && gotIdentity == identity, "transport.mod.packet.identity.exact",
+            "identity=" + Runner.Short(gotIdentity ?? "<none>"));
+
+        // The restored payload must still decode against the run it belongs to.
+        if (generationCarried && gotPayload is not null)
+        {
+            try
+            {
+                object decoded = Runner.Decode(gotPayload, identity, options.Seed);
+                Log.Check(Runner.DefinitionsOf(decoded).Count == 60, "transport.mod.payload.decodable",
+                    "definitions=" + Runner.DefinitionsOf(decoded).Count.ToString(CultureInfo.InvariantCulture));
+            }
+            catch (Exception e)
+            {
+                Log.Check(false, "transport.mod.payload.decodable",
+                    "Decode failed after the mod's own transport: " + e.GetType().FullName);
+            }
+        }
+
+        // The mod's caps must refuse an over-long value BEFORE allocating, which
+        // is the whole reason it reimplements the string layout.
+        var oversized = new string('A', Runner.MaxEncodedLength() + 1);
+        var oversizedWriter = new PacketWriter();
+        var oversizedData = ExtendedSaveHandlers<IRunState, SerializableRun>.ExtendedData[new SerializableRun()];
+        oversizedData.DictForType<string>()[generationKey] = oversized;
+        try
+        {
+            generationEntry.Serializer(oversizedData, oversizedWriter);
+            Log.Check(false, "transport.mod.oversized.refused",
+                "an over-cap payload was written (" + oversizedWriter.BitPosition + " bits)");
+        }
+        catch (Exception e)
+        {
+            Log.Check(e is InvalidDataException, "transport.mod.oversized.refused",
+                e.GetType().FullName + " | msg=" + Runner.Short(e.Message));
+        }
+
+        // A desynchronized length must be refused before the read allocates.
+        var hostile = new PacketWriter();
+        hostile.WriteInt(int.MaxValue);
+        hostile.WriteInt(0);
+        var hostileReader = new PacketReader();
+        hostileReader.Reset(hostile.Buffer);
+        try
+        {
+            generationEntry.Deserializer(loadedData, hostileReader);
+            Log.Check(false, "transport.mod.hostile.length.refused",
+                "a hostile length was accepted");
+        }
+        catch (Exception e)
+        {
+            Log.Check(e is InvalidDataException, "transport.mod.hostile.length.refused",
+                e.GetType().FullName + " | msg=" + Runner.Short(e.Message));
+        }
     }
 
     private static bool ReadCanModifyGameplay()

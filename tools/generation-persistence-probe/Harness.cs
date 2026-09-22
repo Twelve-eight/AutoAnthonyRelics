@@ -1,4 +1,6 @@
 using System.Globalization;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Runs;
 using System.Reflection;
 using System.Text.Json;
@@ -12,6 +14,7 @@ internal static class Program
     {
         try
         {
+            EngineLogShim.Install();
             return Runner.Run(args);
         }
         catch (Exception e)
@@ -19,6 +22,59 @@ internal static class Program
             Console.Error.WriteLine("FATAL " + e);
             return 1;
         }
+    }
+}
+
+/// <summary>
+/// The game's Logger cannot be constructed outside the engine: its static
+/// constructor calls OS.GetCmdlineArgs()/OS.HasFeature(), which are Godot native
+/// calls, and its ConsoleLogPrinter prints through GD.Print. Every mod log line
+/// (MainFile.Logger, and therefore every capture report) goes through it, so a
+/// probe that drives the capture path would crash on the first report.
+///
+/// WHAT THIS SHIM DOES: it replaces exactly two engine methods - the editor
+/// probe and the printer - with no-ops, so the REAL Logger type, its REAL static
+/// constructor path and the REAL log call sites all execute; only the Godot
+/// transport of the text is dropped, and the probe prints its own PASS/FAIL
+/// lines to stdout. It patches nothing inside the mod: the code under test runs
+/// unmodified.
+///
+/// WHY NOT WRITE THE LINES TO A FILE: the mod's report text is exactly what the
+/// in-game log shows, and this probe asserts on the outcomes the report is
+/// derived from, so the text itself is not evidence here. The lines are echoed
+/// to stderr instead, which keeps them available without depending on Godot.
+/// </summary>
+internal static class EngineLogShim
+{
+    internal static void Install()
+    {
+        var harmony = new Harmony("probe.engine.log.shim");
+
+        MethodInfo? editorProbe = AccessTools.Method(typeof(Logger), "GetIsRunningFromGodotEditor");
+        if (editorProbe is not null)
+        {
+            harmony.Patch(editorProbe,
+                prefix: new HarmonyMethod(AccessTools.Method(typeof(EngineLogShim), nameof(SkipEditorProbe))));
+        }
+
+        MethodInfo? print = AccessTools.Method(typeof(ConsoleLogPrinter), nameof(ConsoleLogPrinter.Print));
+        if (print is not null)
+        {
+            harmony.Patch(print,
+                prefix: new HarmonyMethod(AccessTools.Method(typeof(EngineLogShim), nameof(EchoToStderr))));
+        }
+    }
+
+    private static bool SkipEditorProbe(ref bool __result)
+    {
+        __result = false;
+        return false;
+    }
+
+    private static bool EchoToStderr(LogLevel logLevel, string text)
+    {
+        Console.Error.WriteLine("ENGINE " + logLevel.ToString().ToUpperInvariant() + " " + text);
+        return false;
     }
 }
 
@@ -115,7 +171,7 @@ internal static class Refs
 
     private static Type? _ledgerType;
 
-    internal static void Init(Assembly asm)
+    internal static void Init(Assembly asm, string modManifestPath)
     {
         ModAssembly = asm;
         Sts2Assembly = typeof(MegaCrit.Sts2.Core.Runs.IRunState).Assembly;
@@ -128,7 +184,47 @@ internal static class Refs
         IdentityType = Require("QuriousCraftingRelics.Chaos.ChaosRunIdentity");
         GeneratorType = Require("QuriousCraftingRelics.Chaos.ChaosRelicGenerator");
         ContextType = Require("QuriousCraftingRelics.Chaos.GenerationContext");
+        RegisterLoadedMod(modManifestPath);
+    }
 
+    /// <summary>
+    /// Makes the engine's own ModManager report this mod as loaded, using the
+    /// mod's real manifest file. The mod reads its version from that manifest
+    /// (registry.ModVersion -> ModManager.GetLoadedMods), and the version is part
+    /// of the identity token's drift check, so without this the mod correctly
+    /// reports "no version" and refuses every save that records one - a true
+    /// statement about a process with no mods loaded, but not the state under
+    /// test. Nothing is faked: the engine's registry gets a real Mod entry whose
+    /// manifest is the mod's own JSON.
+    /// </summary>
+    private static void RegisterLoadedMod(string manifestPath)
+    {
+        var modManager = Sts2Assembly.GetType("MegaCrit.Sts2.Core.Modding.ModManager", throwOnError: true)!;
+        var modType = Sts2Assembly.GetType("MegaCrit.Sts2.Core.Modding.Mod", throwOnError: true)!;
+        var manifestType = Sts2Assembly.GetType("MegaCrit.Sts2.Core.Modding.ModManifest", throwOnError: true)!;
+        var loadStateType = Sts2Assembly.GetType("MegaCrit.Sts2.Core.Modding.ModLoadState", throwOnError: true)!;
+
+        // ModManifest declares its members as public FIELDS with
+        // [JsonPropertyName], so the serializer must be told to include fields -
+        // the default options would produce a manifest with a null id and a null
+        // version, and the mod would then correctly report "no version".
+        var manifestJson = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
+        object? manifest = System.Text.Json.JsonSerializer.Deserialize(
+            File.ReadAllText(manifestPath), manifestType, manifestJson)
+            ?? throw new InvalidDataException("mod manifest did not deserialize: " + manifestPath);
+        object mod = Activator.CreateInstance(modType, nonPublic: true)
+            ?? throw new InvalidOperationException("Mod could not be constructed");
+        modType.GetField("path")!.SetValue(mod, Path.GetDirectoryName(Path.GetFullPath(manifestPath)));
+        modType.GetField("state")!.SetValue(mod, Enum.Parse(loadStateType, "Loaded"));
+        modType.GetField("manifest")!.SetValue(mod, manifest);
+
+        var modsField = modManager.GetField("_mods", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new MissingFieldException("ModManager._mods not found");
+        if (modsField.GetValue(null) is not System.Collections.IList mods)
+        {
+            throw new InvalidOperationException("ModManager._mods is not a list");
+        }
+        mods.Add(mod);
     }
 
     private static Type Require(string fullName) =>
@@ -405,7 +501,7 @@ internal static class Defs
     internal static int AmountOf(object op) => Convert.ToInt32(Refs.InstanceGet(op, "Amount"), CultureInfo.InvariantCulture);
     internal static string TextOf(object op) => (string?)Refs.InstanceGet(op, "Text") ?? "";
 
-    internal static IReadOnlyList<object> AsObjectList(object raw)
+    internal static IReadOnlyList<object> AsObjectList(object? raw)
     {
         if (raw is System.Collections.IEnumerable enumerable)
         {
@@ -419,7 +515,8 @@ internal static class Defs
             }
             return list;
         }
-        throw new InvalidOperationException("value is not enumerable: " + raw.GetType().FullName);
+        throw new InvalidOperationException(
+            "value is not enumerable: " + (raw is null ? "<null>" : raw.GetType().FullName));
     }
 
     /// <summary>Builds a ChaosRelicDefinition instance (records: public ctor).</summary>
