@@ -1374,3 +1374,18 @@ Qurious 改名前曾把 Vigor 误译为"勇气"一次; 本次在 AAR 0.1.2 复�
 新证据: A/B/A 私有捕获序列不能恢复 A 的原预算定义; warm ForSeed 1000 次直接 delegate 调用分配 7,208,000 bytes. 单个 LastRunSeed 不是多存档/跨进程定义持久化. LocUpdater 失败前提交 key 仍为 SOURCE 风险. MegaLabel 旧原始日志无法恢复, 不再称当前 UI 已复现.
 
 证据: ../astra-advice-evidence/2026-09-14/round4/review-results.json, binary-boundaries.json, probe-results.json. 未运行游戏/UI/真实存档, 未改产品源码/实机配置/部署/push. 本轮 advice 为当前分级入口.
+
+## 2026-09-23 怪异炼化设置页重写, 隔离构建已通过
+
+用户要求并行重写设置页. 契约见本仓 DEVELOP.md 的本日章节. 本轮只修改 RelicsSettingsSubmenu, BudgetEditorPanel, RangeSlider, 新增 QuriousSettingsStyle, 以及 eng/zhs 的 settings_ui.json; 不改变 mod id, 配置键, 默认值, 遗物生成算法或存档身份.
+
+- 基础规则与词条编辑分页面, 增加搜索与分类筛选. 同行编辑范围及每点花费/返还, 保留原版遗物参考与悬浮提示.
+- 范围提供双端滑条与精确输入, 读取实时配置而不是局内冻结快照. UniqueOnly 使用生成器现有集合并禁用无效编辑.
+- 使用已注册配置实例, 保留五秒 debounce 与隐藏/退出保存. 深灰, 米白与金色样式, 不再强制 800px 最小宽度.
+- 同批实现/监督已完成. 初次构建发现 NotificationFocusEntered/NotificationFocusExited 不存在, 原实现者改为 Godot 4.5.1 的 NotificationFocusEnter/NotificationFocusExit, 再由原监督者复核.
+
+中央验证: G:\omp works\.tmp\workspace-audit-20260923-01a0cbfd\evidence\qurious-ui-isolated.log, Release 为 0 警告和 0 错误, DLL/PCK 位于该证据目录的 qurious-ui-isolated\bin. 显式 CopyToModsFolderOnBuild=false, Sts2Path=E:/Slay the Spire 2. Godot SDK 仅设置 BaseOutputPath 仍会写源码旁 .godot; 最终隔离构建额外传入 OutputPath 和 IntermediateOutputPath, 实际输出已核对在证据目录. 全部本轮产物仍在 G:.
+
+实际委派路由: Codex Desktop 的 multi_agent_v1, turn_context.model=gpt-6-astra-ar, session_meta.model_provider=gateway. providers.json 另核对映射为 agentrouter / gpt-6-astra, 无该模型 fallback. 元数据证据见上述根目录 evidence\agent-routes.json 与 agent-routes-incremental.json; 不能仅凭提示词判断路由.
+
+未验收: 游戏实机 1280x720/1920x1080 排版, 字体, 键盘/手柄, 输入法, 隐藏前未提交数值, 保存失败与保存后重开. 未启动游戏, 未部署到测试或 Steam 安装, 未改共享配置, 未发布 Workshop. 既有路径整理和旧构建产物 dirty 内容保留; 本轮提交只包含自有源码和文档, 提交/远端核对见中央 WORKSPACE-AUDIT-2026-09-23.md.

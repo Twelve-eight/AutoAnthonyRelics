@@ -1,248 +1,185 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Godot;
 using BaseLib.Config;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using QuriousCraftingRelics.Chaos;
-using MegaCrit.Sts2.addons.mega_text;
 
 namespace QuriousCraftingRelics.Patches;
 
-/// <summary>
-/// Visual point-budget editor for all chaos relic templates (user order
-/// 2026-09-11). One row per template showing:
-///   [effect text]([vanilla relic 1],[vanilla relic 2],..)
-///   - hovering a vanilla relic name shows its full description, rarity,
-///     and its cost under OUR pricing (VanillaRelicMapping.OurPointsFor);
-///   - one double-ended range slider (single track, two handles) for the
-///     amount band;
-///   - per-point cost label.
-///
-/// Backed by config keys Min_&lt;TEMPLATE&gt; / Max_&lt;TEMPLATE&gt; /
-/// Cost_&lt;TEMPLATE&gt; / Refund_&lt;TEMPLATE&gt; (persisted through BaseLib
-/// like every other key; MP Tier-1).
-///
-/// The panel owns no config instance: it takes the one registered in
-/// <see cref="ModConfigRegistry"/> and a save callback, so edits land on the
-/// live config and are persisted through the same debounce path BaseLib's own
-/// settings page uses. Building a fresh <c>new QuriousCraftingRelicsConfig()</c>
-/// here (as the first version did) mutated a throwaway object: BaseLib writes
-/// the registered instance to disk, so nothing the user did in the editor
-/// survived a restart.
-/// </summary>
 internal sealed partial class BudgetEditorPanel : VBoxContainer
 {
-    private sealed class TemplateRow
-    {
-        internal required string Template;
-        internal required RangeSlider Slider;
-        internal required Label CostLabel;
-    }
-
-    private readonly List<TemplateRow> _rows = new();
-    private readonly List<Action> _rowRefresh = new();
+    private sealed record Row(Control Root, string SearchText, int Category, bool Inactive, Action Refresh);
+    private readonly List<Row> _rows = new();
+    private readonly List<Control> _chips = new();
     private readonly ModConfig _config;
     private readonly Action _scheduleSave;
+    private LineEdit _search = null!;
+    private OptionButton _category = null!;
+    private Label _count = null!;
+    private Label _extraNotice = null!;
+    private bool _refreshing;
 
     public BudgetEditorPanel(ModConfig config, Action scheduleSave)
     {
         _config = config;
         _scheduleSave = scheduleSave;
+        SizeFlagsHorizontal = SizeFlags.ExpandFill;
     }
 
     public override void _Ready()
     {
-        try
-        {
-            AddThemeConstantOverride("separation", 14);
-            Build();
-        }
-        catch (Exception e)
-        {
-            MainFile.Logger.Error($"[QuriousCraftingRelics] budget editor build failed: {e}");
-        }
+        AddThemeConstantOverride("separation", 12);
+        var tools = new HBoxContainer();
+        _search = new LineEdit { PlaceholderText = Loc("UI_SEARCH"),
+            SizeFlagsHorizontal = SizeFlags.ExpandFill, ClearButtonEnabled = true };
+        _category = new OptionButton();
+        foreach (string key in new[] { "UI_ALL", "BUDGET_SECTION_CORE", "BUDGET_SECTION_NEGATIVE",
+                     "BUDGET_SECTION_EXTRA", "UI_INACTIVE" }) _category.AddItem(Loc(key));
+        tools.AddChild(_search);
+        tools.AddChild(_category);
+        AddChild(tools);
+        _count = QuriousSettingsStyle.Label("");
+        AddChild(_count);
+        _extraNotice = QuriousSettingsStyle.Label(Loc("UI_EXTRA_OFF"));
+        _extraNotice.AddThemeColorOverride("font_color", QuriousSettingsStyle.Gold);
+        AddChild(_extraNotice);
+        AddRows(ChaosRelicCatalog.PositiveTemplates, 1);
+        AddRows(ChaosRelicCatalog.NegativeTemplates, 2);
+        AddRows(ChaosRelicExtraCatalog.PositiveTemplates.Concat(ChaosRelicExtraCatalog.NegativeTemplates), 3);
+        _search.TextChanged += _ => ApplyFilter();
+        _category.ItemSelected += _ => ApplyFilter();
+        RefreshValues();
     }
 
-    private void Build()
+    private void AddRows(IEnumerable<string> templates, int category)
     {
-        var title = new Label { Text = Loc("BUDGET_TITLE") };
-        title.AddThemeFontSizeOverride("font_size", 26);
-        AddChild(title);
-
-        var hint = new Label
+        foreach (string template in templates)
         {
-            Text = Loc("BUDGET_HINT"),
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            CustomMinimumSize = new Vector2(760f, 0f),
-        };
-        hint.AddThemeFontSizeOverride("font_size", 14);
-        AddChild(hint);
-
-        AddSection(Loc("BUDGET_SECTION_CORE"));
-        AddRows(ChaosRelicCatalog.PositiveTemplates);
-        AddSection(Loc("BUDGET_SECTION_NEGATIVE"));
-        AddRows(ChaosRelicCatalog.NegativeTemplates);
-        // ALWAYS render the extra-pool section (user feedback 2026-09-13: the
-        // bounds are config reference even while the pool switch is off).
-        AddSection(Loc("BUDGET_SECTION_EXTRA")
-            + (QuriousCraftingRelicsConfig.EnableExtraPool ? "" : Loc("BUDGET_SECTION_EXTRA_OFF")));
-        AddRows(ChaosRelicExtraCatalog.PositiveTemplates
-            .Concat(ChaosRelicExtraCatalog.NegativeTemplates));
-    }
-
-    private void AddSection(string header)
-    {
-        var label = new Label { Text = header };
-        label.AddThemeFontSizeOverride("font_size", 20);
-        AddChild(label);
-    }
-
-    private void AddRows(IEnumerable<string> templates)
-    {
-        foreach (var t in templates)
-        {
-            // SpecOf resolves across BOTH pools (core + extra) and applies
-            // user Min/Max bounds; ChaosRelicCatalog.Spec alone throws for
-            // extra-pool templates.
-            AddChild(BuildRow(t, ChaosRelicGenerator.SpecOf(t)));
-        }
-    }
-
-    /// <summary>One template row: effect text + vanilla refs + range slider + cost.</summary>
-    private Control BuildRow(string template, ChaosRelicCatalog.TemplateSpec spec)
-    {
-        var row = new VBoxContainer
-        {
-            Name = template,
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-        };
-        row.AddThemeConstantOverride("separation", 2);
-
-        // ---- Line 1: effect text with vanilla-relic refs inline ----
-        var textLine = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        var effect = new Label
-        {
-            Text = EffectText(spec),
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        };
-        textLine.AddChild(effect);
-
-        // Vanilla relic chips: [effect]([relic1],[relic2],..)
-        var refs = VanillaRelicMapping.For(template);
-        if (refs.Count > 0)
-        {
-            textLine.AddChild(new Label { Text = " (" });
-            for (int i = 0; i < refs.Count; i++)
+            var raw = ChaosTemplates.Spec(template);
+            bool inactive = ChaosRelicGenerator.UniqueOnly.Contains(template);
+            string text = ChaosRelicGenerator.RenderEditorText(raw);
+            var card = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            card.AddThemeStyleboxOverride("panel", QuriousSettingsStyle.Box(QuriousSettingsStyle.Surface));
+            var body = new VBoxContainer();
+            body.AddThemeConstantOverride("separation", 8);
+            card.AddChild(body);
+            body.AddChild(QuriousSettingsStyle.Label(text));
+            if (inactive)
             {
-                if (i > 0)
-                {
-                    textLine.AddChild(new Label { Text = "," });
-                }
-                textLine.AddChild(MakeRelicChip(refs[i]));
+                var notice = QuriousSettingsStyle.Label(Loc("UI_INACTIVE_NOTE"), 16);
+                notice.AddThemeColorOverride("font_color", QuriousSettingsStyle.Muted);
+                body.AddChild(notice);
             }
-            textLine.AddChild(new Label { Text = ")" });
-        }
-        row.AddChild(textLine);
-
-        // ---- Line 2: range slider + per-point cost ----
-        var sliderLine = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        sliderLine.AddChild(new Label { Text = Loc("BUDGET_RANGE") });
-        var slider = new RangeSlider();
-        sliderLine.AddChild(slider);
-        var costLabel = new Label();
-        sliderLine.AddChild(costLabel);
-        row.AddChild(sliderLine);
-
-        var rw = new TemplateRow
-        {
-            Template = template,
-            Slider = slider,
-            CostLabel = costLabel,
-        };
-        _rows.Add(rw);
-        _rowRefresh.Add(Refresh);
-
-        // Band: wide enough for the catalog range plus headroom, floored at 8
-        // so a small template can still be widened by hand.
-        int band = Math.Max(spec.Max, 8) * 2;
-        slider.Configure(0, band, spec.Min, spec.Max);
-
-        void Refresh()
-        {
-            // Live config values (ChaosPointCosts resolves user-tuned costs);
-            // negatives show refund per point.
-            int per = spec.IsNegative
-                ? QuriousCraftingRelicsConfig.PointCosts.RefundPerPoint(template)
-                : QuriousCraftingRelicsConfig.PointCosts.CostPerPoint(template);
-            costLabel.Text = Loc("BUDGET_PERPOINT") + " " + per;
-        }
-
-        slider.RangeChanged += (low, high) =>
-        {
-            Persist(template, low, high);
-            Refresh();
-        };
-        Refresh();
-        return row;
-    }
-
-    /// <summary>
-    /// Rendered effect text for a row. Uses the EDITOR renderer, not the
-    /// generator's: a row is a template, not a generated relic, so the amount
-    /// is shown as the literal N that the row's range slider supplies (and
-    /// sloth's derived cap as the expression 7-N). Passing spec.Max here - as
-    /// this used to - printed the band's upper bound as if it were the value.
-    /// </summary>
-    private static string EffectText(ChaosRelicCatalog.TemplateSpec spec) =>
-        ChaosRelicGenerator.RenderEditorText(spec);
-
-    /// <summary>
-    /// Re-read the LIVE per-point prices into every row's cost label. Called
-    /// when the config changes so Cost_ edits made anywhere (BaseLib sliders,
-    /// cfg file) are reflected without reopening the page (user request
-    /// 2026-09-13).
-    /// </summary>
-    internal void RefreshCosts()
-    {
-        foreach (var refresh in _rowRefresh)
-        {
-            refresh();
+            var refs = VanillaRelicMapping.For(template);
+            var referenceRow = new HFlowContainer();
+            foreach (var reference in refs) referenceRow.AddChild(MakeRelicChip(reference));
+            body.AddChild(referenceRow);
+            var inputs = new HBoxContainer();
+            inputs.AddThemeConstantOverride("separation", 20);
+            var rangeColumn = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            rangeColumn.AddChild(QuriousSettingsStyle.Label(Loc("BUDGET_RANGE"), 16));
+            var slider = new RangeSlider { SizeFlagsHorizontal = SizeFlags.ExpandFill, Editable = !inactive };
+            rangeColumn.AddChild(slider);
+            inputs.AddChild(rangeColumn);
+            var costColumn = new VBoxContainer();
+            costColumn.AddChild(QuriousSettingsStyle.Label(Loc(raw.IsNegative ? "UI_REFUND" : "UI_COST"), 16));
+            string propertyName = raw.IsNegative ? ConfigKeyNaming.RefundProperty(template) : ConfigKeyNaming.CostProperty(template);
+            var property = typeof(QuriousCraftingRelicsConfig).GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static)
+                ?? throw new InvalidOperationException("Missing config property: " + propertyName);
+            var price = QuriousSettingsStyle.Number(property);
+            price.Editable = !inactive;
+            costColumn.AddChild(price);
+            inputs.AddChild(costColumn);
+            body.AddChild(inputs);
+            AddChild(card);
+            void Refresh()
+            {
+                // Editor state is always LIVE, never the run-frozen SpecOf/Effective.
+                var spec = QuriousCraftingRelicsConfig.ApplyUserBounds(ChaosTemplates.Spec(template));
+                int ceiling = (int)Math.Min(int.MaxValue, Math.Max(8L, spec.Max) * 2L);
+                slider.Configure(Math.Min(0, spec.Min), ceiling, spec.Min, spec.Max);
+                price.SetValueNoSignal((int)property.GetValue(null)!);
+            }
+            _rows.Add(new Row(card, template + " " + text + " " + string.Join(" ", refs.Select(r => r.DisplayName)),
+                category, inactive, Refresh));
+            slider.RangeChanged += (low, high) =>
+            {
+                if (_refreshing || inactive) return;
+                QuriousCraftingRelicsConfig.SetTemplateBounds(template, low, high);
+                _config.Changed();
+                _scheduleSave();
+            };
+            price.ValueChanged += value =>
+            {
+                if (_refreshing || inactive) return;
+                int next = QuriousSettingsStyle.EditedNumber(price, value);
+                if ((int)property.GetValue(null)! == next) return;
+                property.SetValue(null, next);
+                _config.Changed();
+                _scheduleSave();
+            };
         }
     }
 
-    private void Persist(string template, int low, int high)
+    internal void RefreshValues()
     {
+        if (_search is null) return;
+        _refreshing = true;
         try
         {
-            QuriousCraftingRelicsConfig.SetTemplateBounds(template, low, high);
-            // Persist through the registered config: mark it dirty and let the
-            // submenu's debounce timer write it out. BaseLib's own page does
-            // exactly this (Changed() -> OnConfigChanged -> autosave).
-            _config.Changed();
-            _scheduleSave();
+            foreach (var row in _rows) row.Refresh();
+            _extraNotice.Visible = !QuriousCraftingRelicsConfig.EnableExtraPool;
         }
-        catch (Exception e)
-        {
-            MainFile.Logger.Error($"[QuriousCraftingRelics] persist bounds {template}: {e.Message}");
-        }
+        finally { _refreshing = false; }
+        ApplyFilter();
     }
 
+    private void ApplyFilter()
+    {
+        ClearHoverTips();
+        string query = _search.Text.Trim();
+        int category = _category.Selected;
+        int visible = 0;
+        foreach (var row in _rows)
+        {
+            bool show = (category == 0 || (category == 4 ? row.Inactive : row.Category == category))
+                && row.SearchText.Contains(query, StringComparison.OrdinalIgnoreCase);
+            row.Root.Visible = show;
+            if (show) visible++;
+        }
+        _count.Text = visible == 0 ? Loc("UI_NO_RESULTS") : Loc("UI_RESULTS") + " " + visible + " / " + _rows.Count;
+    }
+
+    internal void ClearHoverTips()
+    {
+        foreach (var chip in _chips)
+            if (GodotObject.IsInstanceValid(chip)) NHoverTipSet.Remove(chip);
+    }
+
+    public override void _ExitTree()
+    {
+        ClearHoverTips();
+        base._ExitTree();
+    }
     /// <summary>Hoverable vanilla-relic name chip: hover = full desc + rarity + our cost.</summary>
-    private static Control MakeRelicChip(VanillaRelicMapping.VanillaRef vref)
+    private Control MakeRelicChip(VanillaRelicMapping.VanillaRef vref)
     {
         var chip = new Label
         {
             Text = vref.DisplayName,
             MouseFilter = MouseFilterEnum.Stop,
+            FocusMode = FocusModeEnum.All,
         };
         chip.AddThemeColorOverride("font_color", new Color(0.98f, 0.84f, 0.25f));
         chip.AddThemeColorOverride("font_hover_color", new Color(1f, 1f, 1f));
 
-        chip.MouseEntered += () =>
+        _chips.Add(chip);
+        void ShowTip()
         {
             try
             {
@@ -253,7 +190,10 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
             {
                 MainFile.Logger.Error($"[QuriousCraftingRelics] hover tip: {e.Message}");
             }
-        };
+        }
+        chip.FocusEntered += ShowTip;
+        chip.MouseEntered += ShowTip;
+        chip.FocusExited += () => NHoverTipSet.Remove(chip);
         chip.MouseExited += () =>
         {
             try { NHoverTipSet.Remove(chip); }
@@ -273,7 +213,7 @@ internal sealed partial class BudgetEditorPanel : VBoxContainer
             $"[color=#c9a227]{Loc("BUDGET_RARITY")}: {vref.Rarity}[/color]\n" +
             $"[color=#8fd48f]{our}[/color]\n" +
             $"[color=#9e9e9e]{vref.EffectNote}[/color]";
-        return new HoverTip(new LocString("settings_ui", LocKey("BUDGET_TITLE")), desc);
+        return new HoverTip(new LocString("settings_ui", LocKey("BUDGET_TITLE") + ".title"), desc);
     }
 
     /// <summary>
