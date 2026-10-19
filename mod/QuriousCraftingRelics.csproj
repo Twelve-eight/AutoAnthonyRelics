@@ -67,7 +67,11 @@
     </Target>
 
     <PropertyGroup>
-        <CopyToModsFolderOnBuild>true</CopyToModsFolderOnBuild>
+        <!-- opt-IN, not opt-out: a plain `dotnet build` must not write into the live install.
+             deploy-target-hazard-2026-09-15.md claims both Anthony repos "never deploy unless
+             asked"; the property was hard-coded true, which made that claim false. Pass
+             -p:CopyToModsFolderOnBuild=true when you actually want the copy. -->
+        <CopyToModsFolderOnBuild Condition="'$(CopyToModsFolderOnBuild)' == ''">false</CopyToModsFolderOnBuild>
     </PropertyGroup>
 
     <Target Name="CopyToModsFolder" AfterTargets="PostBuildEvent;PackPck" Condition="'$(CopyToModsFolderOnBuild)' == 'true' and Exists('$(ModsPath)')">
