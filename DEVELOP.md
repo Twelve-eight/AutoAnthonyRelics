@@ -288,8 +288,9 @@ BaseLib's own settings page and by the dedicated page (see Settings UI).
 
 ## Verification plan
 
-1. dotnet build -> zero errors; CopyToModsFolderOnBuild deploys to
-   mods/AutoAnthonyRelics.
+1. dotnet build -> zero errors. Deploy is opt-in: only with
+   `-p:CopyToModsFolderOnBuild=true` and an existing `$(ModsPath)` does it copy
+   to `mods/QuriousCraftingRelics` (mod/QuriousCraftingRelics.csproj:77-83).
 2. Launch game (modded), check godot.log for:
    - ModManager load of AutoAnthonyRelics
    - no initializer errors
