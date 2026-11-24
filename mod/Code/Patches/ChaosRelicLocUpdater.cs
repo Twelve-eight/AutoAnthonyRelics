@@ -52,18 +52,48 @@ internal static class ChaosRelicLocUpdater
     /// our entries are gone from it and must be rewritten once.</summary>
     private static LocTable? _committedTable;
 
+    /// <summary>
+    /// Generic title/description the table held BEFORE our first successful
+    /// rewrite of each slot key, captured per table generation. Restoring is
+    /// only allowed from here, and only while the current value still equals
+    /// what we wrote (see <see cref="RestoreGenericText"/>) - a foreign writer
+    /// that took the key over is never overwritten.
+    /// </summary>
+    private static Dictionary<string, (string Title, string Description)>? _originalValues;
+
+    /// <summary>Exactly what this class last wrote per slot key, so the
+    /// restore can prove ownership before touching a value.</summary>
+    private static Dictionary<string, (string Title, string Description)>? _lastWritten;
+
+    /// <summary>Table instance the originals were captured from. A partial
+    /// write (throw before commit) must NOT discard the originals on retry:
+    /// the retry would otherwise capture our own generated text as the
+    /// "generic" value. Reset only when the table instance really changed.</summary>
+    private static LocTable? _originalsTable;
+
     /// <summary>Seed just captured (may be null when leaving a run).</summary>
     internal static void OnSeedCaptured(string? seed)
     {
+        // CONTENT-GATE CONTRACT (2026-10-02): with the master switch or the
+        // runtime-hooks group off, the table must go back to the GENERIC
+        // fallback text - merely dropping the dedupe key leaves our rewritten
+        // entries visible. Restore first (ownership-checked), then reset the
+        // dedupe identity so a later re-enable refreshes exactly once.
+        if (!QuriousCraftingRelicsConfig.RuntimeHooksActive)
+        {
+            RestoreGenericText();
+            return;
+        }
+
         try
         {
             if (seed is null)
             {
-                // Leaving a run: drop the committed identity so the next
-                // capture always refreshes (menu canonical text comes back
-                // through ModelDb's own table init).
-                _committedKey = null;
-                _committedTable = null;
+                // Leaving a run: restore the generic text and drop the
+                // committed identity so the next capture always refreshes
+                // (menu canonical text comes back through ModelDb's own
+                // table init).
+                RestoreGenericText();
                 return;
             }
 
@@ -101,11 +131,35 @@ internal static class ChaosRelicLocUpdater
 
             var definitions = ChaosRelicRunRegistry.ForSeed(seed, QuriousCraftingRelicsConfig.ChaosRelicMultiplier);
             int entries = 0;
+            // A new table generation invalidates the previous originals: the
+            // table was rebuilt from the localization files (BaseLib wrote the
+            // generic text again), so capture the CURRENT values as the
+            // originals to restore to.
+            if (!ReferenceEquals(relicsTable, _originalsTable) || _originalValues is null)
+            {
+                _originalValues = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
+                _lastWritten = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
+                _originalsTable = relicsTable;
+            }
             foreach (var (slotModel, definition) in Pools.ChaosRelicRegistry.SlotModels.Zip(definitions, (m, d) => (m, d)))
             {
                 string key = slotModel.Id.Entry;
-                dict[$"{key}.title"] = definition.Name;
-                dict[$"{key}.description"] = string.Join("\n", definition.Operations.Select(op => op.Text));
+                string titleKey = $"{key}.title";
+                string descriptionKey = $"{key}.description";
+                string title = definition.Name;
+                string description = string.Join("\n", definition.Operations.Select(op => op.Text));
+                if (!_originalValues.ContainsKey(key))
+                {
+                    // Only a value that exists can be restored; a missing key
+                    // means another writer removed it - record nulls and skip
+                    // the restore for it instead of fabricating text.
+                    _originalValues[key] = (
+                        dict.TryGetValue(titleKey, out string? beforeTitle) ? beforeTitle : string.Empty,
+                        dict.TryGetValue(descriptionKey, out string? beforeDescription) ? beforeDescription : string.Empty);
+                }
+                dict[titleKey] = title;
+                dict[descriptionKey] = description;
+                _lastWritten![key] = (title, description);
                 entries++;
             }
 
@@ -119,6 +173,148 @@ internal static class ChaosRelicLocUpdater
         catch (Exception e)
         {
             MainFile.Logger.Error($"[QuriousCraftingRelics] loc update failed: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Puts the generic title/description back for every slot this class
+    /// rewrote. OWNERSHIP-CHECKED: a value is only restored when the current
+    /// entry still equals exactly what this class last wrote - if any other
+    /// writer (another mod, a localization override, a manual edit) took the
+    /// key over, that value is left alone and reported.
+    ///
+    /// Failure is never reported as success: a missing/regenerated table or a
+    /// failed restore keeps the committed identity so a later capture can
+    /// retry, and logs the reason.
+    /// </summary>
+    private static void RestoreGenericText()
+    {
+        var originals = _originalValues;
+        var written = _lastWritten;
+        try
+        {
+            if (originals is null || written is null || originals.Count == 0)
+            {
+                // Nothing this class ever wrote: only drop the identity.
+                _committedKey = null;
+                _committedTable = null;
+                _originalsTable = null;
+                _originalValues = null;
+                _lastWritten = null;
+                return;
+            }
+
+            // Nothing was committed (partial write that threw before the
+            // commit): restore whatever entries are still exactly ours.
+            var locManager = LocManager.Instance;
+            LocTable? relicsTable = null;
+            try
+            {
+                relicsTable = locManager?.GetTable("relics");
+            }
+            catch
+            {
+                relicsTable = null;
+            }
+            var dict = relicsTable is null
+                ? null
+                : LocDictionaryField?.GetValue(relicsTable) as Dictionary<string, string>;
+            if (dict is null)
+            {
+                // Cannot restore right now. Keep the committed state so the
+                // next capture retries; do NOT claim success.
+                MainFile.Logger.Error("[QuriousCraftingRelics] loc restore: relics table not found; generic text NOT restored");
+                return;
+            }
+
+            // A rebuilt table carries the generic text already; the captured
+            // originals belong to the old instance and must not be written
+            // into the new one. Clear the stale bookkeeping and report. (A
+            // partial write that never committed still has _originalsTable ==
+            // relicsTable, so it falls through to the ownership-checked
+            // restore below instead of being skipped.)
+            if (!ReferenceEquals(relicsTable, _originalsTable))
+            {
+                _committedKey = null;
+                _committedTable = null;
+                _originalsTable = null;
+                _originalValues = null;
+                _lastWritten = null;
+                MainFile.Logger.Info("[QuriousCraftingRelics] loc restore: table regenerated; generic text already present");
+                return;
+            }
+
+            bool sameTable = ReferenceEquals(relicsTable, _committedTable);
+            int restored = 0;
+            int foreign = 0;
+            int untouched = 0;
+            foreach (var (key, original) in originals)
+            {
+                if (!written.TryGetValue(key, out var last))
+                {
+                    continue;
+                }
+                // Title: restore only if the current value is exactly ours.
+                if (dict.TryGetValue($"{key}.title", out string? currentTitle))
+                {
+                    if (!string.Equals(currentTitle, last.Title, StringComparison.Ordinal))
+                    {
+                        foreign++; // another writer owns this value now
+                    }
+                    else if (original.Title.Length > 0)
+                    {
+                        dict[$"{key}.title"] = original.Title;
+                        restored++;
+                    }
+                    else
+                    {
+                        dict.Remove($"{key}.title"); // original key did not exist
+                        restored++;
+                    }
+                }
+                else
+                {
+                    untouched++; // someone removed it: nothing to restore
+                }
+                // Description: same ownership rule.
+                if (dict.TryGetValue($"{key}.description", out string? currentDescription))
+                {
+                    if (!string.Equals(currentDescription, last.Description, StringComparison.Ordinal))
+                    {
+                        foreign++; // another writer owns this value now
+                    }
+                    else if (original.Description.Length > 0)
+                    {
+                        dict[$"{key}.description"] = original.Description;
+                        restored++;
+                    }
+                    else
+                    {
+                        dict.Remove($"{key}.description"); // original key did not exist
+                        restored++;
+                    }
+                }
+                else
+                {
+                    untouched++; // someone removed it: nothing to restore
+                }
+            }
+
+            // Success = the restore actually ran on the current table. The
+            // committed identity is cleared only here.
+            _committedKey = null;
+            _committedTable = null;
+            _originalsTable = null;
+            _originalValues = null;
+            _lastWritten = null;
+            MainFile.Logger.Info(
+                $"[QuriousCraftingRelics] loc restore: generic text restored for {restored} value(s); " +
+                $"{foreign} value(s) left to another writer; {untouched} missing" +
+                (sameTable ? "" : " (table was regenerated)"));
+        }
+        catch (Exception e)
+        {
+            MainFile.Logger.Error($"[QuriousCraftingRelics] loc restore failed: {e.Message}; generic text NOT restored");
         }
     }
 }

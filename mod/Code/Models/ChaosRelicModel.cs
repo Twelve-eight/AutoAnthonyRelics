@@ -61,12 +61,12 @@ public abstract class ChaosRelicModel : CustomRelicModel
 {
     protected abstract int Slot { get; }
 
-    public override bool IsAllowed(IRunState runState)
+    protected override bool IsAllowedInternal(IRunState runState)
     {
         // Never allow at Neow / ancient pools: the run seed may not exist yet
         // there, and ancient (先古之民) relics must stay vanilla per user order.
         // Chaos relics live ONLY in the Common/Uncommon/Rare reward deques.
-        return base.IsAllowed(runState)
+        return base.IsAllowedInternal(runState)
             && QuriousCraftingRelicsConfig.EnableChaosRelics
             && ChaosRelicRunRegistry.IsSlotAllowedInRun(Slot, runState);
     }
@@ -809,7 +809,7 @@ public abstract class ChaosRelicModel : CustomRelicModel
         {
             Flash();
             await CreatureCmd.LoseMaxHp(new ThrowingPlayerChoiceContext(), owner.Creature,
-                maxHpDown, isFromCard: false);
+                maxHpDown, cardSource: null);
         }
     }
 

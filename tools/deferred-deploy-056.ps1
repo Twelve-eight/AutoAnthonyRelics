@@ -1,12 +1,12 @@
 # Deferred deploy for QuriousCraftingRelics 0.5.6: waits for the game to
 # exit (DLLs locked while running), then deploys to the three targets and
 # verifies hashes. Runs unattended.
-$src = "G:\omp works\AutoAnthonyRelics\mod\.godot\mono\temp\bin\Release"
-$modDir = "G:\omp works\AutoAnthonyRelics\mod"
+$src = "G:\omp works\Sts\AutoAnthonyRelics\mod\.godot\mono\temp\bin\Release"
+$modDir = "G:\omp works\Sts\AutoAnthonyRelics\mod"
 $targets = @(
     "G:\steam\steamapps\common\Slay the Spire 2\mods\QuriousCraftingRelics",
     "G:\steam\steamapps\common\Slay the Spire 2\mods_disabled\QuriousCraftingRelics",
-    "G:\omp works\AutoAnthonyRelics\workshop\content\QuriousCraftingRelics"
+    "G:\omp works\Sts\AutoAnthonyRelics\workshop\content\QuriousCraftingRelics"
 )
 Write-Output "waiting for SlayTheSpire2.exe to exit..."
 while (Get-Process -Name "SlayTheSpire2" -ErrorAction SilentlyContinue) {

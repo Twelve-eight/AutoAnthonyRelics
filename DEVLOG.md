@@ -23,7 +23,7 @@ Title_Snake 死键 (例如 `Cost_X_Pickup_Nimble.title`). 后果: BaseLib 自己
 ### 修复
 
 每种语言补 8 键 (4 模板 x `.title` / `.hover.desc`), 文案直接沿用文件里已有的中英文
-(虚无 / 灵巧 / 注能 / 锋利, 与 `docs/terminology-glossary.md` 一致), 未改动任何既有键.
+(虚无 / 灵巧 / 注能 / 锋利, 与 `../../docs/knowledge/terminology-glossary.md` 一致), 未改动任何既有键.
 插入为逐行操作, 保持 CRLF 与无 BOM.
 
 ### 验证 (可复现)
@@ -1341,7 +1341,7 @@ Qurious 0.5.6 → mods/mods_disabled/staging，AAR 0.1.1 → mods/staging，哈�
 ## 2026-09-14 - L28 跨仓关联 (vigor→勇气 复发记录)
 Qurious 改名前曾把 Vigor 误译为"勇气"一次; 本次在 AAR 0.1.2 复发。根因与 durable 修复
 (工作区术语表 + AGENTS §5 硬规则 + 修复后跨仓 grep) 记录在
-`sts2-autoanthony-relics/DEVLOG.md` v0.1.3 章节与 `docs/terminology-glossary.md`。
+`sts2-autoanthony-relics/DEVLOG.md` v0.1.3 章节与 `../../docs/knowledge/terminology-glossary.md`。
 本仓库当前文本已复扫, 无该错误。
 
 ---

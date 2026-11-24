@@ -8,7 +8,7 @@
     <RootNamespace>MigrationProbe</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="QuriousCraftingRelics"><HintPath>G:/omp works/AutoAnthonyRelics/mod/.godot/mono/temp/bin/Debug/QuriousCraftingRelics.dll</HintPath></Reference>
+    <Reference Include="QuriousCraftingRelics"><HintPath>G:/omp works/Sts/AutoAnthonyRelics/mod/.godot/mono/temp/bin/Debug/QuriousCraftingRelics.dll</HintPath></Reference>
     <Reference Include="GodotSharp"><HintPath>G:/steam/steamapps/common/Slay the Spire 2/data_sts2_windows_x86_64/GodotSharp.dll</HintPath></Reference>
   </ItemGroup>
 </Project>

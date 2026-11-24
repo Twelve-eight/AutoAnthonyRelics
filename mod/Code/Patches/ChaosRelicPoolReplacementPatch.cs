@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using QuriousCraftingRelics.Chaos;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.Runs;
@@ -67,8 +68,30 @@ internal static class ChaosRelicPoolReplacement
             IRunState? runState = player?.RunState
                 ?? RunManager.Instance?.DebugOnlyGetState();
 
+            // CONTENT-GATE CONTRACT (2026-10-02): three states.
+            // - replace: master AND pool group AND seed capture AND a captured
+            //   run seed AND the slots really registered at startup -> strip
+            //   vanilla, keep customs (responsibility-scoped; the 2026-09-13
+            //   empty-bag incident is why other mods' customs are never
+            //   touched here).
+            // - strip own slots: our slots ARE registered but the pool group is
+            //   off (or no seed is captured yet) -> remove OUR slots so they
+            //   can never enter the bag without generation support, and leave
+            //   vanilla / other mods' relics untouched. With the pool group off
+            //   at startup the registration gate keeps our slots out of the
+            //   pool entirely and this patch class is not installed at all.
+            // CONTENT-GATE CONTRACT: replacement also requires that the slots
+            // were actually registered into the pool during ModelDb.Init. A
+            // group turned ON after a start with the pool off cannot
+            // retroactively register them; replacing then would strip vanilla
+            // and leave an empty bag.
+            bool master = QuriousCraftingRelicsConfig.EnableChaosRelics;
+            bool replace = QuriousCraftingRelicsConfig.PoolReplacementActive
+                && MainFile.PoolRegisteredAtStartup
+                && ChaosRelicRunRegistry.CurrentRunSeed is not null;
+
             int removed = 0;
-            if (QuriousCraftingRelicsConfig.EnableChaosRelics)
+            if (replace)
             {
                 // Replacing: strip vanilla. Our own slots + other mods' customs stay.
                 foreach (var list in deques.Values)
@@ -82,8 +105,9 @@ internal static class ChaosRelicPoolReplacement
             }
             else
             {
-                // Switch off: strip ONLY our own slots (effect-less duds).
-                // Vanilla and other mods' relics are restored/untouched.
+                // Switch/group off (or no captured seed): strip ONLY our own
+                // slots (effect-less duds). Vanilla and other mods' relics are
+                // restored/untouched.
                 foreach (var list in deques.Values)
                 {
                     removed += list.RemoveAll(r => r is Models.ChaosRelicModel);
@@ -102,7 +126,9 @@ internal static class ChaosRelicPoolReplacement
                     ?.Invoke(bag, new object?[] { runState });
             }
             MainFile.Logger.Info($"[QuriousCraftingRelics] pool replacement: removed {removed} relics from the run grab bag " +
-                                 $"({deques.Values.Sum(l => l.Count)} remain, EnableChaosRelics={QuriousCraftingRelicsConfig.EnableChaosRelics})");
+                                 $"({deques.Values.Sum(l => l.Count)} remain, master={master}, " +
+                                 $"pool={QuriousCraftingRelicsConfig.EnableChaosRelicPool}, " +
+                                 $"seedCapture={QuriousCraftingRelicsConfig.EnableSeedCapture}, replacing={replace})");
         }
         catch (Exception e)
         {

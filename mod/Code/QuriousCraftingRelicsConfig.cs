@@ -19,12 +19,19 @@ namespace QuriousCraftingRelics;
 /// MP DETERMINISM (Tier-1 keys, see sts2-mpconfigsync incident 2026-09-10):
 /// budgets, negative chances, per-template costs, EnableExtraPool and
 /// EnableChaosRelics MUST match on both ends - they feed the seeded
-/// generator.
+/// generator. EnableChaosRelicPool / EnableRuntimeHooks / EnableSeedCapture
+/// do not feed the generator but change which relics and pools appear, so
+/// MP ends must match those too.
 /// </summary>
 [ConfigHoverTipsByDefault]
 internal class QuriousCraftingRelicsConfig : SimpleModConfig
 {
-    /// <summary>Master switch. When false, chaos relics never generate or apply.</summary>
+    /// <summary>
+    /// Master switch. When false, chaos relics never generate or apply.
+    /// Turning it back ON requires a game restart: the 60 slot types are only
+    /// registered into the engine pool at ModelDb.Init, so a start with the
+    /// master off leaves the pool without them (zero-registration).
+    /// </summary>
     public static bool EnableChaosRelics { get; set; } = true;
 
     /// <summary>
@@ -33,6 +40,75 @@ internal class QuriousCraftingRelicsConfig : SimpleModConfig
     /// Tier-1 MP determinism key.
     /// </summary>
     public static bool EnableExtraPool { get; set; } = false;
+
+    /// <summary>
+    /// Chaos relic POOL group (new 2026-10-02, default true = old behavior):
+    /// the run grab-bag replacement that turns every pool-sourced relic drop
+    /// into a chaos relic. DISABLING takes effect on the NEXT run or load: the
+    /// installed body strips our slots instead of replacing. ENABLING requires
+    /// a game RESTART: the 60 slot types are registered into the engine pool
+    /// exactly once, during ModelDb.Init, and a group enabled later in the
+    /// same process cannot retroactively register them. Never mid-run, where
+    /// the bag is already deterministic.
+    ///
+    /// Zero-registration while this group is off: MainFile installs a small
+    /// prefix on ModHelper.AddModelToPool BEFORE ModelDb.Init, so our own slot
+    /// types never enter the engine SharedRelicPool and the pool replacement
+    /// patches are not installed at all. If that gate cannot be installed
+    /// (engine/BaseLib drift), the patches stay as the last-resort strip point
+    /// and the log records the non-zero registration. See
+    /// Patches/ChaosRelicPoolReplacementPatch.cs and MainFile.cs.
+    /// </summary>
+    public static bool EnableChaosRelicPool { get; set; } = true;
+
+    /// <summary>
+    /// Runtime hooks / localization group (new 2026-10-02, default true = old
+    /// behavior): the live relics-loc-table rewrite that makes tooltips show the
+    /// run's generated entries, plus the run-start-time bookkeeping hook.
+    /// Consulted at run-seed capture (run start / save load); a change takes
+    /// effect on the NEXT run or reload. Off = tooltips keep the generic
+    /// fallback text; the relic effects themselves still run (they are gated by
+    /// the master switch inside ChaosRelicModel, which is outside this write
+    /// set).
+    /// </summary>
+    public static bool EnableRuntimeHooks { get; set; } = true;
+
+    /// <summary>
+    /// Seed-capture group (new 2026-10-02, default true = old behavior): the
+    /// Harmony hooks that record the run seed / durable identity so the
+    /// generator can resolve definitions. FAIL CLOSED: with this off no run is
+    /// published to ChaosRelicRunRegistry, so ChaosRelicModel.IsAllowed fails
+    /// and the mod's content is unavailable for the next run / load. Consulted
+    /// at capture time; a change takes effect on the NEXT run or load, never
+    /// mid-run. Turning it off also restores the generic tooltip text on the
+    /// next capture.
+    /// </summary>
+    public static bool EnableSeedCapture { get; set; } = true;
+
+    // ---------- Effective group gates (not persisted, not synced) ----------
+    // Internal getter-only properties are invisible to BaseLib's
+    // CheckConfigProperties (public only) and to MpConfigSync's scanner, so
+    // they add no cfg key and no UI row. Every consumer reads the LIVE values;
+    // per-run determinism comes from the grab bag being populated once per run
+    // and from the generation inputs frozen in QuriousGenerationSnapshot -
+    // these gates do not feed generation.
+
+    /// <summary>Pool replacement = master AND pool group AND seed capture:
+    /// without a captured seed the generated definitions cannot resolve, so a
+    /// replacement with no capture would empty the bag (vanilla stripped, our
+    /// slots disallowed). When any leg is off the patch strips our slots and
+    /// leaves the vanilla pool intact; when the pool leg was off at startup the
+    /// registration gate keeps our slots out of the pool entirely.</summary>
+    internal static bool PoolReplacementActive =>
+        EnableChaosRelics && EnableChaosRelicPool && EnableSeedCapture;
+
+    /// <summary>Runtime hooks / localization = master AND runtime group.</summary>
+    internal static bool RuntimeHooksActive =>
+        EnableChaosRelics && EnableRuntimeHooks;
+
+    /// <summary>Seed capture = master AND seed group.</summary>
+    internal static bool SeedCaptureActive =>
+        EnableChaosRelics && EnableSeedCapture;
 
     /// <summary>
     /// Legacy entry-count key. v0.5 budget system ignores it (kept for save

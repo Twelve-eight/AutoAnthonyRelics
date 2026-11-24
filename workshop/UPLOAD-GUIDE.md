@@ -12,25 +12,36 @@ Prepared 2026-09-08. Everything is staged; only credentials/2FA are needed to pu
 - `workshop_upload.vdf` - steamcmd build script. `publishedfileid` is empty = creates a NEW
   item on first run; after creation, put the returned item id into `publishedfileid` for updates.
 
-## Option A - steamcmd (automated)
+## Option A - guarded push (recommended)
 
-steamcmd is installed at `G:\omp works\.tooling\steamcmd\steamcmd.exe`.
-
-Run (replace YOUR_STEAM_LOGIN; it will prompt for password and Steam Guard code):
+Publish through the controlled entry. It refreshes the staged payload, scans the staged bytes
+for held-back layers, runs the VDF quote/backslash, byte-size, description-drift and Markdown
+guards, applies the login throttle, and verifies the upload afterwards:
 
 ```
-cd G:\omp works\.tooling\steamcmd
-steamcmd.exe +login YOUR_STEAM_LOGIN +workshop_build_item "G:\omp works\AutoAnthonyRelics\workshop\workshop_upload.vdf" +quit
+powershell -NoProfile -ExecutionPolicy Bypass -File "G:\omp works\.tooling\workshop-push-all.ps1" -Only Qurious --2FACode XXXXX
+```
+
+The per-repo shell `G:\omp works\Sts\AutoAnthonyRelics\workshop\workshop-push.ps1` is a thin
+forwarding shell for that same entry: it carries this repo's VDF and its `-Only Qurious` target
+as literals, refuses a `-Vdf` that is not this repo's (exit 11, before any process starts), and
+passes the entry's exit code back unchanged.
+
+```
+powershell -File "G:\omp works\Sts\AutoAnthonyRelics\workshop\workshop-push.ps1" -Vdf "G:\omp works\Sts\AutoAnthonyRelics\workshop\workshop_upload.vdf"
 ```
 
 Notes:
 - Workshop upload REQUIRES a non-anonymous account.
-- Steam Guard: first login on a new device emails/sends a code; enter it when prompted,
-  then steamcmd caches the sentry in `G:\omp works\.tooling\steamcmd\config\` for later runs.
+- The 2FA code must be supplied AT LAUNCH via `--2FACode`; the entry never prompts for it.
+  No `ssfn*` sentry is cached under `G:\omp works\.tooling\steamcmd\config\`, so every run
+  needs a fresh code (or a phone confirmation). Do not rely on caching.
 - The account must own Slay the Spire 2 (app 2868840) and satisfy Steam's community
   posting requirements (spent USD 5 or similar).
 - After the first publish, note the printed `Published file id ...` and write it into
   `workshop_upload.vdf` -> `publishedfileid` so future runs UPDATE instead of duplicating.
+- Do NOT call `steamcmd.exe +workshop_build_item` on this VDF directly: that skips every guard
+  above. (An earlier revision of this guide recommended exactly that.)
 
 ## Option B - manual (no credentials needed from tools)
 
@@ -49,4 +60,4 @@ still needs a one-time steamcmd login (Option A). If avoiding steamcmd entirely:
   picks it up in the Mods screen.
 - Unsubscribe test: confirm removal works.
 - Update flow: bump `version` in `mod/QuriousCraftingRelics.json`, rebuild, re-stage
-  `content/`, edit `changenote` in the VDF, rerun the steamcmd command.
+  `content/`, edit `changenote` in the VDF, rerun the push command.

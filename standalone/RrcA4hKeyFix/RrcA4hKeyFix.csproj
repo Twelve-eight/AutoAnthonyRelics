@@ -71,14 +71,92 @@
     </Target>
 
     <PropertyGroup>
-        <CopyToModsFolderOnBuild>true</CopyToModsFolderOnBuild>
+        <!--
+          Explicit opt-in only: a plain dotnet build must not copy into any game
+          directory. Pass /p:CopyToModsFolderOnBuild=true (with a resolved Sts2Path)
+          to deploy to the test copy.
+        -->
+        <CopyToModsFolderOnBuild Condition="'$(CopyToModsFolderOnBuild)' == ''">false</CopyToModsFolderOnBuild>
     </PropertyGroup>
 
-    <Target Name="CopyToModsFolder" AfterTargets="PostBuildEvent;PackPck" Condition="'$(CopyToModsFolderOnBuild)' == 'true' and Exists('$(ModsPath)')">
+    <!--
+      A06 (2026-10-02) reparse-chain gate. The old guard checked only the final
+      ModsPath, so a missing final directory or a redirected parent (junction /
+      symlink / any reparse point) could still redirect the copy. The chain below
+      normalizes the real copy destination ($(ModsPath)/$(ModId)) and walks it
+      level by level to the drive root. Every level that exists is checked with
+      GetAttributes; any reparse point denies the deploy, and a destination nested
+      deeper than the statically checked window (L0..L12) is denied as well
+      instead of assuming the unverified ancestors are safe.
+    -->
+    <Target Name="AssertCopyDestination" BeforeTargets="CopyToModsFolder" Condition="'$(CopyToModsFolderOnBuild)' == 'true' and '$(Sts2Path)' != ''">
+        <PropertyGroup>
+            <_CopyModsPathNorm>$([System.IO.Path]::GetFullPath('$(ModsPath)').TrimEnd('\').TrimEnd('/').ToLowerInvariant())</_CopyModsPathNorm>
+            <_CopyModsAllowed>false</_CopyModsAllowed>
+            <_CopyModsAllowed Condition="$(_CopyModsPathNorm) == 'e:\slay the spire 2\mods' Or $(_CopyModsPathNorm.StartsWith('e:\slay the spire 2\mods\'))">true</_CopyModsAllowed>
+            <_CopyModsAllowed Condition="$(_CopyModsPathNorm) == 'g:\omp works\sts\_runtime\sts2-test-client-b\mods' Or $(_CopyModsPathNorm.StartsWith('g:\omp works\sts\_runtime\sts2-test-client-b\mods\'))">true</_CopyModsAllowed>
+            <_CopyModsAllowed Condition="$(_CopyModsPathNorm) == 'g:\omp works\.tmp' Or $(_CopyModsPathNorm.StartsWith('g:\omp works\.tmp\'))">true</_CopyModsAllowed>
+            <_CopyModsGameRoot>$([System.IO.Path]::GetDirectoryName('$(_CopyModsPathNorm)'))</_CopyModsGameRoot>
+            <_CopyModsSteamMarker>false</_CopyModsSteamMarker>
+            <_CopyModsSteamMarker Condition="Exists('$(_CopyModsGameRoot)\steam_appid.txt')">true</_CopyModsSteamMarker>
+            <_CopyPathHasDotDot>false</_CopyPathHasDotDot>
+            <_CopyPathHasDotDot Condition="$(Sts2Path.Contains('..')) Or $(ModsPath.Contains('..'))">true</_CopyPathHasDotDot>
+            <_CopyPathNotRooted>false</_CopyPathNotRooted>
+            <_CopyPathNotRooted Condition="!$([System.IO.Path]::IsPathRooted('$(Sts2Path)'))">true</_CopyPathNotRooted>
+            <_CopyDestNorm>$([System.IO.Path]::GetFullPath('$(ModsPath)/$(ModId)/').TrimEnd('\').TrimEnd('/').ToLowerInvariant())</_CopyDestNorm>
+            <_CopyDestL0>$(_CopyDestNorm)</_CopyDestL0>
+            <_CopyDestL1 Condition="'$(_CopyDestL0)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL0)'))</_CopyDestL1>
+            <_CopyDestL2 Condition="'$(_CopyDestL1)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL1)'))</_CopyDestL2>
+            <_CopyDestL3 Condition="'$(_CopyDestL2)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL2)'))</_CopyDestL3>
+            <_CopyDestL4 Condition="'$(_CopyDestL3)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL3)'))</_CopyDestL4>
+            <_CopyDestL5 Condition="'$(_CopyDestL4)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL4)'))</_CopyDestL5>
+            <_CopyDestL6 Condition="'$(_CopyDestL5)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL5)'))</_CopyDestL6>
+            <_CopyDestL7 Condition="'$(_CopyDestL6)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL6)'))</_CopyDestL7>
+            <_CopyDestL8 Condition="'$(_CopyDestL7)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL7)'))</_CopyDestL8>
+            <_CopyDestL9 Condition="'$(_CopyDestL8)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL8)'))</_CopyDestL9>
+            <_CopyDestL10 Condition="'$(_CopyDestL9)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL9)'))</_CopyDestL10>
+            <_CopyDestL11 Condition="'$(_CopyDestL10)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL10)'))</_CopyDestL11>
+            <_CopyDestL12 Condition="'$(_CopyDestL11)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL11)'))</_CopyDestL12>
+            <_CopyDestR0>false</_CopyDestR0>
+            <_CopyDestR0 Condition="'$(_CopyDestL0)' != '' And Exists('$(_CopyDestL0)')">$([System.IO.File]::GetAttributes('$(_CopyDestL0)').ToString().Contains('ReparsePoint'))</_CopyDestR0>
+            <_CopyDestR1>false</_CopyDestR1>
+            <_CopyDestR1 Condition="'$(_CopyDestL1)' != '' And Exists('$(_CopyDestL1)')">$([System.IO.File]::GetAttributes('$(_CopyDestL1)').ToString().Contains('ReparsePoint'))</_CopyDestR1>
+            <_CopyDestR2>false</_CopyDestR2>
+            <_CopyDestR2 Condition="'$(_CopyDestL2)' != '' And Exists('$(_CopyDestL2)')">$([System.IO.File]::GetAttributes('$(_CopyDestL2)').ToString().Contains('ReparsePoint'))</_CopyDestR2>
+            <_CopyDestR3>false</_CopyDestR3>
+            <_CopyDestR3 Condition="'$(_CopyDestL3)' != '' And Exists('$(_CopyDestL3)')">$([System.IO.File]::GetAttributes('$(_CopyDestL3)').ToString().Contains('ReparsePoint'))</_CopyDestR3>
+            <_CopyDestR4>false</_CopyDestR4>
+            <_CopyDestR4 Condition="'$(_CopyDestL4)' != '' And Exists('$(_CopyDestL4)')">$([System.IO.File]::GetAttributes('$(_CopyDestL4)').ToString().Contains('ReparsePoint'))</_CopyDestR4>
+            <_CopyDestR5>false</_CopyDestR5>
+            <_CopyDestR5 Condition="'$(_CopyDestL5)' != '' And Exists('$(_CopyDestL5)')">$([System.IO.File]::GetAttributes('$(_CopyDestL5)').ToString().Contains('ReparsePoint'))</_CopyDestR5>
+            <_CopyDestR6>false</_CopyDestR6>
+            <_CopyDestR6 Condition="'$(_CopyDestL6)' != '' And Exists('$(_CopyDestL6)')">$([System.IO.File]::GetAttributes('$(_CopyDestL6)').ToString().Contains('ReparsePoint'))</_CopyDestR6>
+            <_CopyDestR7>false</_CopyDestR7>
+            <_CopyDestR7 Condition="'$(_CopyDestL7)' != '' And Exists('$(_CopyDestL7)')">$([System.IO.File]::GetAttributes('$(_CopyDestL7)').ToString().Contains('ReparsePoint'))</_CopyDestR7>
+            <_CopyDestR8>false</_CopyDestR8>
+            <_CopyDestR8 Condition="'$(_CopyDestL8)' != '' And Exists('$(_CopyDestL8)')">$([System.IO.File]::GetAttributes('$(_CopyDestL8)').ToString().Contains('ReparsePoint'))</_CopyDestR8>
+            <_CopyDestR9>false</_CopyDestR9>
+            <_CopyDestR9 Condition="'$(_CopyDestL9)' != '' And Exists('$(_CopyDestL9)')">$([System.IO.File]::GetAttributes('$(_CopyDestL9)').ToString().Contains('ReparsePoint'))</_CopyDestR9>
+            <_CopyDestR10>false</_CopyDestR10>
+            <_CopyDestR10 Condition="'$(_CopyDestL10)' != '' And Exists('$(_CopyDestL10)')">$([System.IO.File]::GetAttributes('$(_CopyDestL10)').ToString().Contains('ReparsePoint'))</_CopyDestR10>
+            <_CopyDestR11>false</_CopyDestR11>
+            <_CopyDestR11 Condition="'$(_CopyDestL11)' != '' And Exists('$(_CopyDestL11)')">$([System.IO.File]::GetAttributes('$(_CopyDestL11)').ToString().Contains('ReparsePoint'))</_CopyDestR11>
+            <_CopyDestR12>false</_CopyDestR12>
+            <_CopyDestR12 Condition="'$(_CopyDestL12)' != '' And Exists('$(_CopyDestL12)')">$([System.IO.File]::GetAttributes('$(_CopyDestL12)').ToString().Contains('ReparsePoint'))</_CopyDestR12>
+            <_CopyModsReparse>false</_CopyModsReparse>
+            <_CopyModsReparse Condition="$(_CopyDestR0) == 'true' Or $(_CopyDestR1) == 'true' Or $(_CopyDestR2) == 'true' Or $(_CopyDestR3) == 'true' Or $(_CopyDestR4) == 'true' Or $(_CopyDestR5) == 'true' Or $(_CopyDestR6) == 'true' Or $(_CopyDestR7) == 'true' Or $(_CopyDestR8) == 'true' Or $(_CopyDestR9) == 'true' Or $(_CopyDestR10) == 'true' Or $(_CopyDestR11) == 'true' Or $(_CopyDestR12) == 'true'">true</_CopyModsReparse>
+            <_CopyDestRootParent Condition="'$(_CopyDestL12)' != ''">$([System.IO.Path]::GetDirectoryName('$(_CopyDestL12)'))</_CopyDestRootParent>
+            <_CopyModsChainUnproven>false</_CopyModsChainUnproven>
+            <_CopyModsChainUnproven Condition="'$(_CopyDestL12)' != '' And '$(_CopyDestRootParent)' != ''">true</_CopyModsChainUnproven>
+        </PropertyGroup>
+        <Error Condition="'$(_CopyModsAllowed)' != 'true' Or '$(_CopyModsSteamMarker)' == 'true' Or '$(_CopyModsReparse)' == 'true' Or '$(_CopyModsChainUnproven)' == 'true' Or '$(_CopyPathHasDotDot)' == 'true' Or '$(_CopyPathNotRooted)' == 'true'"
+               Text="Refusing standalone deployment: destination '$(_CopyDestNorm)' (ModsPath '$(_CopyModsPathNorm)') is not an approved non-Steam test destination. allowlist=$(_CopyModsAllowed) steamMarker=$(_CopyModsSteamMarker) reparseAny=$(_CopyModsReparse) chainUnproven=$(_CopyModsChainUnproven) dotDot=$(_CopyPathHasDotDot) notRooted=$(_CopyPathNotRooted) reparseLevels=[0=$(_CopyDestR0) 1=$(_CopyDestR1) 2=$(_CopyDestR2) 3=$(_CopyDestR3) 4=$(_CopyDestR4) 5=$(_CopyDestR5) 6=$(_CopyDestR6) 7=$(_CopyDestR7) 8=$(_CopyDestR8) 9=$(_CopyDestR9) 10=$(_CopyDestR10) 11=$(_CopyDestR11) 12=$(_CopyDestR12)]. Any junction/symlink/reparse point in the destination chain, the Steam install and C: are never valid build targets." />
+    </Target>
+    <Target Name="CopyToModsFolder" AfterTargets="PostBuildEvent;PackPck" Condition="'$(CopyToModsFolderOnBuild)' == 'true' and '$(Sts2Path)' != '' and Exists('$(ModsPath)')">
         <Message Text="Copying .dll .pdb .pck and .json to mods folder." Importance="high" />
-        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModsPath)$(ModId)/" />
-        <Copy SourceFiles="$(MSBuildProjectDirectory)/$(ModId).json" DestinationFolder="$(ModsPath)$(ModId)/" />
-        <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(ModsPath)$(ModId)/" SkipUnchangedFiles="true" />
-        <Copy SourceFiles="$(TargetDir)$(TargetName).pck" DestinationFolder="$(ModsPath)$(ModId)/" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pck')" />
+        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModsPath)/$(ModId)/" />
+        <Copy SourceFiles="$(MSBuildProjectDirectory)/$(ModId).json" DestinationFolder="$(ModsPath)/$(ModId)/" />
+        <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(ModsPath)/$(ModId)/" SkipUnchangedFiles="true" />
+        <Copy SourceFiles="$(TargetDir)$(TargetName).pck" DestinationFolder="$(ModsPath)/$(ModId)/" SkipUnchangedFiles="true" Condition="Exists('$(TargetDir)$(TargetName).pck')" />
     </Target>
 </Project>

@@ -8,7 +8,7 @@
     <RootNamespace>GenProbe</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="QuriousCraftingRelics"><HintPath>G:/omp works/AutoAnthonyRelics/mod/.godot/mono/temp/bin/Release/QuriousCraftingRelics.dll</HintPath></Reference>
+    <Reference Include="QuriousCraftingRelics"><HintPath>G:/omp works/Sts/AutoAnthonyRelics/mod/.godot/mono/temp/bin/Release/QuriousCraftingRelics.dll</HintPath></Reference>
     <Reference Include="sts2"><HintPath>G:/steam/steamapps/common/Slay the Spire 2/data_sts2_windows_x86_64/sts2.dll</HintPath></Reference>
     <Reference Include="GodotSharp"><HintPath>G:/steam/steamapps/common/Slay the Spire 2/data_sts2_windows_x86_64/GodotSharp.dll</HintPath></Reference>
     <Reference Include="BaseLib"><HintPath>G:/omp works/.nuget-packages/alchyr.sts2.baselib/3.4.5/lib/net9.0/BaseLib.dll</HintPath></Reference>

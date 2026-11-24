@@ -105,6 +105,16 @@ internal static class RunSeedCleanUpPatch
     {
         try
         {
+            // Leave through the same ownership-checked loc path as the
+            // save-load funnel: clearing the active seed alone does not undo
+            // the tooltip table rewrite already made for this run.
+            ChaosRelicLocUpdater.OnSeedCaptured(null);
+
+            // Always clear, even while the seed-capture group is off: a group
+            // turned off mid-run must not leave a stale active seed behind.
+            // The patch class itself is not installed when the group was off
+            // at startup; this body still matters when the group is turned off
+            // after the class was installed.
             if (Chaos.ChaosRelicRunRegistry.CurrentRunSeed is not null)
             {
                 Chaos.ChaosRelicRunRegistry.ClearActiveRun();
@@ -165,6 +175,36 @@ internal static class RunSeedEarlyTrackPatch
     /// </summary>
     internal static void CaptureSeed(string? seed, bool runStart = false, IRunState? runState = null)
     {
+        // CONTENT-GATE CONTRACT (2026-10-02): with the master switch or the
+        // seed-capture group off, NO run is published to the registry - a
+        // stale retained context must not leak into a later run, and the
+        // generator must have nothing to resolve from. ChaosRelicModel.IsAllowed
+        // then fails closed and the pool patch strips our slots (it requires a
+        // captured seed before it replaces). Change takes effect on the next
+        // run or load.
+        //
+        // The ACTIVE seed is CLEARED here, not merely left alone: this method
+        // runs again on every room-transition save-load, so a group turned off
+        // mid-run would otherwise keep the previous capture's CurrentRunSeed
+        // alive (IsAllowed would keep passing). Clearing makes the off state
+        // take effect at the next reload instead of leaving a residue. The
+        // retained per-identity contexts are untouched (continuation contract).
+        if (!QuriousCraftingRelicsConfig.SeedCaptureActive)
+        {
+            // The loc table may still hold the previous run's rewritten
+            // tooltips; restore the generic text on this path too (the
+            // updater owns the ownership check). Without this call a group
+            // turned off after a successful rewrite would keep the stale
+            // per-run text forever.
+            ChaosRelicLocUpdater.OnSeedCaptured(null);
+            if (Chaos.ChaosRelicRunRegistry.CurrentRunSeed is not null)
+            {
+                Chaos.ChaosRelicRunRegistry.ClearActiveRun();
+                MainFile.Logger.Info("[QuriousCraftingRelics] seed capture disabled: active seed cleared");
+            }
+            return;
+        }
+
         if (string.IsNullOrEmpty(seed))
         {
             // Leaving a run (menu): drop the seed/identity so canonical models
