@@ -29,6 +29,7 @@ public partial class MainFile : Node
             // Chest-flow gate + Act4Heart presence/config checks + process-wide
             // mutex all live inside the shared source.
             Compat.RrcTreasureKeyCompat.LogPrefix = "[RrcA4hKeyFix]";
+            Compat.RrcTreasureKeyCompat.IsStandalonePackage = true;
             bool installed = Compat.RrcTreasureKeyCompat.TryInstall(harmony);
             if (installed)
             {

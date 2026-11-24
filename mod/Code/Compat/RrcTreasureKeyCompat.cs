@@ -111,6 +111,7 @@ internal static class RrcTreasureKeyCompat
     private const string SapphireKeyModelName = "Act4Heart.Keys.SapphireKey";
     private const string QuriousAssemblyName = "QuriousCraftingRelics";
     private const string StandaloneAssemblyName = "RrcA4hKeyFix";
+    private const string StandaloneActiveSlot = "RrcA4hKeyFix.StandaloneActive.v1";
 
     // RewardChoiceState member names of RelicRewardChoices that mark a finished
     // reward. Compared by name, not by numeric value: a reordered enum in a
@@ -137,6 +138,9 @@ internal static class RrcTreasureKeyCompat
 
     /// <summary>Live package gate; null means enabled for the standalone build.</summary>
     internal static Func<bool>? EnabledGate;
+
+    /// <summary>True only when compiled/initialized as the standalone RrcA4hKeyFix package.</summary>
+    internal static bool IsStandalonePackage;
 
     // Reflection handles of the last SUCCESSFUL dependency probe. They are only
     // assigned when every member below checked out, because a dormant call (one
@@ -175,6 +179,10 @@ internal static class RrcTreasureKeyCompat
     {
         lock (typeof(Harmony))
         {
+            if (IsStandalonePackage)
+            {
+                AppDomain.CurrentDomain.SetData(StandaloneActiveSlot, true);
+            }
             if (EnabledGate?.Invoke() == false)
             {
                 return false;
@@ -573,7 +581,11 @@ internal static class RrcTreasureKeyCompat
     {
         // Bookkeeping runs even while disabled so a later re-enable cannot lose
         // track of an in-flight selection. Only the key grant is gated.
-        if (EnabledGate?.Invoke() == false)
+        // If standalone RrcA4hKeyFix is active in the process, never suppress its
+        // grant when QCR's EnableChaosRelics gate is disabled.
+        if (EnabledGate?.Invoke() == false
+            && !IsStandalonePackage
+            && AppDomain.CurrentDomain.GetData(StandaloneActiveSlot) is not true)
         {
             return;
         }
