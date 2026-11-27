@@ -46,6 +46,6 @@
 [hr]
 
 [b]BaseLib 版本提示[/b]:工坊版常落后于官方 GitHub;游戏更新后若报错,前往 [url=https://github.com/Alchyr/BaseLib-StS2/releases]GitHub Releases[/url] 下载最新版解压进 mods 目录,并取消订阅工坊版避免双加载."
-	"changenote"		"v0.1.1: 修复与 Qurious Crafting - Relics 同装时“QCR 关闭混沌遗物会连带关闭蓝钥匙修复”的去重门控缺陷; 独立版 RrcA4hKeyFix 已安装时保持蓝钥匙修复激活. --- v0.1.0: first release - chest-skip key compensation for RelicRewardChoices + Act4Heart."
+	"changenote"		"v0.1.2: 适配游戏 v0.114.0. 包含 v0.1.1 改动: 修复与 Qurious Crafting - Relics 同装时 QCR 关闭混沌遗物会连带关闭蓝钥匙修复的去重门控缺陷; 独立版 RrcA4hKeyFix 已安装时保持蓝钥匙修复激活."
 	"publishedfileid"		"3801352124"
 }
