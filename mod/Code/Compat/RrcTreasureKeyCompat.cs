@@ -137,10 +137,10 @@ internal static class RrcTreasureKeyCompat
     internal static string LogPrefix = "[QuriousCraftingRelics] RRC key compat";
 
     /// <summary>Live package gate; null means enabled for the standalone build.</summary>
-    internal static Func<bool>? EnabledGate;
+    internal static Func<bool>? EnabledGate { get; set; }
 
     /// <summary>True only when compiled/initialized as the standalone RrcA4hKeyFix package.</summary>
-    internal static bool IsStandalonePackage;
+    internal static bool IsStandalonePackage { get; set; }
 
     // Reflection handles of the last SUCCESSFUL dependency probe. They are only
     // assigned when every member below checked out, because a dormant call (one

@@ -81,6 +81,6 @@
 [h2]控制台验证 / Console test[/h2]
 
 局内按 ` 打开开发者控制台:[code]relic add QURIOUSCRAFTINGRELICS-CHAOS_RELIC005[/code]"
-	"changenote"		"v0.5.9: 适配游戏 v0.114.0. 包含 v0.5.8 改动: 更新 IsAllowedInternal 与兼容性桥梁, 修复与独立版 RrcA4hKeyFix 同装时的双包去重门控 (若同时安装了 RrcA4hKeyFix, 在怪异炼化设置中关闭混沌遗物后宝箱蓝钥匙修复仍保持生效)."
+	"changenote"		"v0.5.10: 将 RrcTreasureKeyCompat.EnabledGate 改为自动属性以消除独立包编译 CS0649 警告; 基于游戏宿主 v0.114.0 重新编译 (min_game_version 维持 0.111.0). 包含 v0.5.8-v0.5.9 全部改动与双包蓝钥匙去重修复."
 	"publishedfileid"		"3798163198"
 }
