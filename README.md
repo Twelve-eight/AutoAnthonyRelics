@@ -5,7 +5,9 @@
 1. **Qurious Crafting - Relics（怪异炼化 - 遗物）** — 主目录 `mod/`
 2. **RrcA4hKeyFix（三选一蓝钥匙修复）** — 独立包 `standalone/RrcA4hKeyFix/`
 
-> 注：早期旧版 `sts2-autoanthony-relics` 仓库已于 2026-09-22 停更并归档，当前活跃维护均在本仓库进行。
+> **English**: Houses two Slay the Spire 2 mods: **Qurious Crafting - Relics** (deterministically generates 60 point-budget chaos relics per run from the run seed — completely standalone, no Auto-Anthonyology required) and **RrcA4hKeyFix** (standalone Sapphire Key fix when using Relic Reward Choices with Act 4 Heart).
+
+> 注：本仓沿用历史仓库名 `AutoAnthonyRelics`，当前主模组已更名为 **Qurious Crafting - Relics**，完全独立于 [Auto-Anthonyology（东尼算法）](https://steamcommunity.com/sharedfiles/filedetails/?id=3786611028)；早期旧仓 [sts2-autoanthony-relics](https://github.com/Twelve-eight/sts2-autoanthony-relics) 已停更并归档。
 
 ---
 
@@ -31,17 +33,21 @@
 ## 安装 / Installation
 
 - **创意工坊**：按上方链接分别订阅所需模组与前置。
-- **手动安装（GitHub Releases）**：在 [Releases](https://github.com/Twelve-eight/AutoAnthonyRelics/releases) 中分别下载 `QuriousCraftingRelics-*.zip` 或 `RrcA4hKeyFix-*.zip`，解压至 `<Slay the Spire 2>/mods/`（勿与工坊版同时启用）。
+- **手动安装（GitHub Releases）**：在 [Releases](https://github.com/Twelve-eight/AutoAnthonyRelics/releases) 中按需下载对应压缩包，解压至 `<Slay the Spire 2>/mods/`，解压后目录结构如下（**请勿**同时启用工坊版与手动本地版）：
+  - `mods/QuriousCraftingRelics/{QuriousCraftingRelics.dll,QuriousCraftingRelics.pck,QuriousCraftingRelics.json}`
+  - `mods/RrcA4hKeyFix/{RrcA4hKeyFix.dll,RrcA4hKeyFix.json}`
 
 ## 从源码构建 / Building from source
 
+前置要求：**.NET 9 SDK** 与已安装的《杀戮尖塔 2》。
+
 ```bash
-# QuriousCraftingRelics
+# QuriousCraftingRelics（产物：mod/.godot/mono/temp/bin/Release/QuriousCraftingRelics.{dll,pck}）
 dotnet build mod/QuriousCraftingRelics.csproj -c Release \
   -p:Sts2Path="<path-to-Slay-the-Spire-2>" \
   -p:CopyToModsFolderOnBuild=false
 
-# RrcA4hKeyFix (standalone)
+# RrcA4hKeyFix 独立包（产物：standalone/RrcA4hKeyFix/.godot/mono/temp/bin/Release/RrcA4hKeyFix.dll）
 dotnet build standalone/RrcA4hKeyFix/RrcA4hKeyFix.csproj -c Release \
   -p:Sts2Path="<path-to-Slay-the-Spire-2>" \
   -p:CopyToModsFolderOnBuild=false
